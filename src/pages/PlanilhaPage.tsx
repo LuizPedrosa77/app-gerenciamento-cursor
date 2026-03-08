@@ -288,13 +288,7 @@ export default function PlanilhaPage() {
 
   return (
     <div className="page-fade-in flex flex-col gap-5 max-w-[1400px] mx-auto p-6">
-      {/* Account Filter + Tabs */}
-      <div className="flex items-center gap-3 mb-1 flex-wrap">
-        <select className="gpfx-select text-xs font-semibold" style={{ minWidth: 200 }} value={String(state.activeAccount)}
-          onChange={e => switchAccount(parseInt(e.target.value))}>
-          {state.accounts.map((a, i) => <option key={i} value={String(i)}>{a.name}</option>)}
-        </select>
-      </div>
+      {/* Account Tabs */}
       <div className="flex items-center gap-1 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
         {state.accounts.map((a, i) => (
           <button
@@ -343,22 +337,6 @@ export default function PlanilhaPage() {
         </div>
       </div>
 
-      {/* Overview Stats */}
-      <div className="gpfx-card">
-        <div className="gpfx-card-header"><span className="gpfx-card-title">Visão Geral</span></div>
-        <div className="gpfx-card-body">
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-            <StatBox label="Saldo Atual" value={'$' + fmtNum(balance)} sub={'Base: $' + fmtNum(acc.balance)} />
-            <StatBox label={'P&L ' + year} value={(yearPnl >= 0 ? '+' : '') + '$' + fmtNum(yearPnl)} cls={yearPnl >= 0 ? 'text-gpfx-green' : 'text-gpfx-red'} sub={'Saques: -$' + fmtNum(yearWithdrawals)} />
-            <StatBox label={'Líquido ' + year} value={(yearNet >= 0 ? '+' : '') + '$' + fmtNum(yearNet)} cls={yearNet >= 0 ? 'text-gpfx-green' : 'text-gpfx-red'} sub="P&L − saques" />
-            <StatBox label="P&L Mês" value={(monthPnl >= 0 ? '+' : '') + '$' + fmtNum(monthPnl)} cls={monthPnl >= 0 ? 'text-gpfx-green' : 'text-gpfx-red'} sub={MONTHS[month] + ' ' + year} />
-            <StatBox label="Win Rate" value={winRate + '%'} sub={monthWins + 'W / ' + monthLosses + 'L'} />
-            <StatBox label="Melhor Par" value={bestPairStr} cls="text-gpfx-green" sub="no mês" />
-            <StatBox label="Drawdown Máx." value={'-$' + fmtNum(dd)} cls={dd > 0 ? 'text-gpfx-red' : ''} sub="no mês" />
-            <StatBox label="Trades" value={String(monthTotal)} sub={monthTotal + ' fechados'} />
-          </div>
-        </div>
-      </div>
 
       {/* Annual Grid */}
       <div className="gpfx-card">

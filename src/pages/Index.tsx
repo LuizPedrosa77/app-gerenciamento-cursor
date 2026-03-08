@@ -4,6 +4,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { AppSidebar } from '@/components/GPFXSidebar';
 import DashboardPage from '@/pages/DashboardPage';
 import EvolucaoPage from '@/pages/EvolucaoPage';
+import CalendarioPage from '@/pages/CalendarioPage';
 import PlanilhaPage from '@/pages/PlanilhaPage';
 import AnalisePage from '@/pages/AnalisePage';
 import ContasAtivasPage from '@/pages/ContasAtivasPage';
@@ -33,6 +34,7 @@ function AppLayout() {
       case 'dashboard': return <DashboardPage />;
       case 'tradingview': return <TradingViewPage />;
       case 'evolucao': return <EvolucaoPage />;
+      case 'calendario': return <CalendarioPage onNavigateView={setActiveView} />;
       case 'planilha': return <PlanilhaPage />;
       case 'contas': return <ContasAtivasPage onNavigatePlanilha={() => setActiveView('planilha')} />;
       case 'analise': return <AnalisePage />;

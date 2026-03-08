@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
-  LayoutDashboard, TrendingUp, Table2, BarChart3, Wallet,
+  LayoutDashboard, TrendingUp, ClipboardList, BarChart3, Wallet,
   Menu, X, Check, Moon, Sun, LineChart, ChevronLeft, ChevronRight,
-  CandlestickChart, CheckCircle
+  CandlestickChart, CheckCircle, CalendarDays
 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ActiveAccountCard } from './ActiveAccountCard';
@@ -27,7 +27,8 @@ interface SidebarProps {
 const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'evolucao', label: 'Evolução da Conta', icon: TrendingUp },
-  { id: 'planilha', label: 'Planilha', icon: Table2 },
+  { id: 'calendario', label: 'Calendário', icon: CalendarDays },
+  { id: 'planilha', label: 'Trade Log', icon: ClipboardList },
   { id: 'contas', label: 'Contas Ativas', icon: Wallet },
   { id: 'analise', label: 'Análise das Operações', icon: BarChart3 },
   { id: 'tradingview', label: 'TradingView Chart', icon: LineChart },
