@@ -44,8 +44,27 @@ function AddTradeModal({ open, onClose, onSave, defaultDate }: {
   const [pnl, setPnl] = useState(0);
   const [lots, setLots] = useState(0.1);
   const [date, setDate] = useState(defaultDate);
+  const [screenshotData, setScreenshotData] = useState<string | null>(null);
+  const [screenshotCaption, setScreenshotCaption] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setDate(defaultDate); }, [defaultDate]);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { alert('Imagem muito grande. Máximo 5MB.'); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const data = ev.target?.result as string;
+      if (data.length > 2 * 1024 * 1024) {
+        if (!confirm('⚠️ A imagem tem mais de 2MB em base64. Isso pode deixar o app mais lento. Continuar?')) return;
+      }
+      setScreenshotData(data);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   if (!open) return null;
   return (
@@ -53,7 +72,13 @@ function AddTradeModal({ open, onClose, onSave, defaultDate }: {
       footer={<>
         <button className="btn-gpfx btn-gpfx-ghost" onClick={onClose}>Cancelar</button>
         <button className="btn-gpfx btn-gpfx-primary" onClick={() => {
-          onSave({ date, pair, dir, result, pnl: Math.abs(pnl), lots, hasVM: false, vmLots: 0, vmResult: 'WIN', vmPnl: 0 });
+          const trade: Partial<Trade> = { date, pair, dir, result, pnl: Math.abs(pnl), lots, hasVM: false, vmLots: 0, vmResult: 'WIN', vmPnl: 0 };
+          if (screenshotData) {
+            trade.screenshot = { data: screenshotData, caption: screenshotCaption };
+          }
+          onSave(trade);
+          setScreenshotData(null);
+          setScreenshotCaption('');
           onClose();
         }}>Salvar Trade</button>
       </>}>
@@ -88,6 +113,41 @@ function AddTradeModal({ open, onClose, onSave, defaultDate }: {
           <label className="text-[10px] font-bold uppercase" style={{ color: 'var(--gpfx-text-muted)' }}>Lots</label>
           <input type="number" step="0.01" className="gpfx-input text-xs" value={lots || ''} onChange={e => setLots(parseFloat(e.target.value) || 0)} />
         </div>
+      </div>
+      {/* Screenshot */}
+      <div className="flex flex-col gap-1 mt-1">
+        <label className="text-[10px] font-bold uppercase" style={{ color: 'var(--gpfx-text-muted)' }}>Screenshot (opcional)</label>
+        {!screenshotData ? (
+          <div
+            className="flex flex-col items-center justify-center p-5 rounded-lg cursor-pointer transition-colors hover:bg-[rgba(0,211,149,0.05)]"
+            style={{ border: '2px dashed rgba(0,211,149,0.3)', background: 'rgba(0,211,149,0.02)' }}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Camera size={28} style={{ color: '#00d395', opacity: 0.5 }} />
+            <div className="text-[11px] font-bold mt-2" style={{ color: '#c9d1d9' }}>Clique ou arraste uma imagem</div>
+            <div className="text-[10px] mt-0.5" style={{ color: '#6e7681' }}>PNG, JPG, WEBP — máximo 5MB</div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <img src={screenshotData} alt="Preview" className="w-full rounded-lg object-contain max-h-[160px]" />
+            <button
+              className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded self-start"
+              style={{ color: '#ff4d4d', background: 'rgba(255,77,77,0.1)' }}
+              onClick={() => setScreenshotData(null)}
+            >
+              ✕ Remover imagem
+            </button>
+            <textarea
+              className="gpfx-input w-full text-[11px]"
+              style={{ minHeight: 36, resize: 'vertical' }}
+              placeholder="Nota sobre este setup..."
+              maxLength={200}
+              value={screenshotCaption}
+              onChange={e => setScreenshotCaption(e.target.value)}
+            />
+          </div>
+        )}
+        <input type="file" ref={fileInputRef} accept="image/*" style={{ display: 'none' }} onChange={handleFileSelect} />
       </div>
     </Modal>
   );
