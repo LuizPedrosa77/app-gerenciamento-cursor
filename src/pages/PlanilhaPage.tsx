@@ -304,7 +304,7 @@ export default function PlanilhaPage() {
           }
           return next;
         });
-        useGPFXCtx.save();
+        save();
         alert(`✅ Trades importados com sucesso!`);
       } catch (err: any) {
         alert('Erro ao importar: ' + err.message);
