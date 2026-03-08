@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useGPFX } from '@/contexts/GPFXContext';
 import { MONTHS, MONTHS_FULL, WEEKDAYS, Trade, sumPnl, fmtNum, getWinRate, getTradePnl, getWeekOfMonth } from '@/lib/gpfx-utils';
+import { AccountSelector, DateRangeFilter, DateRange, filterTradesByRange } from '@/components/GPFXFilters';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, LineChart, Line,
@@ -46,7 +47,7 @@ function Section({ title, children, fullWidth }: { title: string; children: Reac
 export default function AnalisePage() {
   const { state } = useGPFX();
   const [accFilter, setAccFilter] = useState<string>('all');
-  const [periodFilter, setPeriodFilter] = useState<string>('all');
+  const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
 
   const filteredTrades = useMemo(() => {
     let trades: Trade[] = [];
@@ -56,20 +57,8 @@ export default function AnalisePage() {
       const idx = parseInt(accFilter);
       if (state.accounts[idx]) trades = [...state.accounts[idx].trades];
     }
-
-    const now = new Date();
-    if (periodFilter === 'week') {
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - now.getDay() + 1);
-      const sw = startOfWeek.toISOString().split('T')[0];
-      trades = trades.filter(t => t.date && t.date >= sw);
-    } else if (periodFilter === 'month') {
-      trades = trades.filter(t => t.year === now.getFullYear() && t.month === now.getMonth());
-    } else if (periodFilter === 'year') {
-      trades = trades.filter(t => t.year === now.getFullYear());
-    }
-    return trades;
-  }, [state, accFilter, periodFilter]);
+    return filterTradesByRange(trades, dateRange);
+  }, [state, accFilter, dateRange]);
 
   const analytics = useMemo(() => {
     const trades = filteredTrades;
@@ -208,17 +197,9 @@ export default function AnalisePage() {
       {/* FILTROS */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-extrabold" style={{ color: 'var(--gpfx-text-primary)' }}>🔍 Análise Comparativa</h1>
-        <div className="flex items-center gap-2">
-          <select className="gpfx-select text-xs" value={accFilter} onChange={e => setAccFilter(e.target.value)}>
-            <option value="all">Todas as contas</option>
-            {state.accounts.map((a, i) => <option key={i} value={i}>{a.name}</option>)}
-          </select>
-          <select className="gpfx-select text-xs" value={periodFilter} onChange={e => setPeriodFilter(e.target.value)}>
-            <option value="week">Semana atual</option>
-            <option value="month">Mês atual</option>
-            <option value="year">Ano atual</option>
-            <option value="all">Todo o histórico</option>
-          </select>
+        <div className="flex items-center gap-2 flex-wrap">
+          <AccountSelector value={accFilter} onChange={setAccFilter} accounts={state.accounts} />
+          <DateRangeFilter value={dateRange} onChange={setDateRange} />
         </div>
       </div>
 

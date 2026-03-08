@@ -5,16 +5,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, Area, AreaChart, Legend,
 } from 'recharts';
-
-/* ── Account Filter Dropdown ── */
-function AccountFilter({ value, onChange, accounts }: { value: string; onChange: (v: string) => void; accounts: { name: string }[] }) {
-  return (
-    <select className="gpfx-select text-xs font-semibold" style={{ minWidth: 200 }} value={value} onChange={e => onChange(e.target.value)}>
-      <option value="all">📊 Todas as contas</option>
-      {accounts.map((a, i) => <option key={i} value={String(i)}>{a.name}</option>)}
-    </select>
-  );
-}
+import { AccountSelector, DateRangeFilter, DateRange, filterTradesByRange } from '@/components/GPFXFilters';
 
 function KpiCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
   return (
@@ -31,12 +22,14 @@ export default function EvolucaoPage() {
   const [accFilter, setAccFilter] = useState<string>(String(state.activeAccount));
   const [yearFilter, setYearFilter] = useState<string>(String(state.activeYear));
   const [tab, setTab] = useState<'overview' | 'monthly'>('overview');
+  const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
 
   const data = useMemo(() => {
     const isAll = accFilter === 'all';
     const accounts = isAll ? state.accounts : [state.accounts[parseInt(accFilter)]];
-    const allTrades: Trade[] = [];
+    let allTrades: Trade[] = [];
     accounts.forEach(a => allTrades.push(...a.trades));
+    allTrades = filterTradesByRange(allTrades, dateRange);
     const baseBalance = accounts.reduce((s, a) => s + a.balance, 0);
 
     const filterYear = yearFilter === 'all' ? null : parseInt(yearFilter);
@@ -96,7 +89,7 @@ export default function EvolucaoPage() {
     const winRates = monthCounts.map((cnt, i) => cnt > 0 ? parseFloat(((monthWins[i] / cnt) * 100).toFixed(1)) : 0);
 
     return { labels, monthPnls, monthPcts, cumPcts, balanceEvo, winRates, monthWins, monthLosses, monthCounts, baseBalance };
-  }, [state, accFilter, yearFilter]);
+  }, [state, accFilter, yearFilter, dateRange]);
 
   const totalPnl = data.monthPnls.reduce((s, v) => s + v, 0);
   const totalTrades = data.monthCounts.reduce((s, v) => s + v, 0);
@@ -128,18 +121,19 @@ export default function EvolucaoPage() {
           <h1 className="text-xl font-extrabold" style={{ color: 'var(--gpfx-text-primary)' }}>📈 Evolução da Conta</h1>
           <span className="text-xs px-3 py-1 rounded-full" style={{ color: 'var(--gpfx-text-secondary)', background: 'rgba(0,0,0,0.07)' }}>{accName}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="flex rounded-lg overflow-hidden" style={{ background: 'var(--gpfx-input-bg)', border: '1px solid var(--gpfx-border)' }}>
             <button onClick={() => setTab('overview')} className="px-4 py-1.5 text-xs font-bold"
               style={{ background: tab === 'overview' ? '#00d395' : 'transparent', color: tab === 'overview' ? '#fff' : 'var(--gpfx-text-muted)' }}>Visão Geral</button>
             <button onClick={() => setTab('monthly')} className="px-4 py-1.5 text-xs font-bold"
               style={{ background: tab === 'monthly' ? '#00d395' : 'transparent', color: tab === 'monthly' ? '#fff' : 'var(--gpfx-text-muted)' }}>Detalhe Mensal</button>
           </div>
-          <AccountFilter value={accFilter} onChange={setAccFilter} accounts={state.accounts} />
+          <AccountSelector value={accFilter} onChange={setAccFilter} accounts={state.accounts} />
           <select value={yearFilter} onChange={e => setYearFilter(e.target.value)} className="gpfx-select text-xs font-semibold">
             <option value="all">Todos os anos</option>
             {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
+          <DateRangeFilter value={dateRange} onChange={setDateRange} />
         </div>
       </div>
 

@@ -7,16 +7,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell, AreaChart, Area, ReferenceLine, LabelList,
 } from 'recharts';
-
-/* ── Account Filter Dropdown ── */
-function AccountFilter({ value, onChange, accounts }: { value: string; onChange: (v: string) => void; accounts: { name: string }[] }) {
-  return (
-    <select className="gpfx-select text-xs font-semibold" style={{ minWidth: 200 }} value={value} onChange={e => onChange(e.target.value)}>
-      <option value="all">📊 Todas as contas</option>
-      {accounts.map((a, i) => <option key={i} value={String(i)}>{a.name}</option>)}
-    </select>
-  );
-}
+import { AccountSelector, DateRangeFilter, DateRange, filterTradesByRange } from '@/components/GPFXFilters';
 
 /* ── Mini Sparkline for KPI cards ── */
 function MiniSparkline({ data, color }: { data: number[]; color: string }) {
@@ -58,22 +49,24 @@ function KpiCard({ label, value, color, sparkData, variation }: {
 export default function DashboardPage() {
   const { state } = useGPFX();
   const [accFilter, setAccFilter] = useState<string>('all');
+  const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
 
   const stats = useMemo(() => {
     const accounts = accFilter === 'all' ? state.accounts : [state.accounts[parseInt(accFilter)]];
+    let allTradesRaw: Trade[] = [];
+    accounts.forEach(acc => allTradesRaw.push(...acc.trades));
+    const allTrades = filterTradesByRange(allTradesRaw, dateRange);
     let totalBalance = 0;
     let totalPnl = 0;
     let totalTrades = 0;
     let totalWins = 0;
-    const allTrades: Trade[] = [];
 
     accounts.forEach(acc => {
       totalBalance += getAccountBalance(acc);
-      totalPnl += sumPnl(acc.trades);
-      totalTrades += acc.trades.length;
-      totalWins += acc.trades.filter(t => t.result === 'WIN').length;
-      allTrades.push(...acc.trades);
     });
+    totalPnl = sumPnl(allTrades);
+    totalTrades = allTrades.length;
+    totalWins = allTrades.filter(t => t.result === 'WIN').length;
 
     const winRate = totalTrades > 0 ? Math.round((totalWins / totalTrades) * 100) : 0;
 
@@ -196,7 +189,7 @@ export default function DashboardPage() {
       balanceEvoSampled, heatmapData, top5Best, top5Worst,
       accountSummary, weekTrades, weekPnlTotal, wrSpark, monthlyPnls,
     };
-  }, [state, accFilter]);
+  }, [state, accFilter, dateRange]);
 
   const tooltipStyle = { background: 'var(--gpfx-card)', border: '1px solid var(--gpfx-border)', borderRadius: 8, color: 'var(--gpfx-text-primary)' };
 
@@ -204,7 +197,10 @@ export default function DashboardPage() {
     <div className="page-fade-in flex flex-col gap-5 max-w-[1400px] mx-auto p-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-extrabold" style={{ color: 'var(--gpfx-text-primary)' }}>Dashboard</h1>
-        <AccountFilter value={accFilter} onChange={setAccFilter} accounts={state.accounts} />
+        <div className="flex items-center gap-2 flex-wrap">
+          <AccountSelector value={accFilter} onChange={setAccFilter} accounts={state.accounts} />
+          <DateRangeFilter value={dateRange} onChange={setDateRange} />
+        </div>
       </div>
 
       {/* KPI Grid */}
