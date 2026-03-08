@@ -117,15 +117,15 @@ export function AppSidebar({ activeView, onChangeView, mobileOpen, onToggleMobil
               className={`flex-shrink-0 transition-all duration-300 ${effectiveCollapsed ? 'sidebar-logo-glow' : ''}`}
             />
             {!effectiveCollapsed && (
-              <div className="flex flex-col min-w-0">
-                <div className="flex items-center gap-1">
-                  <span className="text-[15px] font-extrabold text-white whitespace-nowrap">Gustavo Pedrosa</span>
-                  <span className="text-[17px] font-black whitespace-nowrap" style={{ color: '#00d395' }}>FX</span>
-                </div>
-                <span className="text-[9px] font-bold uppercase tracking-[2px]" style={{ color: '#334155' }}>
-                  Pro Trading Suite
-                </span>
-              </div>
+               <div className="flex flex-col min-w-0">
+                 <div className="flex items-center gap-1">
+                   <span className="text-[15px] font-extrabold text-white whitespace-nowrap">Gustavo Pedrosa</span>
+                   <span className="text-[17px] font-black whitespace-nowrap" style={{ color: '#00d395' }}>FX</span>
+                 </div>
+                 <span className="text-[9px] font-bold uppercase tracking-[2px]" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                   Pro Trading Suite
+                 </span>
+               </div>
             )}
           </div>
 
