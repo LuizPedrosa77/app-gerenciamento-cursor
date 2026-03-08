@@ -181,10 +181,10 @@ export function AppSidebar({ activeView, onChangeView, mobileOpen, onToggleMobil
                    style={{ color: isActive ? '#00d395' : 'rgba(255,255,255,0.55)' }}
                  />
                 {!effectiveCollapsed && (
-                  <span className={`sidebar-menu-label ${isActive ? 'sidebar-label-active' : ''}`}>
-                    {item.label}
-                  </span>
-                )}
+                   <span className={`sidebar-menu-label ${isActive ? 'sidebar-label-active' : ''}`} style={{ color: isActive ? '#00d395' : 'rgba(255,255,255,0.65)' }}>
+                     {item.label}
+                   </span>
+                 )}
               </button>
             );
 
