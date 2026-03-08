@@ -9,6 +9,8 @@ import PlanilhaPage from '@/pages/PlanilhaPage';
 import AnalisePage from '@/pages/AnalisePage';
 import ContasAtivasPage from '@/pages/ContasAtivasPage';
 import TradingViewPage from '@/pages/TradingViewPage';
+import IADoTradePage from '@/pages/IADoTradePage';
+import APIsPage from '@/pages/APIsPage';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 function AppLayout() {
@@ -38,6 +40,8 @@ function AppLayout() {
       case 'planilha': return <PlanilhaPage />;
       case 'contas': return <ContasAtivasPage onNavigatePlanilha={() => setActiveView('planilha')} />;
       case 'analise': return <AnalisePage />;
+      case 'ia': return <IADoTradePage />;
+      case 'apis': return <APIsPage />;
       default: return <PlanilhaPage />;
     }
   };

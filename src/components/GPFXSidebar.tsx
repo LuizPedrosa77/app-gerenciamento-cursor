@@ -3,7 +3,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import {
   LayoutDashboard, TrendingUp, ClipboardList, BarChart3, Wallet,
   Menu, X, Check, Moon, Sun, LineChart, ChevronLeft, ChevronRight,
-  CandlestickChart, CheckCircle, CalendarDays
+  CandlestickChart, CheckCircle, CalendarDays, Bot, Plug
 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ActiveAccountCard } from './ActiveAccountCard';
@@ -32,6 +32,8 @@ const menuItems = [
   { id: 'contas', label: 'Contas Ativas', icon: Wallet },
   { id: 'analise', label: 'Análise das Operações', icon: BarChart3 },
   { id: 'tradingview', label: 'TradingView Chart', icon: LineChart },
+  { id: 'ia', label: 'IA do Trade', icon: Bot },
+  { id: 'apis', label: 'APIs', icon: Plug },
 ];
 
 export function AppSidebar({ activeView, onChangeView, mobileOpen, onToggleMobile, collapsed, onToggleCollapse }: SidebarProps) {
