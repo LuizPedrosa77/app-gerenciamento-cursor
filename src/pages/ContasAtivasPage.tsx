@@ -42,118 +42,177 @@ export default function ContasAtivasPage({ onNavigatePlanilha }: ContasAtivasPro
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {state.accounts.map((acc, i) => {
-          const isActive = i === state.activeAccount;
-          const balance = getAccountBalance(acc);
-          const monthPnl = getMonthPnl(acc, curYear, curMonth);
-          const hasGoal = (acc.monthlyGoal || 0) > 0;
+           const isActive = i === state.activeAccount;
+           const balance = getAccountBalance(acc);
+           const monthPnl = getMonthPnl(acc, curYear, curMonth);
+           const hasGoal = (acc.monthlyGoal || 0) > 0;
 
-          return (
-            <div
-              key={i}
-              className="relative rounded-xl p-4 flex flex-col gap-3 transition-all"
-              style={{
-                background: 'var(--gpfx-card)',
-                border: isActive ? '2px solid #00d395' : '1px solid var(--gpfx-border)',
-              }}
-            >
-              {isActive && (
-                <span className="absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(0,211,149,0.15)', color: '#00d395' }}>
-                  ● Ativa
-                </span>
-              )}
+           return (
+             <div
+               key={i}
+               className="relative rounded-xl p-4 flex flex-col gap-3 transition-all"
+               style={{
+                 background: 'var(--gpfx-card)',
+                 border: isActive ? '2px solid #00d395' : '1px solid var(--gpfx-border)',
+               }}
+             >
+               {isActive && (
+                 <span className="absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(0,211,149,0.15)', color: '#00d395' }}>
+                   ● Ativa
+                 </span>
+               )}
 
-              <div>
-                <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#64748b' }}>CONTA {i + 1}</div>
-                <div className="text-sm font-extrabold" style={{ color: 'var(--gpfx-text-primary)' }}>{acc.name}</div>
-              </div>
+               <div>
+                 <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#64748b' }}>CONTA {i + 1}</div>
+                 <div className="text-sm font-extrabold" style={{ color: 'var(--gpfx-text-primary)' }}>{acc.name}</div>
+               </div>
 
-              <div className="flex justify-between text-xs">
-                <span style={{ color: 'var(--gpfx-text-secondary)' }}>Saldo</span>
-                <span className="font-bold font-mono" style={{ color: 'var(--gpfx-text-primary)' }}>${fmtNum(balance)}</span>
-              </div>
+               <div className="flex justify-between text-xs">
+                 <span style={{ color: 'var(--gpfx-text-secondary)' }}>Saldo</span>
+                 <span className="font-bold font-mono" style={{ color: 'var(--gpfx-text-primary)' }}>${fmtNum(balance)}</span>
+               </div>
 
-              <div className="flex justify-between text-xs">
-                <span style={{ color: 'var(--gpfx-text-secondary)' }}>P&L Mês</span>
-                <span className="font-bold font-mono" style={{ color: monthPnl >= 0 ? '#00d395' : '#ff4d4d' }}>
-                  {monthPnl >= 0 ? '+' : '-'}${fmtNum(Math.abs(monthPnl))}
-                </span>
-              </div>
+               <div className="flex justify-between text-xs">
+                 <span style={{ color: 'var(--gpfx-text-secondary)' }}>P&L Mês</span>
+                 <span className="font-bold font-mono" style={{ color: monthPnl >= 0 ? '#00d395' : '#ff4d4d' }}>
+                   {monthPnl >= 0 ? '+' : '-'}${fmtNum(Math.abs(monthPnl))}
+                 </span>
+               </div>
 
-              {/* Monthly Goal */}
-              <div className="flex flex-col gap-1 pt-1" style={{ borderTop: '1px solid var(--gpfx-border)' }}>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1" style={{ color: '#64748b' }}>
-                    <Target size={10} /> Meta Mensal
-                  </span>
-                </div>
-                {editingGoal === i ? (
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs" style={{ color: 'var(--gpfx-text-muted)' }}>$</span>
-                    <input
-                      type="number"
-                      className="gpfx-input text-xs font-bold flex-1"
-                      style={{ height: 28 }}
-                      value={goalValue}
-                      onChange={e => setGoalValue(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') {
-                          updateMonthlyGoal(i, parseFloat(goalValue) || 0);
-                          setEditingGoal(null);
-                        }
-                        if (e.key === 'Escape') setEditingGoal(null);
-                      }}
-                      autoFocus
-                      placeholder="Ex: 5000"
-                    />
-                    <button className="text-[10px] px-2 py-1 rounded font-bold" style={{ background: 'rgba(0,211,149,0.15)', color: '#00d395' }}
-                      onClick={() => { updateMonthlyGoal(i, parseFloat(goalValue) || 0); setEditingGoal(null); }}>✓</button>
-                  </div>
-                ) : hasGoal ? (
-                  <div className="flex items-center justify-between cursor-pointer" onClick={() => { setGoalValue(String(acc.monthlyGoal || '')); setEditingGoal(i); }}>
-                    <span className="text-xs font-bold" style={{ color: '#00d395' }}>${fmtNum(acc.monthlyGoal!)}</span>
-                    {(() => {
-                      const pct = Math.min(100, Math.max(0, (monthPnl / (acc.monthlyGoal || 1)) * 100));
-                      const barColor = pct >= 100 ? '#00d395' : pct >= 71 ? '#3b82f6' : pct >= 41 ? '#f59e0b' : '#ff4d4d';
-                      return (
-                        <div className="flex items-center gap-1.5 flex-1 ml-2">
-                          <div className="h-1.5 rounded-full overflow-hidden flex-1" style={{ background: '#30363d' }}>
-                            <div style={{ width: Math.min(100, Math.max(0, pct)) + '%', background: barColor, transition: 'width 1s ease' }} className="h-full rounded-full" />
-                          </div>
-                          <span className="text-[10px] font-bold" style={{ color: barColor }}>{pct.toFixed(0)}%</span>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                ) : (
-                  <button
-                    className="text-[11px] font-bold px-2 py-1 rounded w-full text-center"
-                    style={{ background: 'rgba(0,211,149,0.08)', color: '#00d395', border: '1px dashed rgba(0,211,149,0.3)' }}
-                    onClick={() => { setGoalValue(''); setEditingGoal(i); }}
-                  >
-                    + Definir meta
-                  </button>
-                )}
-              </div>
+               {/* Monthly Goal */}
+               <div className="flex flex-col gap-1 pt-1" style={{ borderTop: '1px solid var(--gpfx-border)' }}>
+                 <div className="flex items-center justify-between">
+                   <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1" style={{ color: '#64748b' }}>
+                     <Target size={10} /> Meta Mensal
+                   </span>
+                 </div>
+                 {editingGoal === i ? (
+                   <div className="flex items-center gap-1">
+                     <span className="text-xs" style={{ color: 'var(--gpfx-text-muted)' }}>$</span>
+                     <input
+                       type="number"
+                       className="gpfx-input text-xs font-bold flex-1"
+                       style={{ height: 28 }}
+                       value={goalValue}
+                       onChange={e => setGoalValue(e.target.value)}
+                       onKeyDown={e => {
+                         if (e.key === 'Enter') {
+                           updateMonthlyGoal(i, parseFloat(goalValue) || 0);
+                           setEditingGoal(null);
+                         }
+                         if (e.key === 'Escape') setEditingGoal(null);
+                       }}
+                       autoFocus
+                       placeholder="Ex: 5000"
+                     />
+                     <button className="text-[10px] px-2 py-1 rounded font-bold" style={{ background: 'rgba(0,211,149,0.15)', color: '#00d395' }}
+                       onClick={() => { updateMonthlyGoal(i, parseFloat(goalValue) || 0); setEditingGoal(null); }}>✓</button>
+                   </div>
+                 ) : hasGoal ? (
+                   <div className="flex items-center justify-between cursor-pointer" onClick={() => { setGoalValue(String(acc.monthlyGoal || '')); setEditingGoal(i); }}>
+                     <span className="text-xs font-bold" style={{ color: '#00d395' }}>${fmtNum(acc.monthlyGoal!)}</span>
+                     {(() => {
+                       const pct = Math.min(100, Math.max(0, (monthPnl / (acc.monthlyGoal || 1)) * 100));
+                       const barColor = pct >= 100 ? '#00d395' : pct >= 71 ? '#3b82f6' : pct >= 41 ? '#f59e0b' : '#ff4d4d';
+                       return (
+                         <div className="flex items-center gap-1.5 flex-1 ml-2">
+                           <div className="h-1.5 rounded-full overflow-hidden flex-1" style={{ background: '#30363d' }}>
+                             <div style={{ width: Math.min(100, Math.max(0, pct)) + '%', background: barColor, transition: 'width 1s ease' }} className="h-full rounded-full" />
+                           </div>
+                           <span className="text-[10px] font-bold" style={{ color: barColor }}>{pct.toFixed(0)}%</span>
+                         </div>
+                       );
+                     })()}
+                   </div>
+                 ) : (
+                   <button
+                     className="text-[11px] font-bold px-2 py-1 rounded w-full text-center"
+                     style={{ background: 'rgba(0,211,149,0.08)', color: '#00d395', border: '1px dashed rgba(0,211,149,0.3)' }}
+                     onClick={() => { setGoalValue(''); setEditingGoal(i); }}
+                   >
+                     + Definir meta
+                   </button>
+                 )}
+               </div>
 
-              <Sparkline trades={acc.trades} />
+               <Sparkline trades={acc.trades} />
 
-              <button
-                onClick={() => {
-                  switchAccount(i);
-                  onNavigatePlanilha(i);
-                }}
-                className="w-full py-1.5 rounded-lg text-xs font-bold transition-colors"
+               <button
+                 onClick={() => {
+                   switchAccount(i);
+                   onNavigatePlanilha(i);
+                 }}
+                 className="w-full py-1.5 rounded-lg text-xs font-bold transition-colors"
+                 style={{
+                   background: isActive ? 'rgba(0,211,149,0.15)' : 'rgba(255,255,255,0.06)',
+                   color: isActive ? '#00d395' : 'var(--gpfx-text-secondary)',
+                   border: '1px solid ' + (isActive ? 'rgba(0,211,149,0.3)' : 'var(--gpfx-border)'),
+                 }}
+               >
+                 Acessar
+               </button>
+             </div>
+           );
+         })}
+
+        {/* Card "Em Breve — Conexão Direta com Corretora" */}
+        <div
+          className="rounded-xl p-4 flex flex-col gap-3 items-center"
+          style={{
+            background: 'rgba(0,211,149,0.04)',
+            border: '1px dashed rgba(0,211,149,0.25)',
+          }}
+        >
+          {/* Ícone */}
+          <Plug size={32} color="#00d395" style={{ marginBottom: 12 }} />
+
+          {/* Texto principal */}
+          <div className="text-base font-extrabold text-center" style={{ color: '#e2e8f0', marginBottom: 8 }}>
+            🚧 Em Breve
+          </div>
+
+          {/* Texto descritivo */}
+          <div className="text-xs text-center" style={{ color: 'rgba(255,255,255,0.4)', marginBottom: 16 }}>
+            Conexão direta com sua conta de investimento. Informe o servidor, login e senha investidor para sincronizar automaticamente todo o histórico de operações e gerenciar sua conta em tempo real.
+          </div>
+
+          {/* Badges das plataformas */}
+          <div className="flex flex-wrap gap-2 justify-center mb-4">
+            {['MT5', 'MT4', 'cTrader', 'Tradovate', 'NinjaTrader'].map((platform) => (
+              <span
+                key={platform}
+                className="text-[9px] font-bold px-2 py-0.5 rounded-full"
                 style={{
-                  background: isActive ? 'rgba(0,211,149,0.15)' : 'rgba(255,255,255,0.06)',
-                  color: isActive ? '#00d395' : 'var(--gpfx-text-secondary)',
-                  border: '1px solid ' + (isActive ? 'rgba(0,211,149,0.3)' : 'var(--gpfx-border)'),
+                  background: 'rgba(0,211,149,0.08)',
+                  border: '1px solid rgba(0,211,149,0.15)',
+                  color: '#00d395',
                 }}
               >
-                Acessar
-              </button>
-            </div>
-          );
-        })}
+                {platform}
+              </span>
+            ))}
+          </div>
+
+          {/* Badge "Em desenvolvimento" */}
+          <div
+            className="flex items-center gap-2 px-4 py-1.5 rounded-full"
+            style={{
+              background: 'rgba(0,211,149,0.1)',
+              border: '1px solid rgba(0,211,149,0.25)',
+            }}
+          >
+            <div
+              className="w-2 h-2 rounded-full animate-pulse"
+              style={{ background: '#00d395' }}
+            />
+            <span
+              className="text-xs font-medium"
+              style={{ color: '#00d395' }}
+            >
+              Em desenvolvimento
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );
