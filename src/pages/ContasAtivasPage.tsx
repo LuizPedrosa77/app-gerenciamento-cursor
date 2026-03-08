@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useGPFX } from '@/contexts/GPFXContext';
 import { Account, sumPnl, getMonthPnl, getAccountBalance, fmtNum, getTradePnl } from '@/lib/gpfx-utils';
 import { BarChart, Bar, ResponsiveContainer } from 'recharts';
-import { Target } from 'lucide-react';
+import { Target, Plug } from 'lucide-react';
 
 interface ContasAtivasProps {
   onNavigatePlanilha: (accountIndex: number) => void;
