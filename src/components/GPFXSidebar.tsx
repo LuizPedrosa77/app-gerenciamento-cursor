@@ -149,7 +149,7 @@ export function AppSidebar({ activeView, onChangeView, mobileOpen, onToggleMobil
         {/* Navigation label */}
         {!effectiveCollapsed && (
           <div className="px-5 pt-5 pb-2">
-            <span className="text-[9px] font-bold uppercase tracking-[3px]" style={{ color: '#1e3a2e' }}>
+            <span className="text-[9px] font-bold uppercase tracking-[3px]" style={{ color: 'rgba(255,255,255,0.45)' }}>
               Navegação
             </span>
           </div>
