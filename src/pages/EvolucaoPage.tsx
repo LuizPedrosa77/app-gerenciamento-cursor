@@ -5,16 +5,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, Area, AreaChart, Legend,
 } from 'recharts';
-
-/* ── Account Filter Dropdown ── */
-function AccountFilter({ value, onChange, accounts }: { value: string; onChange: (v: string) => void; accounts: { name: string }[] }) {
-  return (
-    <select className="gpfx-select text-xs font-semibold" style={{ minWidth: 200 }} value={value} onChange={e => onChange(e.target.value)}>
-      <option value="all">📊 Todas as contas</option>
-      {accounts.map((a, i) => <option key={i} value={String(i)}>{a.name}</option>)}
-    </select>
-  );
-}
+import { AccountSelector, DateRangeFilter, DateRange, filterTradesByRange } from '@/components/GPFXFilters';
 
 function KpiCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
   return (
