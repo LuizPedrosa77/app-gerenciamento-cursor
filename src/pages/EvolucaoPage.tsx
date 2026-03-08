@@ -22,6 +22,7 @@ export default function EvolucaoPage() {
   const [accFilter, setAccFilter] = useState<string>(String(state.activeAccount));
   const [yearFilter, setYearFilter] = useState<string>(String(state.activeYear));
   const [tab, setTab] = useState<'overview' | 'monthly'>('overview');
+  const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
 
   const data = useMemo(() => {
     const isAll = accFilter === 'all';
