@@ -11,6 +11,7 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip,
   CartesianGrid, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from 'recharts';
+import { Lightbox } from '@/components/Lightbox';
 
 /* ── Modal ── */
 function Modal({ open, onClose, title, children, footer }: {
