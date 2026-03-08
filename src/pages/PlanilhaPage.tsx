@@ -596,7 +596,7 @@ export default function PlanilhaPage() {
                         key={t.id}
                         className="grid items-center px-3 transition-colors"
                         style={{
-                          gridTemplateColumns: '28px 36px 1fr 70px 70px 100px 36px 32px 32px',
+                          gridTemplateColumns: '28px 36px 1fr 70px 70px 100px 36px 56px 32px 32px',
                           height: 44,
                           background: isSelected ? 'rgba(0,211,149,0.06)' : ti % 2 === 0 ? '#0d1117' : '#161b22',
                           borderBottom: ti < dayTrades.length - 1 ? '1px solid #21262d' : 'none',
