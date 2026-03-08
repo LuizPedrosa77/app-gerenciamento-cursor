@@ -86,7 +86,7 @@ function getHeaderPeriodCutoff(period: string): string | null {
 
 export default function TradingViewPage() {
   const { theme } = useTheme();
-  const { state } = useGPFX();
+  const { state, updateTrade } = useGPFX();
   const [symbol, setSymbol] = useState('FX:EURUSD');
   const [interval, setInterval] = useState('D');
   const containerRef = useRef<HTMLDivElement>(null);
