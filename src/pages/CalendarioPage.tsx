@@ -11,6 +11,7 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip,
   CartesianGrid, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from 'recharts';
+import { Lightbox } from '@/components/Lightbox';
 
 /* ── Modal ── */
 function Modal({ open, onClose, title, children, footer }: {
@@ -121,6 +122,7 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
     try { return JSON.parse(localStorage.getItem('gpfx_daily_notes') || '{}'); } catch { return {}; }
   });
   const [noteTimer, setNoteTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [lightbox, setLightbox] = useState<{ open: boolean; images: { data: string; caption: string; tradePair?: string }[]; index: number }>({ open: false, images: [], index: 0 });
 
   // Review day: default to yesterday
   const [reviewDate, setReviewDate] = useState(() => {
@@ -539,6 +541,7 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
                 <thead>
                   <tr style={{ background: 'var(--gpfx-input-bg)' }}>
                     <th className="px-3 py-2 text-left font-bold" style={{ color: 'var(--gpfx-text-muted)' }}>#</th>
+                    <th className="px-3 py-2 text-left font-bold" style={{ color: 'var(--gpfx-text-muted)' }}>📸</th>
                     <th className="px-3 py-2 text-left font-bold" style={{ color: 'var(--gpfx-text-muted)' }}>Par</th>
                     <th className="px-3 py-2 text-left font-bold" style={{ color: 'var(--gpfx-text-muted)' }}>Direção</th>
                     <th className="px-3 py-2 text-left font-bold" style={{ color: 'var(--gpfx-text-muted)' }}>Resultado</th>
@@ -552,6 +555,23 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
                     return (
                       <tr key={t.id} style={{ background: t.result === 'WIN' ? 'rgba(0,211,149,0.05)' : 'rgba(255,77,77,0.05)', borderBottom: '1px solid var(--gpfx-border)' }}>
                         <td className="px-3 py-2 font-bold" style={{ color: 'var(--gpfx-text-muted)' }}>{i + 1}</td>
+                        <td className="px-3 py-2">
+                          {t.screenshot ? (
+                            <img
+                              src={t.screenshot.data}
+                              alt="Screenshot"
+                              className="w-12 h-12 rounded object-cover cursor-pointer border"
+                              style={{ borderColor: '#00d395' }}
+                              onClick={() => {
+                                const imgs = reviewTrades.filter(tr => tr.screenshot).map(tr => ({ data: tr.screenshot!.data, caption: tr.screenshot!.caption, tradePair: tr.pair }));
+                                const idx = imgs.findIndex(im => im.data === t.screenshot!.data);
+                                setLightbox({ open: true, images: imgs, index: Math.max(0, idx) });
+                              }}
+                            />
+                          ) : (
+                            <span className="text-[10px]" style={{ color: 'var(--gpfx-text-muted)' }}>—</span>
+                          )}
+                        </td>
                         <td className="px-3 py-2 font-bold" style={{ color: 'var(--gpfx-text-primary)' }}>{t.pair}</td>
                         <td className="px-3 py-2">
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{
@@ -623,6 +643,19 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
             }}>
               <div className="flex items-center gap-3">
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ color: 'var(--gpfx-text-muted)', background: 'var(--gpfx-border)' }}>#{i + 1}</span>
+                {t.screenshot && (
+                  <img
+                    src={t.screenshot.data}
+                    alt="Screenshot"
+                    className="w-10 h-10 rounded object-cover cursor-pointer border"
+                    style={{ borderColor: '#00d395' }}
+                    onClick={() => {
+                      const imgs = dayModalTrades.filter(tr => tr.screenshot).map(tr => ({ data: tr.screenshot!.data, caption: tr.screenshot!.caption, tradePair: tr.pair }));
+                      const idx = imgs.findIndex(im => im.data === t.screenshot!.data);
+                      setLightbox({ open: true, images: imgs, index: Math.max(0, idx) });
+                    }}
+                  />
+                )}
                 <span className="text-xs font-bold" style={{ color: 'var(--gpfx-text-primary)' }}>{t.pair}</span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{
                   color: t.dir === 'BUY' ? '#00d395' : '#ff4d4d',
@@ -645,6 +678,9 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
 
       {/* Add Trade Modal */}
       <AddTradeModal open={addTradeModal} onClose={() => setAddTradeModal(false)} onSave={handleAddTrade} defaultDate={addTradeDate} />
+
+      {/* Lightbox */}
+      <Lightbox open={lightbox.open} onClose={() => setLightbox({ ...lightbox, open: false })} images={lightbox.images} initialIndex={lightbox.index} />
     </div>
   );
 }

@@ -4,8 +4,9 @@ import {
   MONTHS, YEARS, PAIRS, DIRECTIONS, RESULTS,
   sumPnl, fmtNum, signedPnl, getAccountBalance, uid, Trade,
 } from '@/lib/gpfx-utils';
-import { Download, Upload, Pencil, X, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Download, Upload, Pencil, X, RefreshCw, AlertTriangle, Camera, Trash2, ImageIcon } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Lightbox } from '@/components/Lightbox';
 
 /* ── Modal component ── */
 function Modal({ open, onClose, title, children, footer }: {
@@ -56,6 +57,13 @@ export default function PlanilhaPage() {
   // Batch selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteModal, setBulkDeleteModal] = useState(false);
+
+  // Screenshot state
+  const [screenshotModal, setScreenshotModal] = useState<{ open: boolean; trade: Trade | null }>({ open: false, trade: null });
+  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [screenshotCaption, setScreenshotCaption] = useState('');
+  const [lightbox, setLightbox] = useState<{ open: boolean; images: { data: string; caption: string; tradePair?: string }[]; index: number }>({ open: false, images: [], index: 0 });
+  const screenshotInputRef = useRef<HTMLInputElement>(null);
 
   const year = state.activeYear;
   const month = state.activeMonth;
@@ -143,6 +151,39 @@ export default function PlanilhaPage() {
     idsToDelete.forEach(id => deleteTrade(id));
     setSelectedIds(new Set());
     setBulkDeleteModal(false);
+  };
+
+  // Screenshot helpers
+  const openScreenshotModal = (trade: Trade) => {
+    setScreenshotPreview(trade.screenshot?.data || null);
+    setScreenshotCaption(trade.screenshot?.caption || '');
+    setScreenshotModal({ open: true, trade });
+  };
+
+  const handleScreenshotFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { alert('Imagem muito grande. Máximo 5MB.'); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const data = ev.target?.result as string;
+      if (data.length > 2 * 1024 * 1024) {
+        if (!confirm('⚠️ A imagem tem mais de 2MB em base64. Isso pode deixar o app mais lento. Continuar?')) return;
+      }
+      setScreenshotPreview(data);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const saveScreenshot = () => {
+    if (!screenshotModal.trade) return;
+    if (screenshotPreview) {
+      updateTrade(screenshotModal.trade.id, 'screenshot', { data: screenshotPreview, caption: screenshotCaption });
+    } else {
+      updateTrade(screenshotModal.trade.id, 'screenshot', undefined);
+    }
+    setScreenshotModal({ open: false, trade: null });
   };
 
   // Edit modal helpers
@@ -529,7 +570,7 @@ export default function PlanilhaPage() {
                   {/* Table Header */}
                   <div className="grid items-center px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider"
                     style={{
-                      gridTemplateColumns: '28px 36px 1fr 70px 70px 100px 36px 32px 32px',
+                      gridTemplateColumns: '28px 36px 1fr 70px 70px 100px 36px 56px 32px 32px',
                       background: '#0d1117',
                       color: '#6e7681',
                       borderBottom: '1px solid #21262d'
@@ -541,6 +582,7 @@ export default function PlanilhaPage() {
                     <span>Result.</span>
                     <span className="text-right">P&L</span>
                     <span className="text-center">VM</span>
+                    <span className="text-center">📸</span>
                     <span></span>
                     <span></span>
                   </div>
@@ -554,7 +596,7 @@ export default function PlanilhaPage() {
                         key={t.id}
                         className="grid items-center px-3 transition-colors"
                         style={{
-                          gridTemplateColumns: '28px 36px 1fr 70px 70px 100px 36px 32px 32px',
+                          gridTemplateColumns: '28px 36px 1fr 70px 70px 100px 36px 56px 32px 32px',
                           height: 44,
                           background: isSelected ? 'rgba(0,211,149,0.06)' : ti % 2 === 0 ? '#0d1117' : '#161b22',
                           borderBottom: ti < dayTrades.length - 1 ? '1px solid #21262d' : 'none',
@@ -602,6 +644,36 @@ export default function PlanilhaPage() {
                         <span className="text-center">
                           {t.hasVM && <RefreshCw size={14} style={{ color: '#f59e0b', opacity: 0.7 }} />}
                         </span>
+
+                        {/* Screenshot */}
+                        <div className="flex items-center justify-center gap-1">
+                          {t.screenshot ? (
+                            <img
+                              src={t.screenshot.data}
+                              alt="Screenshot"
+                              className="w-8 h-8 rounded object-cover cursor-pointer border"
+                              style={{ borderColor: '#00d395' }}
+                              onClick={() => setLightbox({ open: true, images: [{ data: t.screenshot!.data, caption: t.screenshot!.caption, tradePair: t.pair }], index: 0 })}
+                            />
+                          ) : (
+                            <button
+                              className="flex items-center justify-center w-7 h-7 rounded transition-colors hover:bg-[#21262d]"
+                              onClick={() => openScreenshotModal(t)}
+                              title="Adicionar screenshot"
+                            >
+                              <Camera size={14} style={{ color: '#6e7681' }} />
+                            </button>
+                          )}
+                          {t.screenshot && (
+                            <button
+                              className="flex items-center justify-center w-5 h-5 rounded transition-colors hover:bg-[#21262d]"
+                              onClick={() => openScreenshotModal(t)}
+                              title="Editar screenshot"
+                            >
+                              <Camera size={10} style={{ color: '#00d395' }} />
+                            </button>
+                          )}
+                        </div>
 
                         {/* Edit */}
                         <button
@@ -797,6 +869,53 @@ export default function PlanilhaPage() {
           4. Selecione o arquivo abaixo
         </div>
       </Modal>
+
+      {/* Screenshot Modal */}
+      <Modal open={screenshotModal.open} onClose={() => setScreenshotModal({ open: false, trade: null })}
+        title={`📸 Screenshot — ${screenshotModal.trade?.pair || ''} ${screenshotModal.trade?.dir || ''} ${screenshotModal.trade?.date || ''}`}
+        footer={<>
+          <button className="btn-gpfx btn-gpfx-ghost" onClick={() => setScreenshotModal({ open: false, trade: null })}>Cancelar</button>
+          <button className="btn-gpfx btn-gpfx-primary" onClick={saveScreenshot}>Salvar</button>
+        </>}>
+        {!screenshotPreview ? (
+          <div
+            className="flex flex-col items-center justify-center p-8 rounded-lg cursor-pointer transition-colors hover:bg-[rgba(0,211,149,0.05)]"
+            style={{ border: '2px dashed rgba(0,211,149,0.3)', background: 'rgba(0,211,149,0.02)' }}
+            onClick={() => screenshotInputRef.current?.click()}
+          >
+            <ImageIcon size={40} style={{ color: '#00d395', opacity: 0.5 }} />
+            <div className="text-sm font-bold mt-3" style={{ color: '#c9d1d9' }}>Arraste a imagem aqui ou clique para selecionar</div>
+            <div className="text-[11px] mt-1" style={{ color: '#6e7681' }}>PNG, JPG, WEBP — máximo 5MB</div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <img src={screenshotPreview} alt="Preview" className="w-full rounded-lg object-contain max-h-[300px]" />
+            <button
+              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded self-start"
+              style={{ color: '#ff4d4d', background: 'rgba(255,77,77,0.1)' }}
+              onClick={() => setScreenshotPreview(null)}
+            >
+              <Trash2 size={12} /> Remover imagem
+            </button>
+          </div>
+        )}
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#8b949e' }}>Legenda (opcional)</label>
+          <textarea
+            className="gpfx-input w-full text-xs"
+            style={{ minHeight: 50, resize: 'vertical' }}
+            placeholder="Adicione uma nota sobre este setup..."
+            maxLength={200}
+            value={screenshotCaption}
+            onChange={e => setScreenshotCaption(e.target.value)}
+          />
+          <span className="text-[10px] text-right" style={{ color: '#484f58' }}>{screenshotCaption.length}/200</span>
+        </div>
+        <input type="file" ref={screenshotInputRef} accept="image/*" style={{ display: 'none' }} onChange={handleScreenshotFile} />
+      </Modal>
+
+      {/* Lightbox */}
+      <Lightbox open={lightbox.open} onClose={() => setLightbox({ ...lightbox, open: false })} images={lightbox.images} initialIndex={lightbox.index} />
     </div>
   );
 }

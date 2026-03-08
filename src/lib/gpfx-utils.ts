@@ -15,6 +15,11 @@ export const DIRECTIONS = ['BUY', 'SELL'];
 export const RESULTS = ['WIN', 'LOSS'];
 export const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
+export interface TradeScreenshot {
+  data: string;
+  caption: string;
+}
+
 export interface Trade {
   id: string;
   year: number;
@@ -29,6 +34,7 @@ export interface Trade {
   vmLots?: number;
   vmResult: string;
   vmPnl: number;
+  screenshot?: TradeScreenshot;
 }
 
 export interface Account {
