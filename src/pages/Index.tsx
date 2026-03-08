@@ -9,6 +9,8 @@ import PlanilhaPage from '@/pages/PlanilhaPage';
 import AnalisePage from '@/pages/AnalisePage';
 import ContasAtivasPage from '@/pages/ContasAtivasPage';
 import TradingViewPage from '@/pages/TradingViewPage';
+import IADoTradePage from '@/pages/IADoTradePage';
+import APIsPage from '@/pages/APIsPage';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 function AppLayout() {
