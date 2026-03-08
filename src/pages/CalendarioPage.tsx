@@ -399,6 +399,7 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
         date: data.date || '', pair: data.pair || 'EUR/USD', dir: data.dir || 'BUY',
         lots: data.lots || 0.1, result: data.result || 'WIN', pnl: data.pnl || 0,
         hasVM: false, vmLots: 0, vmResult: 'WIN', vmPnl: 0,
+        ...(data.screenshot ? { screenshot: data.screenshot } : {}),
       });
       accounts[prev.activeAccount] = accCopy;
       return { ...prev, accounts };
