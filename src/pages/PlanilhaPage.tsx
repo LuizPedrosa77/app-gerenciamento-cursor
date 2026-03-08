@@ -337,22 +337,6 @@ export default function PlanilhaPage() {
         </div>
       </div>
 
-      {/* Overview Stats */}
-      <div className="gpfx-card">
-        <div className="gpfx-card-header"><span className="gpfx-card-title">Visão Geral</span></div>
-        <div className="gpfx-card-body">
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-            <StatBox label="Saldo Atual" value={'$' + fmtNum(balance)} sub={'Base: $' + fmtNum(acc.balance)} />
-            <StatBox label={'P&L ' + year} value={(yearPnl >= 0 ? '+' : '') + '$' + fmtNum(yearPnl)} cls={yearPnl >= 0 ? 'text-gpfx-green' : 'text-gpfx-red'} sub={'Saques: -$' + fmtNum(yearWithdrawals)} />
-            <StatBox label={'Líquido ' + year} value={(yearNet >= 0 ? '+' : '') + '$' + fmtNum(yearNet)} cls={yearNet >= 0 ? 'text-gpfx-green' : 'text-gpfx-red'} sub="P&L − saques" />
-            <StatBox label="P&L Mês" value={(monthPnl >= 0 ? '+' : '') + '$' + fmtNum(monthPnl)} cls={monthPnl >= 0 ? 'text-gpfx-green' : 'text-gpfx-red'} sub={MONTHS[month] + ' ' + year} />
-            <StatBox label="Win Rate" value={winRate + '%'} sub={monthWins + 'W / ' + monthLosses + 'L'} />
-            <StatBox label="Melhor Par" value={bestPairStr} cls="text-gpfx-green" sub="no mês" />
-            <StatBox label="Drawdown Máx." value={'-$' + fmtNum(dd)} cls={dd > 0 ? 'text-gpfx-red' : ''} sub="no mês" />
-            <StatBox label="Trades" value={String(monthTotal)} sub={monthTotal + ' fechados'} />
-          </div>
-        </div>
-      </div>
 
       {/* Annual Grid */}
       <div className="gpfx-card">
