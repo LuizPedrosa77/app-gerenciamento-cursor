@@ -46,6 +46,137 @@ function KpiCard({ label, value, color, sparkData, variation }: {
   );
 }
 
+/* ── Monthly Goal Card ── */
+function MonthlyGoalCard({ accFilter }: { accFilter: string }) {
+  const { state } = useGPFX();
+  const now = new Date();
+  const curYear = now.getFullYear();
+  const curMonth = now.getMonth();
+  const MONTHS_FULL = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+  // If "all accounts", use active account's goal; otherwise use selected
+  const accIdx = accFilter === 'all' ? state.activeAccount : parseInt(accFilter);
+  const acc = state.accounts[accIdx];
+  if (!acc) return null;
+  const goal = acc.monthlyGoal || 0;
+  if (goal <= 0) return null;
+
+  const monthPnl = getMonthPnl(acc, curYear, curMonth);
+  const pct = (monthPnl / goal) * 100;
+  const clampedPct = Math.min(100, Math.max(0, pct));
+  const barColor = pct >= 100 ? '#00d395' : pct >= 71 ? '#3b82f6' : pct >= 41 ? '#f59e0b' : '#ff4d4d';
+  const isAchieved = pct >= 100;
+
+  // Days remaining
+  const lastDay = new Date(curYear, curMonth + 1, 0).getDate();
+  const daysRemaining = Math.max(0, lastDay - now.getDate());
+
+  // Days operated this month
+  const monthTrades = acc.trades.filter(t => t.year === curYear && t.month === curMonth);
+  const daysOperated = new Set(monthTrades.filter(t => t.date).map(t => t.date)).size;
+
+  // Pace
+  const rateNeeded = daysRemaining > 0 ? Math.max(0, (goal - monthPnl) / daysRemaining) : 0;
+  const rateActual = daysOperated > 0 ? monthPnl / daysOperated : 0;
+
+  // Status badge
+  let badge: { emoji: string; text: string; color: string };
+  if (monthPnl < 0) badge = { emoji: '🔴', text: 'Atenção — Revise sua estratégia', color: '#ff4d4d' };
+  else if (pct >= 100) badge = { emoji: '🟢', text: 'Meta Atingida!', color: '#00d395' };
+  else if (pct >= 71) badge = { emoji: '🔵', text: 'Quase lá!', color: '#3b82f6' };
+  else if (pct >= 41) badge = { emoji: '🟡', text: 'No caminho certo', color: '#f59e0b' };
+  else badge = { emoji: '🟠', text: 'Abaixo do esperado', color: '#f97316' };
+
+  const diff = monthPnl - goal;
+
+  return (
+    <div className="gpfx-card overflow-hidden" style={{ border: isAchieved ? '1px solid rgba(0,211,149,0.4)' : undefined }}>
+      <div className="gpfx-card-body p-5">
+        <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
+          <div>
+            <div className="text-base font-extrabold flex items-center gap-2" style={{ color: 'var(--gpfx-text-primary)' }}>
+              🎯 Meta Mensal — {acc.name}
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: 'var(--gpfx-text-muted)' }}>
+              {MONTHS_FULL[curMonth]} {curYear}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: barColor + '20', color: barColor }}>
+              {badge.emoji} {badge.text}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-end gap-6 flex-wrap mb-4">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--gpfx-text-muted)' }}>P&L Atual</div>
+            <div className="text-2xl font-extrabold" style={{ color: monthPnl >= 0 ? '#00d395' : '#ff4d4d' }}>
+              {monthPnl >= 0 ? '+' : ''}${fmtNum(monthPnl)}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--gpfx-text-muted)' }}>Meta</div>
+            <div className="text-lg font-bold" style={{ color: 'var(--gpfx-text-secondary)' }}>${fmtNum(goal)}</div>
+          </div>
+          <div className="text-3xl font-black" style={{ color: barColor }}>{clampedPct.toFixed(0)}%</div>
+          <div className="flex-1 text-right">
+            <div className="text-xs font-bold" style={{ color: isAchieved ? '#00d395' : '#ff4d4d' }}>
+              {isAchieved ? `Meta superada em $${fmtNum(diff)} 🎉` : `Faltam $${fmtNum(Math.abs(diff))} para atingir a meta`}
+            </div>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="relative mb-4">
+          <div className="h-3 rounded-full overflow-hidden" style={{ background: '#21262d' }}>
+            <div
+              className={`h-full rounded-full ${isAchieved ? 'animate-pulse' : ''}`}
+              style={{
+                width: clampedPct + '%',
+                background: barColor,
+                transition: 'width 1s ease',
+                boxShadow: isAchieved ? `0 0 12px ${barColor}80` : 'none',
+              }}
+            />
+          </div>
+          {/* Markers */}
+          <div className="relative h-3 -mt-3">
+            {[25, 50, 75, 100].map(m => (
+              <div key={m} className="absolute top-0 flex flex-col items-center" style={{ left: m + '%', transform: 'translateX(-50%)' }}>
+                <div className="w-px h-3" style={{ background: 'rgba(255,255,255,0.15)' }} />
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between mt-1">
+            {[25, 50, 75, 100].map(m => (
+              <span key={m} className="text-[9px] font-bold" style={{ color: '#484f58', width: '25%', textAlign: 'center' }}>{m}%</span>
+            ))}
+          </div>
+        </div>
+
+        {/* Pace info */}
+        <div className="flex items-center gap-5 flex-wrap text-xs">
+          <div className="flex flex-col">
+            <span style={{ color: 'var(--gpfx-text-muted)' }}>Dias restantes</span>
+            <span className="font-bold" style={{ color: 'var(--gpfx-text-primary)' }}>{daysRemaining} dias</span>
+          </div>
+          {!isAchieved && daysRemaining > 0 && (
+            <div className="flex flex-col">
+              <span style={{ color: 'var(--gpfx-text-muted)' }}>Ritmo necessário</span>
+              <span className="font-bold" style={{ color: '#f59e0b' }}>${fmtNum(rateNeeded)}/dia</span>
+            </div>
+          )}
+          <div className="flex flex-col">
+            <span style={{ color: 'var(--gpfx-text-muted)' }}>Ritmo atual</span>
+            <span className="font-bold" style={{ color: rateActual >= 0 ? '#00d395' : '#ff4d4d' }}>${fmtNum(rateActual)}/dia operado</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { state } = useGPFX();
   const [accFilter, setAccFilter] = useState<string>('all');
