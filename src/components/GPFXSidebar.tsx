@@ -6,7 +6,6 @@ import {
   CandlestickChart, CheckCircle, CalendarDays, Bot, Plug
 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
-import { ActiveAccountCard } from './ActiveAccountCard';
 import { useGPFX } from '@/contexts/GPFXContext';
 import {
   Tooltip,
@@ -117,15 +116,15 @@ export function AppSidebar({ activeView, onChangeView, mobileOpen, onToggleMobil
               className={`flex-shrink-0 transition-all duration-300 ${effectiveCollapsed ? 'sidebar-logo-glow' : ''}`}
             />
             {!effectiveCollapsed && (
-              <div className="flex flex-col min-w-0">
-                <div className="flex items-center gap-1">
-                  <span className="text-[15px] font-extrabold text-white whitespace-nowrap">Gustavo Pedrosa</span>
-                  <span className="text-[17px] font-black whitespace-nowrap" style={{ color: '#00d395' }}>FX</span>
-                </div>
-                <span className="text-[9px] font-bold uppercase tracking-[2px]" style={{ color: '#334155' }}>
-                  Pro Trading Suite
-                </span>
-              </div>
+               <div className="flex flex-col min-w-0">
+                 <div className="flex items-center gap-1">
+                   <span className="text-[15px] font-extrabold text-white whitespace-nowrap">Gustavo Pedrosa</span>
+                   <span className="text-[17px] font-black whitespace-nowrap" style={{ color: '#00d395' }}>FX</span>
+                 </div>
+                 <span className="text-[9px] font-bold uppercase tracking-[2px]" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                   Pro Trading Suite
+                 </span>
+               </div>
             )}
           </div>
 
@@ -149,7 +148,7 @@ export function AppSidebar({ activeView, onChangeView, mobileOpen, onToggleMobil
         {/* Navigation label */}
         {!effectiveCollapsed && (
           <div className="px-5 pt-5 pb-2">
-            <span className="text-[9px] font-bold uppercase tracking-[3px]" style={{ color: '#1e3a2e' }}>
+            <span className="text-[9px] font-bold uppercase tracking-[3px]" style={{ color: 'rgba(255,255,255,0.45)' }}>
               Navegação
             </span>
           </div>
@@ -172,18 +171,19 @@ export function AppSidebar({ activeView, onChangeView, mobileOpen, onToggleMobil
                 onClick={() => handleClick(item.id)}
               >
                 <item.icon
-                  className={`
-                    sidebar-menu-icon flex-shrink-0
-                    ${isActive ? 'sidebar-icon-active' : ''}
-                    ${isPinging ? 'sidebar-icon-ping' : ''}
-                  `}
-                  size={18}
-                />
+                   className={`
+                     sidebar-menu-icon flex-shrink-0
+                     ${isActive ? 'sidebar-icon-active' : ''}
+                     ${isPinging ? 'sidebar-icon-ping' : ''}
+                   `}
+                   size={18}
+                   style={{ color: isActive ? '#00d395' : 'rgba(255,255,255,0.55)' }}
+                 />
                 {!effectiveCollapsed && (
-                  <span className={`sidebar-menu-label ${isActive ? 'sidebar-label-active' : ''}`}>
-                    {item.label}
-                  </span>
-                )}
+                   <span className={`sidebar-menu-label ${isActive ? 'sidebar-label-active' : ''}`} style={{ color: isActive ? '#00d395' : 'rgba(255,255,255,0.65)' }}>
+                     {item.label}
+                   </span>
+                 )}
               </button>
             );
 
@@ -201,11 +201,6 @@ export function AppSidebar({ activeView, onChangeView, mobileOpen, onToggleMobil
             return button;
           })}
         </nav>
-
-        {/* Active account card */}
-        <div className={`transition-all duration-300 ${effectiveCollapsed ? 'opacity-0 h-0 overflow-hidden' : 'opacity-100'}`}>
-          <ActiveAccountCard />
-        </div>
 
         {/* Footer separator */}
         <div className="sidebar-separator mx-3" />
