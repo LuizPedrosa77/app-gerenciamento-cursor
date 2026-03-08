@@ -287,7 +287,7 @@ export default function PlanilhaPage() {
         }
         if (newTrades.length === 0) { alert('Nenhum trade encontrado.'); return; }
 
-        useGPFXCtx.setState(prev => {
+        setState(prev => {
           const accounts = [...prev.accounts];
           const accCopy = { ...accounts[prev.activeAccount], trades: [...accounts[prev.activeAccount].trades] };
           let added = 0;
