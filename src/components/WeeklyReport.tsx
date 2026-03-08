@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, FileText } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell, ReferenceLine,
 } from 'recharts';
-import { Trade, fmtNum, getTradePnl, getWinRate, sumPnl, WEEKDAYS } from '@/lib/gpfx-utils';
+import { Trade, fmtNum, getTradePnl, getWinRate, sumPnl } from '@/lib/gpfx-utils';
 import jsPDF from 'jspdf';
 
 interface WeeklyReportProps {

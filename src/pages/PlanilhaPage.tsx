@@ -30,11 +30,10 @@ function Modal({ open, onClose, title, children, footer }: {
 
 export default function PlanilhaPage() {
   const {
-    state, activeAcc, switchAccount, addAccount, deleteAccount, renameAccount,
+    state, activeAcc, setState, save, switchAccount, addAccount, deleteAccount, renameAccount,
     updateBalance, updateNotes, updateMeta, addTrade, addNewDay, updateTrade,
     deleteTrade, resetAccount, switchYear, switchMonth, updateWithdrawal,
   } = useGPFX();
-  const useGPFXCtx = useGPFX();
 
   const [renameModal, setRenameModal] = useState<{ open: boolean; idx: number; name: string }>({ open: false, idx: 0, name: '' });
   const [resetModal, setResetModal] = useState(false);

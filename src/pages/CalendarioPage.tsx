@@ -5,7 +5,7 @@ import {
   sumPnl, fmtNum, signedPnl, getWinRate, getTradePnl, uid, Trade,
 } from '@/lib/gpfx-utils';
 import {
-  ChevronLeft, ChevronRight, Plus, Calendar, TrendingUp,
+  ChevronLeft, ChevronRight, Plus, Calendar,
 } from 'lucide-react';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip,
