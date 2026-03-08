@@ -27,11 +27,11 @@ interface SidebarProps {
 const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'evolucao', label: 'Evolução da Conta', icon: TrendingUp },
+  { id: 'analise', label: 'Análise das Operações', icon: BarChart3 },
   { id: 'calendario', label: 'Calendário', icon: CalendarDays },
   { id: 'planilha', label: 'Trade Log', icon: ClipboardList },
-  { id: 'contas', label: 'Contas Ativas', icon: Wallet },
-  { id: 'analise', label: 'Análise das Operações', icon: BarChart3 },
   { id: 'tradingview', label: 'TradingView Chart', icon: LineChart },
+  { id: 'contas', label: 'Contas Ativas', icon: Wallet },
   { id: 'ia', label: 'IA do Trade', icon: Bot },
   { id: 'apis', label: 'APIs', icon: Plug },
 ];
