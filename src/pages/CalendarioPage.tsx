@@ -122,6 +122,7 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
     try { return JSON.parse(localStorage.getItem('gpfx_daily_notes') || '{}'); } catch { return {}; }
   });
   const [noteTimer, setNoteTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [lightbox, setLightbox] = useState<{ open: boolean; images: { data: string; caption: string; tradePair?: string }[]; index: number }>({ open: false, images: [], index: 0 });
 
   // Review day: default to yesterday
   const [reviewDate, setReviewDate] = useState(() => {
