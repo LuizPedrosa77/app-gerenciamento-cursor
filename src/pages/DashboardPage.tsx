@@ -60,15 +60,13 @@ export default function DashboardPage() {
     let totalPnl = 0;
     let totalTrades = 0;
     let totalWins = 0;
-    const allTrades: Trade[] = [];
 
     accounts.forEach(acc => {
       totalBalance += getAccountBalance(acc);
-      totalPnl += sumPnl(acc.trades);
-      totalTrades += acc.trades.length;
-      totalWins += acc.trades.filter(t => t.result === 'WIN').length;
-      allTrades.push(...acc.trades);
     });
+    totalPnl = sumPnl(allTrades);
+    totalTrades = allTrades.length;
+    totalWins = allTrades.filter(t => t.result === 'WIN').length;
 
     const winRate = totalTrades > 0 ? Math.round((totalWins / totalTrades) * 100) : 0;
 
