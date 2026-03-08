@@ -8,7 +8,7 @@ interface ContasAtivasProps {
   onNavigatePlanilha: (accountIndex: number) => void;
 }
 
-function Sparkline({ trades }: { trades: { pnl: number; result: string; hasVM: boolean; vmPnl: number; vmResult: string }[] }) {
+function Sparkline({ trades }: { trades: Account['trades'] }) {
   const last7 = trades.slice(-7);
   if (last7.length === 0) return <div className="h-8 flex items-center text-[10px]" style={{ color: 'var(--gpfx-text-muted)' }}>Sem trades</div>;
   const data = last7.map(t => ({ pnl: getTradePnl(t) }));
