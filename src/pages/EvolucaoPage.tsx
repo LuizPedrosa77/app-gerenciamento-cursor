@@ -27,8 +27,9 @@ export default function EvolucaoPage() {
   const data = useMemo(() => {
     const isAll = accFilter === 'all';
     const accounts = isAll ? state.accounts : [state.accounts[parseInt(accFilter)]];
-    const allTrades: Trade[] = [];
+    let allTrades: Trade[] = [];
     accounts.forEach(a => allTrades.push(...a.trades));
+    allTrades = filterTradesByRange(allTrades, dateRange);
     const baseBalance = accounts.reduce((s, a) => s + a.balance, 0);
 
     const filterYear = yearFilter === 'all' ? null : parseInt(yearFilter);
