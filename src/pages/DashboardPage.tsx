@@ -7,16 +7,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell, AreaChart, Area, ReferenceLine, LabelList,
 } from 'recharts';
-
-/* ── Account Filter Dropdown ── */
-function AccountFilter({ value, onChange, accounts }: { value: string; onChange: (v: string) => void; accounts: { name: string }[] }) {
-  return (
-    <select className="gpfx-select text-xs font-semibold" style={{ minWidth: 200 }} value={value} onChange={e => onChange(e.target.value)}>
-      <option value="all">📊 Todas as contas</option>
-      {accounts.map((a, i) => <option key={i} value={String(i)}>{a.name}</option>)}
-    </select>
-  );
-}
+import { AccountSelector, DateRangeFilter, DateRange, filterTradesByRange } from '@/components/GPFXFilters';
 
 /* ── Mini Sparkline for KPI cards ── */
 function MiniSparkline({ data, color }: { data: number[]; color: string }) {
