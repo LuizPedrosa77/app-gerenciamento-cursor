@@ -6,6 +6,7 @@ import { ChevronDown, ChevronUp, MapPin } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 const SYMBOLS = [
+  { value: '__ALL__', label: '📊 Todos os ativos', pair: '__ALL__' },
   { value: 'FX:EURUSD', label: 'EUR/USD', pair: 'EUR/USD' },
   { value: 'FX:GBPUSD', label: 'GBP/USD', pair: 'GBP/USD' },
   { value: 'FX:USDJPY', label: 'USD/JPY', pair: 'USD/JPY' },
@@ -42,6 +43,15 @@ const TRADE_PERIODS = [
   { value: 'all', label: 'Tudo' },
 ];
 
+const HEADER_PERIODS = [
+  { value: 'today', label: 'Hoje' },
+  { value: 'week', label: 'Esta semana' },
+  { value: 'month', label: 'Este mês' },
+  { value: '3m', label: 'Últimos 3 meses' },
+  { value: 'year', label: 'Este ano' },
+  { value: 'all', label: 'Tudo' },
+];
+
 declare global {
   interface Window {
     TradingView: any;
@@ -51,6 +61,25 @@ declare global {
 function getPairFromSymbol(symbol: string): string {
   const found = SYMBOLS.find(s => s.value === symbol);
   return found?.pair || '';
+}
+
+function getHeaderPeriodCutoff(period: string): string | null {
+  if (period === 'all') return null;
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+  switch (period) {
+    case 'today': return todayStr;
+    case 'week': {
+      const day = now.getDay();
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+      return monday.toISOString().split('T')[0];
+    }
+    case 'month': return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    case '3m': return new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()).toISOString().split('T')[0];
+    case 'year': return `${now.getFullYear()}-01-01`;
+    default: return null;
+  }
 }
 
 export default function TradingViewPage() {
@@ -63,6 +92,24 @@ export default function TradingViewPage() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [tradePeriod, setTradePeriod] = useState('all');
   const [showMarkers, setShowMarkers] = useState(() => localStorage.getItem('gpfx_show_markers') !== 'false');
+
+  // New filters
+  const [accountFilter, setAccountFilter] = useState(() => localStorage.getItem('gpfx_tv_account') || 'all');
+  const [headerPeriod, setHeaderPeriod] = useState(() => localStorage.getItem('gpfx_tv_period') || 'all');
+
+  // Track last real symbol for chart (when "all assets" is selected)
+  const lastRealSymbol = useRef('FX:EURUSD');
+  const isAllAssets = symbol === '__ALL__';
+  const chartSymbol = isAllAssets ? lastRealSymbol.current : symbol;
+
+  // Keep track of last real symbol
+  useEffect(() => {
+    if (!isAllAssets) lastRealSymbol.current = symbol;
+  }, [symbol, isAllAssets]);
+
+  // Persist filter preferences
+  useEffect(() => { localStorage.setItem('gpfx_tv_account', accountFilter); }, [accountFilter]);
+  useEffect(() => { localStorage.setItem('gpfx_tv_period', headerPeriod); }, [headerPeriod]);
 
   // Read gpfx_chart_goto on mount
   useEffect(() => {
@@ -88,17 +135,23 @@ export default function TradingViewPage() {
     localStorage.setItem('gpfx_show_markers', String(showMarkers));
   }, [showMarkers]);
 
-  // Get all trades for the selected pair
+  // Get all trades filtered by account, pair, and header period
   const currentPair = getPairFromSymbol(symbol);
+
   const allPairTrades = useMemo(() => {
     const trades: Trade[] = [];
-    state.accounts.forEach(acc => {
+    const headerCutoff = getHeaderPeriodCutoff(headerPeriod);
+
+    state.accounts.forEach((acc, accIdx) => {
+      if (accountFilter !== 'all' && String(accIdx) !== accountFilter) return;
       acc.trades.forEach(t => {
-        if (t.pair === currentPair) trades.push(t);
+        if (!isAllAssets && t.pair !== currentPair) return;
+        if (headerCutoff && t.date && t.date < headerCutoff) return;
+        trades.push(t);
       });
     });
     return trades.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  }, [state, currentPair]);
+  }, [state, currentPair, isAllAssets, accountFilter, headerPeriod]);
 
   const filteredPairTrades = useMemo(() => {
     if (tradePeriod === 'all') return allPairTrades;
@@ -139,7 +192,7 @@ export default function TradingViewPage() {
 
       new window.TradingView.widget({
         autosize: true,
-        symbol,
+        symbol: chartSymbol,
         interval,
         timezone: 'America/Sao_Paulo',
         theme: theme === 'dark' ? 'dark' : 'light',
@@ -167,7 +220,7 @@ export default function TradingViewPage() {
     script.async = true;
     script.onload = () => { scriptLoaded.current = true; createWidget(); };
     document.head.appendChild(script);
-  }, [symbol, interval, theme]);
+  }, [chartSymbol, interval, theme]);
 
   const selectStyle: React.CSSProperties = {
     background: '#0d1117',
@@ -177,17 +230,33 @@ export default function TradingViewPage() {
     padding: '6px 10px',
     fontSize: 13,
     outline: 'none',
+    cursor: 'pointer',
   };
 
   const totalPnl = sumPnl(filteredPairTrades);
+  const totalWinRate = getWinRate(filteredPairTrades);
+  const panelTitle = isAllAssets
+    ? `Todos os trades registrados (${filteredPairTrades.length})`
+    : `Trades registrados em ${currentPair || 'este par'} (${filteredPairTrades.length})`;
 
   return (
-    <div className="p-3 flex flex-col gap-3" style={{ minHeight: 'calc(100vh - 16px)' }}>
-      {/* Header */}
+    <div className="p-3 flex flex-col gap-3 h-[calc(100vh-16px)]">
+      {/* Header filters */}
       <div className="flex items-center gap-3 flex-wrap">
         <select value={symbol} onChange={e => setSymbol(e.target.value)} style={selectStyle}>
           {SYMBOLS.map(s => (
             <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
+        </select>
+        <select value={accountFilter} onChange={e => setAccountFilter(e.target.value)} style={selectStyle}>
+          <option value="all">📊 Todas as contas</option>
+          {state.accounts.map((a, i) => (
+            <option key={i} value={String(i)}>{a.name}</option>
+          ))}
+        </select>
+        <select value={headerPeriod} onChange={e => setHeaderPeriod(e.target.value)} style={selectStyle}>
+          {HEADER_PERIODS.map(p => (
+            <option key={p.value} value={p.value}>{p.label}</option>
           ))}
         </select>
         <select value={interval} onChange={e => setInterval(e.target.value)} style={selectStyle}>
@@ -197,12 +266,12 @@ export default function TradingViewPage() {
         </select>
         <label className="flex items-center gap-1.5 text-xs cursor-pointer ml-auto" style={{ color: showMarkers ? '#00d395' : '#6e7681' }}>
           <input type="checkbox" checked={showMarkers} onChange={e => setShowMarkers(e.target.checked)} style={{ accentColor: '#00d395' }} />
-          <MapPin size={12} /> Mostrar trades no gráfico
+          <MapPin size={12} /> Mostrar trades
         </label>
       </div>
 
       {/* Pair Stats Card */}
-      {currentPair && pairStats.total > 0 && (
+      {pairStats.total > 0 && (
         <div className="flex items-center gap-4 flex-wrap p-3 rounded-lg" style={{ background: '#161b22', border: '1px solid rgba(0,211,149,0.15)' }}>
           <div className="flex flex-col">
             <span className="text-[10px] font-bold uppercase" style={{ color: '#6e7681' }}>Trades</span>
@@ -222,7 +291,7 @@ export default function TradingViewPage() {
             <div className="flex flex-col">
               <span className="text-[10px] font-bold uppercase" style={{ color: '#6e7681' }}>Melhor</span>
               <span className="text-xs font-bold" style={{ color: '#00d395' }}>
-                {pairStats.best.date} +${fmtNum(getTradePnl(pairStats.best))}
+                {pairStats.best.pair} {pairStats.best.date} +${fmtNum(getTradePnl(pairStats.best))}
               </span>
             </div>
           )}
@@ -230,19 +299,20 @@ export default function TradingViewPage() {
             <div className="flex flex-col">
               <span className="text-[10px] font-bold uppercase" style={{ color: '#6e7681' }}>Pior</span>
               <span className="text-xs font-bold" style={{ color: '#ff4d4d' }}>
-                {pairStats.worst.date} {getTradePnl(pairStats.worst) >= 0 ? '+' : ''}${fmtNum(getTradePnl(pairStats.worst))}
+                {pairStats.worst.pair} {pairStats.worst.date} {getTradePnl(pairStats.worst) >= 0 ? '+' : ''}${fmtNum(getTradePnl(pairStats.worst))}
               </span>
             </div>
           )}
         </div>
       )}
 
-      {/* Chart with markers overlay */}
-      <div className="relative flex-1" style={{ minHeight: 400 }}>
+      {/* Chart with markers overlay — fixed height */}
+      <div className="relative flex-1 min-h-0" style={{ minHeight: 500 }}>
         <div
           ref={containerRef}
-          className="h-full w-full"
           style={{
+            position: 'absolute',
+            inset: 0,
             border: '1px solid rgba(0,211,149,0.2)',
             borderRadius: 8,
             overflow: 'hidden',
@@ -280,20 +350,20 @@ export default function TradingViewPage() {
       </div>
 
       {/* Collapsible Trade Panel */}
-      <div className="rounded-lg overflow-hidden" style={{ background: '#161b22', border: '1px solid rgba(0,211,149,0.15)' }}>
+      <div className="rounded-lg overflow-hidden shrink-0" style={{ background: '#161b22', border: '1px solid rgba(0,211,149,0.15)' }}>
         <button
           className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold"
           style={{ color: '#e6edf3' }}
           onClick={() => setPanelOpen(!panelOpen)}
         >
-          <span>📋 Trades registrados em {currentPair || 'este par'} ({filteredPairTrades.length})</span>
+          <span>📋 {panelTitle}</span>
           {panelOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
 
         {panelOpen && (
           <div>
             {/* Period filter */}
-            <div className="flex items-center gap-2 px-4 py-2" style={{ borderTop: '1px solid #21262d' }}>
+            <div className="flex items-center gap-2 px-4 py-2 flex-wrap" style={{ borderTop: '1px solid #21262d' }}>
               {TRADE_PERIODS.map(p => (
                 <button
                   key={p.value}
@@ -311,11 +381,12 @@ export default function TradingViewPage() {
             </div>
 
             {/* Trade table */}
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
               <table className="w-full text-xs">
-                <thead>
+                <thead className="sticky top-0">
                   <tr style={{ background: '#0d1117' }}>
                     <th className="text-left px-4 py-2 font-bold" style={{ color: '#6e7681' }}>Data</th>
+                    {isAllAssets && <th className="text-left px-4 py-2 font-bold" style={{ color: '#6e7681' }}>Par</th>}
                     <th className="text-left px-4 py-2 font-bold" style={{ color: '#6e7681' }}>Direção</th>
                     <th className="text-left px-4 py-2 font-bold" style={{ color: '#6e7681' }}>Lots</th>
                     <th className="text-left px-4 py-2 font-bold" style={{ color: '#6e7681' }}>Resultado</th>
@@ -331,6 +402,7 @@ export default function TradingViewPage() {
                         borderBottom: '1px solid #21262d',
                       }}>
                         <td className="px-4 py-2" style={{ color: '#8b949e' }}>{t.date || '—'}</td>
+                        {isAllAssets && <td className="px-4 py-2 font-bold" style={{ color: '#e6edf3' }}>{t.pair}</td>}
                         <td className="px-4 py-2">
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{
                             color: t.dir === 'BUY' ? '#00d395' : '#ff4d4d',
@@ -348,7 +420,9 @@ export default function TradingViewPage() {
                     );
                   })}
                   {filteredPairTrades.length === 0 && (
-                    <tr><td colSpan={5} className="px-4 py-6 text-center" style={{ color: '#6e7681' }}>Nenhum trade registrado neste par.</td></tr>
+                    <tr><td colSpan={isAllAssets ? 6 : 5} className="px-4 py-6 text-center" style={{ color: '#6e7681' }}>
+                      Nenhum trade registrado{isAllAssets ? '' : ` neste par`}.
+                    </td></tr>
                   )}
                 </tbody>
               </table>
@@ -356,8 +430,11 @@ export default function TradingViewPage() {
 
             {/* Footer totals */}
             {filteredPairTrades.length > 0 && (
-              <div className="flex items-center justify-between px-4 py-3" style={{ borderTop: '1px solid #21262d', background: '#0d1117' }}>
+              <div className="flex items-center justify-between px-4 py-3 flex-wrap gap-3" style={{ borderTop: '1px solid #21262d', background: '#0d1117' }}>
                 <span className="text-xs font-bold" style={{ color: '#6e7681' }}>{filteredPairTrades.length} trades</span>
+                <span className="text-xs font-bold" style={{ color: '#f59e0b' }}>
+                  Win Rate: {totalWinRate}%
+                </span>
                 <span className="text-xs font-extrabold" style={{ color: totalPnl >= 0 ? '#00d395' : '#ff4d4d' }}>
                   P&L: {totalPnl >= 0 ? '+' : ''}${fmtNum(totalPnl)}
                 </span>
