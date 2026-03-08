@@ -346,6 +346,12 @@ export default function DashboardPage() {
         <KpiCard label="Total de Trades" value={String(stats.totalTrades)} color="#60a5fa" />
       </div>
 
+      {/* Weekly Report */}
+      <WeeklyReport
+        trades={accFilter === 'all' ? state.accounts.flatMap(a => a.trades) : (state.accounts[parseInt(accFilter)]?.trades || [])}
+        accountName={accFilter === 'all' ? 'Todas as contas' : (state.accounts[parseInt(accFilter)]?.name || '')}
+      />
+
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Chart 1 — Resultado Mensal (vertical bars with labels + avg line) */}
