@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useGPFX } from '@/contexts/GPFXContext';
 import { MONTHS, MONTHS_FULL, WEEKDAYS, Trade, sumPnl, fmtNum, getWinRate, getTradePnl, getWeekOfMonth } from '@/lib/gpfx-utils';
+import { AccountSelector, DateRangeFilter, DateRange, filterTradesByRange } from '@/components/GPFXFilters';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, LineChart, Line,
