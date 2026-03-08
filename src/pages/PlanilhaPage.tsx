@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useMemo } from 'react';
 import { useGPFX } from '@/contexts/GPFXContext';
 import {
   MONTHS, YEARS, PAIRS, DIRECTIONS, RESULTS,
-  sumPnl, fmtNum, signedPnl, getAccountBalance, uid, Trade,
+  sumPnl, fmtNum, signedPnl, uid, Trade,
 } from '@/lib/gpfx-utils';
 import { Download, Upload, Pencil, X, RefreshCw, AlertTriangle, Camera, Trash2, ImageIcon } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -30,11 +30,10 @@ function Modal({ open, onClose, title, children, footer }: {
 
 export default function PlanilhaPage() {
   const {
-    state, activeAcc, switchAccount, addAccount, deleteAccount, renameAccount,
+    state, activeAcc, setState, save, switchAccount, addAccount, deleteAccount, renameAccount,
     updateBalance, updateNotes, updateMeta, addTrade, addNewDay, updateTrade,
     deleteTrade, resetAccount, switchYear, switchMonth, updateWithdrawal,
   } = useGPFX();
-  const useGPFXCtx = useGPFX();
 
   const [renameModal, setRenameModal] = useState<{ open: boolean; idx: number; name: string }>({ open: false, idx: 0, name: '' });
   const [resetModal, setResetModal] = useState(false);
@@ -288,7 +287,7 @@ export default function PlanilhaPage() {
         }
         if (newTrades.length === 0) { alert('Nenhum trade encontrado.'); return; }
 
-        useGPFXCtx.setState(prev => {
+        setState(prev => {
           const accounts = [...prev.accounts];
           const accCopy = { ...accounts[prev.activeAccount], trades: [...accounts[prev.activeAccount].trades] };
           let added = 0;
@@ -305,7 +304,7 @@ export default function PlanilhaPage() {
           }
           return next;
         });
-        useGPFXCtx.save();
+        save();
         alert(`✅ Trades importados com sucesso!`);
       } catch (err: any) {
         alert('Erro ao importar: ' + err.message);
@@ -542,7 +541,7 @@ export default function PlanilhaPage() {
                         const newDate = e.target.value;
                         if (!newDate || date === newDate) return;
                         const d = new Date(newDate + 'T12:00:00');
-                        useGPFXCtx.setState(prev => {
+                        setState(prev => {
                           const accounts = [...prev.accounts];
                           const accCopy = { ...accounts[prev.activeAccount], trades: accounts[prev.activeAccount].trades.map(t => ({ ...t })) };
                           accCopy.trades.forEach(t => {
@@ -551,7 +550,7 @@ export default function PlanilhaPage() {
                           accounts[prev.activeAccount] = accCopy;
                           return { ...prev, accounts, activeYear: d.getFullYear(), activeMonth: d.getMonth() };
                         });
-                        useGPFXCtx.save();
+                        save();
                       }} />
                     <span className="text-sm font-bold capitalize" style={{ color: '#e6edf3' }}>{fmtDate}</span>
                     <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ color: '#8b949e', background: '#21262d' }}>{dayTrades.length} trade{dayTrades.length !== 1 ? 's' : ''}</span>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useGPFX } from '@/contexts/GPFXContext';
-import { MONTHS, YEARS, sumPnl, fmtNum, getWinRate, getAccountBalance, Trade, getTradePnl } from '@/lib/gpfx-utils';
+import { MONTHS, YEARS, sumPnl, fmtNum, Trade } from '@/lib/gpfx-utils';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, Area, AreaChart, Legend,

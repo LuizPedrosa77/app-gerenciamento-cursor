@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   LayoutDashboard, TrendingUp, ClipboardList, BarChart3, Wallet,
-  Menu, X, Check, Moon, Sun, LineChart, ChevronLeft, ChevronRight,
+  Menu, Moon, Sun, LineChart, ChevronLeft,
   CandlestickChart, CheckCircle, CalendarDays, Bot, Plug
 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';

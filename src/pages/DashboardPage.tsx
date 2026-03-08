@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useGPFX } from '@/contexts/GPFXContext';
 import {
   MONTHS, WEEKDAYS, sumPnl, fmtNum, getAccountBalance, getWinRate, getTradePnl, Trade, signedPnl, getWeekOfMonth, getMonthPnl,

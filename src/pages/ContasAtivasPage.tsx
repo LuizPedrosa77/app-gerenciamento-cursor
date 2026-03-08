@@ -1,17 +1,11 @@
 import { useState } from 'react';
 import { useGPFX } from '@/contexts/GPFXContext';
-import { Account, sumPnl, getMonthPnl, fmtNum, getTradePnl } from '@/lib/gpfx-utils';
+import { Account, sumPnl, getMonthPnl, getAccountBalance, fmtNum, getTradePnl } from '@/lib/gpfx-utils';
 import { BarChart, Bar, ResponsiveContainer } from 'recharts';
 import { Target } from 'lucide-react';
 
 interface ContasAtivasProps {
   onNavigatePlanilha: (accountIndex: number) => void;
-}
-
-function getAccountBalance(acc: Account): number {
-  const totalPnl = sumPnl(acc.trades);
-  const allWithdrawals = Object.values(acc.withdrawals || {}).reduce((s, v) => s + v, 0);
-  return acc.balance + totalPnl - allWithdrawals;
 }
 
 function Sparkline({ trades }: { trades: Account['trades'] }) {
