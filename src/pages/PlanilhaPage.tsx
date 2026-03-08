@@ -1,10 +1,11 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { useGPFX } from '@/contexts/GPFXContext';
 import {
   MONTHS, YEARS, PAIRS, DIRECTIONS, RESULTS,
   sumPnl, fmtNum, signedPnl, getAccountBalance, uid, Trade,
 } from '@/lib/gpfx-utils';
-import { Download, Upload } from 'lucide-react';
+import { Download, Upload, Pencil, X, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 
 /* ── Modal component ── */
 function Modal({ open, onClose, title, children, footer }: {
@@ -32,6 +33,7 @@ export default function PlanilhaPage() {
     updateBalance, updateNotes, updateMeta, addTrade, addNewDay, updateTrade,
     deleteTrade, resetAccount, switchYear, switchMonth, updateWithdrawal,
   } = useGPFX();
+  const useGPFXCtx = useGPFX();
 
   const [renameModal, setRenameModal] = useState<{ open: boolean; idx: number; name: string }>({ open: false, idx: 0, name: '' });
   const [resetModal, setResetModal] = useState(false);
@@ -46,6 +48,14 @@ export default function PlanilhaPage() {
   const [filterDir, setFilterDir] = useState('');
   const [filterResult, setFilterResult] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Edit modal state
+  const [editModal, setEditModal] = useState<{ open: boolean; trade: Trade | null }>({ open: false, trade: null });
+  const [editForm, setEditForm] = useState<Partial<Trade>>({});
+
+  // Batch selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteModal, setBulkDeleteModal] = useState(false);
 
   const year = state.activeYear;
   const month = state.activeMonth;
@@ -71,7 +81,6 @@ export default function PlanilhaPage() {
   const monthLosses = acc.trades.filter(t => t.year === year && t.month === month && t.result === 'LOSS').length;
   const monthTotal = acc.trades.filter(t => t.year === year && t.month === month).length;
   const winRate = monthTotal > 0 ? Math.round((monthWins / monthTotal) * 100) : 0;
-  const yearNet = yearPnl - yearWithdrawals;
   const monthNet = monthPnl - monthWithdrawal;
 
   // Monthly data for grid
@@ -89,24 +98,6 @@ export default function PlanilhaPage() {
   const maxWin = allSignedPnls.length > 0 ? Math.max(0, ...allSignedPnls) : 0;
   const maxLoss = allSignedPnls.length > 0 ? Math.abs(Math.min(0, ...allSignedPnls)) : 0;
 
-  // Best pair
-  const pairMap: Record<string, number> = {};
-  acc.trades.filter(t => t.year === year && t.month === month).forEach(t => {
-    const p = signedPnl(t.pnl, t.result) + (t.hasVM ? signedPnl(t.vmPnl, t.vmResult) : 0);
-    pairMap[t.pair] = (pairMap[t.pair] || 0) + p;
-  });
-  const bestPairEntry = Object.entries(pairMap).sort((a, b) => b[1] - a[1])[0];
-  const bestPairStr = bestPairEntry ? `${bestPairEntry[0]} (${bestPairEntry[1] >= 0 ? '+' : ''}$${fmtNum(bestPairEntry[1])})` : '—';
-
-  // Drawdown
-  let peak = 0, dd = 0, running = 0;
-  acc.trades.filter(t => t.year === year && t.month === month).slice().sort((a, b) => (a.date || '') > (b.date || '') ? 1 : -1).forEach(t => {
-    running += signedPnl(t.pnl, t.result) + (t.hasVM ? signedPnl(t.vmPnl, t.vmResult) : 0);
-    if (running > peak) peak = running;
-    const curDD = peak - running;
-    if (curDD > dd) dd = curDD;
-  });
-
   // Group trades by date
   const groups: Record<string, Trade[]> = {};
   const dateOrder: string[] = [];
@@ -116,6 +107,63 @@ export default function PlanilhaPage() {
     groups[d].push(t);
   });
   dateOrder.sort();
+
+  // All visible trade IDs
+  const allVisibleIds = useMemo(() => monthTrades.map(t => t.id), [monthTrades]);
+  const allSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selectedIds.has(id));
+  const someSelected = allVisibleIds.some(id => selectedIds.has(id));
+  const selectedCount = allVisibleIds.filter(id => selectedIds.has(id)).length;
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectDay = (dayTradeIds: string[]) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      const allDaySelected = dayTradeIds.every(id => next.has(id));
+      dayTradeIds.forEach(id => { if (allDaySelected) next.delete(id); else next.add(id); });
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds(prev => {
+      if (allSelected) return new Set();
+      return new Set(allVisibleIds);
+    });
+  };
+
+  const handleBulkDelete = () => {
+    const idsToDelete = allVisibleIds.filter(id => selectedIds.has(id));
+    idsToDelete.forEach(id => deleteTrade(id));
+    setSelectedIds(new Set());
+    setBulkDeleteModal(false);
+  };
+
+  // Edit modal helpers
+  const openEditModal = (trade: Trade) => {
+    setEditForm({ ...trade });
+    setEditModal({ open: true, trade });
+  };
+
+  const saveEdit = () => {
+    if (!editModal.trade || !editForm) return;
+    const id = editModal.trade.id;
+    const fields: (keyof Trade)[] = ['pair', 'dir', 'result', 'pnl', 'hasVM', 'vmResult', 'vmPnl', 'lots', 'vmLots'];
+    fields.forEach(f => {
+      if (editForm[f] !== undefined) {
+        updateTrade(id, f, editForm[f]);
+      }
+    });
+    setEditModal({ open: false, trade: null });
+  };
+
+  const monthPct = balance > 0 ? ((monthPnl / balance) * 100).toFixed(2) : '0.00';
 
   // Export CSV
   const handleExport = () => {
@@ -144,68 +192,11 @@ export default function PlanilhaPage() {
     setExportModal(false);
   };
 
-  // Import MT5
-  const handleMT5Import = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const buffer = ev.target?.result as ArrayBuffer;
-        const bytes = new Uint8Array(buffer);
-        let text = '';
-        if (bytes[0] === 0xFF && bytes[1] === 0xFE) {
-          text = new TextDecoder('utf-16le').decode(buffer);
-        } else {
-          text = new TextDecoder('utf-8').decode(buffer);
-        }
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(text, 'text/html');
-        const allText = doc.body ? doc.body.innerText : text;
-        const posStart = allText.indexOf('Posições');
-        if (posStart === -1) { alert('Seção "Posições" não encontrada.'); return; }
-        const posEnd = allText.indexOf('Ordens', posStart);
-        const posText = allText.substring(posStart, posEnd > -1 ? posEnd : undefined);
-        const datePattern = /(\d{4}\.\d{2}\.\d{2} \d{2}:\d{2}:\d{2})\s+(\d+)\s+([\w.]+)\s+(buy|sell)\s+(?:[\w_]+\s+)?(\d+\.?\d*)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+(\d{4}\.\d{2}\.\d{2} \d{2}:\d{2}:\d{2})\s+([\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)/gi;
-        const trades: Trade[] = [];
-        let match;
-        while ((match = datePattern.exec(posText)) !== null) {
-          const openDate = match[1];
-          const asset = match[3];
-          const type = match[4];
-          const lots = parseFloat(match[5]);
-          const commission = parseFloat(match[11]) || 0;
-          const swap = parseFloat(match[12]) || 0;
-          const profit = parseFloat(match[13]) || 0;
-          const pnl = parseFloat((profit + commission + swap).toFixed(2));
-          const result = pnl >= 0 ? 'WIN' : 'LOSS';
-          const dateParts = openDate.split(' ')[0].split('.');
-          const dateFormatted = dateParts[0] + '-' + dateParts[1] + '-' + dateParts[2];
-          const yr = parseInt(dateParts[0]);
-          const mo = parseInt(dateParts[1]) - 1;
-          const pair = asset.replace(/\.x$/i, '');
-          trades.push({ id: uid(), year: yr, month: mo, date: dateFormatted, pair, dir: type.toUpperCase(), lots, result, pnl: Math.abs(pnl), hasVM: false, vmLots: 0, vmResult: 'WIN', vmPnl: 0 });
-        }
-        if (trades.length === 0) { alert('Nenhum trade encontrado.'); return; }
-        // Add to state via context — we need to use the raw setState for bulk import
-        const { setState } = useGPFXCtx;
-        alert(`✅ ${trades.length} trades importados!`);
-      } catch (err: any) {
-        alert('Erro ao importar: ' + err.message);
-      }
-    };
-    reader.readAsArrayBuffer(file);
-    e.target.value = '';
-  };
-  // We need a ref to the context for the import function
-  const useGPFXCtx = useGPFX();
-
   const handleMT5ConfirmAndOpen = () => {
     if (mt5AccIdx === 'new') {
       const name = prompt('Nome da nova conta:');
       if (!name) return;
       addAccount();
-      // The newly created account is auto-selected
     } else {
       switchAccount(parseInt(mt5AccIdx));
     }
@@ -213,7 +204,6 @@ export default function PlanilhaPage() {
     fileInputRef.current?.click();
   };
 
-  // Actual MT5 import via context
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -284,7 +274,10 @@ export default function PlanilhaPage() {
     e.target.value = '';
   };
 
-  const monthPct = balance > 0 ? ((monthPnl / balance) * 100).toFixed(2) : '0.00';
+  // Selected trades for bulk delete modal
+  const selectedTrades = useMemo(() => {
+    return monthTrades.filter(t => selectedIds.has(t.id));
+  }, [monthTrades, selectedIds]);
 
   return (
     <div className="page-fade-in flex flex-col gap-5 max-w-[1400px] mx-auto p-6">
@@ -336,7 +329,6 @@ export default function PlanilhaPage() {
           </div>
         </div>
       </div>
-
 
       {/* Annual Grid */}
       <div className="gpfx-card">
@@ -429,7 +421,6 @@ export default function PlanilhaPage() {
           </div>
           <MsItem label="Líquido Mês" value={(monthNet >= 0 ? '+' : '') + '$' + fmtNum(monthNet)} cls={monthNet >= 0 ? 'text-gpfx-green' : 'text-gpfx-red'} />
           <MsItem label="Trades" value={String(monthTotal)} />
-          {/* Meta */}
           <div className="flex flex-col gap-0.5">
             <span className="text-[10px] font-semibold uppercase" style={{ color: '#6e7681' }}>Meta Mensal</span>
             <input type="number" step="100" className="gpfx-input text-xs font-bold" style={{ width: 110, color: '#00d395' }}
@@ -454,7 +445,31 @@ export default function PlanilhaPage() {
           <MsItem label="Maior Loss" value={'$' + fmtNum(maxLoss)} cls="text-gpfx-red" />
         </div>
 
-        {/* Trades List */}
+        {/* Batch Action Bar */}
+        <div className="flex items-center gap-3 px-5 py-2.5" style={{ background: '#0d1117', borderBottom: '1px solid #21262d' }}>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+              onCheckedChange={toggleSelectAll}
+              className="border-[#484f58] data-[state=checked]:bg-[#00d395] data-[state=checked]:border-[#00d395]"
+            />
+            <span className="text-xs font-semibold" style={{ color: '#8b949e' }}>Selecionar todos</span>
+          </div>
+          {selectedCount > 0 && (
+            <>
+              <span className="text-xs font-bold" style={{ color: '#c9d1d9' }}>{selectedCount} trade{selectedCount !== 1 ? 's' : ''} selecionado{selectedCount !== 1 ? 's' : ''}</span>
+              <button
+                className="btn-gpfx text-xs font-bold ml-auto flex items-center gap-1.5"
+                style={{ background: '#ff4d4d', color: '#fff', border: 'none' }}
+                onClick={() => setBulkDeleteModal(true)}
+              >
+                🗑️ Apagar Selecionados
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Trades List - Compact Mode */}
         <div className="p-4 flex flex-col gap-3">
           {dateOrder.length === 0 && (
             <div className="text-center py-10" style={{ color: '#6e7681' }}>Nenhum trade neste mês. Clique em "<strong>+ Novo Dia</strong>" para começar.</div>
@@ -462,24 +477,30 @@ export default function PlanilhaPage() {
           {dateOrder.map(date => {
             const dayTrades = groups[date];
             const dayPnl = dayTrades.reduce((s, t) => s + signedPnl(t.pnl, t.result) + (t.hasVM ? signedPnl(t.vmPnl, t.vmResult) : 0), 0);
-            const dayPct = balance > 0 ? ((dayPnl / balance) * 100).toFixed(2) : '0.00';
+            const dayTradeIds = dayTrades.map(t => t.id);
+            const allDaySelected = dayTradeIds.every(id => selectedIds.has(id));
+            const someDaySelected = dayTradeIds.some(id => selectedIds.has(id));
             const fmtDate = date !== 'Sem data'
               ? new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })
               : 'Sem data';
 
             return (
-              <div key={date} className="mb-2">
+              <div key={date} className="mb-1">
                 {/* Day Header */}
-                <div className="flex items-center justify-between px-4 py-2.5 rounded-t-lg flex-wrap gap-2"
-                  style={{ background: '#e6edf3', border: '2px solid #c9d1d9', borderBottom: 'none' }}>
+                <div className="flex items-center justify-between px-3 py-2 rounded-t-lg flex-wrap gap-2"
+                  style={{ background: '#161b22', border: '1px solid #30363d', borderBottom: 'none' }}>
                   <div className="flex items-center gap-2.5">
+                    <Checkbox
+                      checked={allDaySelected ? true : someDaySelected ? 'indeterminate' : false}
+                      onCheckedChange={() => toggleSelectDay(dayTradeIds)}
+                      className="border-[#484f58] data-[state=checked]:bg-[#00d395] data-[state=checked]:border-[#00d395]"
+                    />
                     <input type="date" value={date !== 'Sem data' ? date : ''} className="gpfx-input text-xs font-bold"
-                      style={{ background: 'rgba(255,255,255,0.12)', border: '2px solid rgba(255,255,255,0.4)', color: '#0d1117' }}
+                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid #30363d', color: '#c9d1d9', width: 130 }}
                       onChange={e => {
                         const newDate = e.target.value;
                         if (!newDate || date === newDate) return;
                         const d = new Date(newDate + 'T12:00:00');
-                        // Rename all trades on this date
                         useGPFXCtx.setState(prev => {
                           const accounts = [...prev.accounts];
                           const accCopy = { ...accounts[prev.activeAccount], trades: accounts[prev.activeAccount].trades.map(t => ({ ...t })) };
@@ -491,97 +512,114 @@ export default function PlanilhaPage() {
                         });
                         useGPFXCtx.save();
                       }} />
-                    <span className="text-sm font-bold capitalize" style={{ color: '#161b22' }}>{fmtDate}</span>
-                    <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ color: '#6e7681', background: '#c9d1d9' }}>{dayTrades.length} trade{dayTrades.length !== 1 ? 's' : ''}</span>
+                    <span className="text-sm font-bold capitalize" style={{ color: '#e6edf3' }}>{fmtDate}</span>
+                    <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ color: '#8b949e', background: '#21262d' }}>{dayTrades.length} trade{dayTrades.length !== 1 ? 's' : ''}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <button className="btn-gpfx text-xs" style={{ background: 'rgba(255,255,255,0.15)', color: '#161b22', border: '1px solid rgba(255,255,255,0.2)' }}
-                      onClick={() => addTrade(date)}>+ Trade neste dia</button>
-                    <div className="text-right">
-                      <div className="text-sm font-extrabold" style={{ color: dayPnl > 0 ? '#4ade80' : dayPnl < 0 ? '#f87171' : '#9ca3af' }}>
-                        {dayPnl !== 0 ? (dayPnl > 0 ? '+' : '') + '$' + fmtNum(dayPnl) : '–'}
-                      </div>
-                      {dayPnl !== 0 && <div className="text-[11px] font-bold" style={{ color: dayPnl > 0 ? '#4ade80' : '#f87171', opacity: 0.85 }}>{dayPnl > 0 ? '+' : ''}{dayPct}% da conta</div>}
-                    </div>
+                    <button className="btn-gpfx text-xs" style={{ background: 'rgba(0,211,149,0.1)', color: '#00d395', border: '1px solid rgba(0,211,149,0.2)' }}
+                      onClick={() => addTrade(date)}>+ Trade</button>
+                    <span className="text-sm font-extrabold" style={{ color: dayPnl > 0 ? '#00d395' : dayPnl < 0 ? '#ff4d4d' : '#6e7681' }}>
+                      {dayPnl !== 0 ? (dayPnl > 0 ? '+' : '') + '$' + fmtNum(dayPnl) : '–'}
+                    </span>
                   </div>
                 </div>
-                {/* Day Trades */}
-                <div className="rounded-b-lg overflow-hidden" style={{ border: '2px solid #c9d1d9', borderTop: 'none' }}>
+
+                {/* Compact Trade Rows */}
+                <div className="rounded-b-lg overflow-hidden" style={{ border: '1px solid #30363d', borderTop: 'none' }}>
+                  {/* Table Header */}
+                  <div className="grid items-center px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider"
+                    style={{
+                      gridTemplateColumns: '28px 36px 1fr 70px 70px 100px 36px 32px 32px',
+                      background: '#0d1117',
+                      color: '#6e7681',
+                      borderBottom: '1px solid #21262d'
+                    }}>
+                    <span></span>
+                    <span>#</span>
+                    <span>Par</span>
+                    <span>Dir.</span>
+                    <span>Result.</span>
+                    <span className="text-right">P&L</span>
+                    <span className="text-center">VM</span>
+                    <span></span>
+                    <span></span>
+                  </div>
+
                   {dayTrades.map((t, ti) => {
                     const totalPnlTrade = signedPnl(t.pnl, t.result) + (t.hasVM ? signedPnl(t.vmPnl, t.vmResult) : 0);
-                    const tradePct = balance > 0 ? ((totalPnlTrade / balance) * 100).toFixed(2) : '0.00';
+                    const isSelected = selectedIds.has(t.id);
+
                     return (
-                      <div key={t.id} className="trade-card-wrapper" style={{ borderRadius: 0, borderLeft: 'none', borderRight: 'none', borderTop: ti > 0 ? '2px solid #30363d' : 'none', borderBottom: 'none', boxShadow: 'none' }}>
-                        {/* Trade Header */}
-                        <div className="flex items-center gap-3 px-4 py-2.5 flex-wrap" style={{ background: '#161b22', borderBottom: '1px solid #21262d' }}>
-                          <span className="text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ color: '#6e7681', background: '#30363d' }}>#{ti + 1}</span>
-                          <select className="text-sm font-bold gpfx-select" value={t.pair}
-                            onChange={e => updateTrade(t.id, 'pair', e.target.value)}>
-                            {PAIRS.map(p => <option key={p}>{p}</option>)}
-                          </select>
-                          <select className={`text-[11px] font-bold px-2 py-0.5 rounded gpfx-select ${t.dir === 'BUY' ? 'dir-buy' : 'dir-sell'}`}
-                            value={t.dir} onChange={e => updateTrade(t.id, 'dir', e.target.value)}>
-                            {DIRECTIONS.map(d => <option key={d}>{d}</option>)}
-                          </select>
-                          <div className="ml-auto flex flex-col items-end gap-0.5">
-                            <span className="text-base font-extrabold" style={{ color: totalPnlTrade > 0 ? '#00d395' : totalPnlTrade < 0 ? '#ff4d4d' : '#6e7681' }}>
-                              {totalPnlTrade !== 0 ? (totalPnlTrade > 0 ? '+' : '') + '$' + fmtNum(totalPnlTrade) : '–'} total
-                            </span>
-                            {totalPnlTrade !== 0 && <span className="text-[11px] font-semibold" style={{ opacity: 0.75, color: totalPnlTrade > 0 ? '#00d395' : '#ff4d4d' }}>{totalPnlTrade > 0 ? '+' : ''}{tradePct}% da conta</span>}
-                          </div>
-                          <button className="btn-gpfx btn-gpfx-danger text-xs ml-2" onClick={() => setDeleteModal({ open: true, id: t.id })}>✕ Excluir</button>
-                        </div>
-                        {/* Trade Body */}
-                        <div className="grid grid-cols-1 md:grid-cols-2">
-                          {/* Main Entry */}
-                          <div className="p-3.5">
-                            <div className="text-[10px] font-extrabold uppercase tracking-wider mb-3 pb-1.5 flex items-center gap-1.5" style={{ color: '#00d395', borderBottom: '2px solid #00d395' }}>
-                              📈 Entrada Principal
-                            </div>
-                            <div className="grid grid-cols-2 gap-2.5">
-                              <TradeField label="Resultado">
-                                <select className={`gpfx-select w-full text-xs ${t.result === 'WIN' ? 'result-win' : 'result-loss'}`}
-                                  value={t.result} onChange={e => updateTrade(t.id, 'result', e.target.value)}>
-                                  {RESULTS.map(r => <option key={r}>{r}</option>)}
-                                </select>
-                              </TradeField>
-                              <TradeField label="P&L (USD)">
-                                <input type="number" step="0.01" className="gpfx-input w-full text-xs" placeholder="Ex: +600"
-                                  style={{ color: (t.pnl || 0) > 0 ? '#00d395' : (t.pnl || 0) < 0 ? '#ff4d4d' : undefined, fontWeight: t.pnl ? 700 : 400 }}
-                                  value={t.pnl || ''} onChange={e => updateTrade(t.id, 'pnl', parseFloat(e.target.value) || 0)} />
-                              </TradeField>
-                            </div>
-                          </div>
-                          {/* VM Section */}
-                          <div className="p-3.5" style={{ borderLeft: '1px solid #21262d', background: t.hasVM ? 'rgba(245,158,11,0.03)' : undefined }}>
-                            <div className={`text-[10px] font-extrabold uppercase tracking-wider mb-3 pb-1.5 flex items-center gap-1.5 justify-between`}
-                              style={{ color: t.hasVM ? '#f59e0b' : '#6e7681', borderBottom: `2px solid ${t.hasVM ? '#f59e0b' : '#30363d'}` }}>
-                              <span>🔄 Virada de Mão</span>
-                              <label className="flex items-center gap-1.5 cursor-pointer">
-                                <input type="checkbox" checked={t.hasVM} onChange={e => updateTrade(t.id, 'hasVM', e.target.checked)}
-                                  style={{ accentColor: '#f59e0b' }} />
-                                <span className="text-[11px] font-semibold" style={{ color: '#8b949e' }}>Ativar</span>
-                              </label>
-                            </div>
-                            {t.hasVM ? (
-                              <div className="grid grid-cols-2 gap-2.5">
-                                <TradeField label="Resultado">
-                                  <select className={`gpfx-select w-full text-xs ${t.vmResult === 'WIN' ? 'result-win' : 'result-loss'}`}
-                                    value={t.vmResult} onChange={e => updateTrade(t.id, 'vmResult', e.target.value)}>
-                                    {RESULTS.map(r => <option key={r}>{r}</option>)}
-                                  </select>
-                                </TradeField>
-                                <TradeField label="P&L (USD)">
-                                  <input type="number" step="0.01" className="gpfx-input w-full text-xs" placeholder="Ex: +800"
-                                    style={{ color: (t.vmPnl || 0) > 0 ? '#00d395' : (t.vmPnl || 0) < 0 ? '#ff4d4d' : undefined, fontWeight: t.vmPnl ? 700 : 400 }}
-                                    value={t.vmPnl || ''} onChange={e => updateTrade(t.id, 'vmPnl', parseFloat(e.target.value) || 0)} />
-                                </TradeField>
-                              </div>
-                            ) : (
-                              <div className="text-xs italic py-2" style={{ color: '#6e7681' }}>Ative se a 1ª entrada deu Loss e você virou a mão.</div>
-                            )}
-                          </div>
-                        </div>
+                      <div
+                        key={t.id}
+                        className="grid items-center px-3 transition-colors"
+                        style={{
+                          gridTemplateColumns: '28px 36px 1fr 70px 70px 100px 36px 32px 32px',
+                          height: 44,
+                          background: isSelected ? 'rgba(0,211,149,0.06)' : ti % 2 === 0 ? '#0d1117' : '#161b22',
+                          borderBottom: ti < dayTrades.length - 1 ? '1px solid #21262d' : 'none',
+                        }}
+                      >
+                        {/* Checkbox */}
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleSelect(t.id)}
+                          className="border-[#484f58] data-[state=checked]:bg-[#00d395] data-[state=checked]:border-[#00d395]"
+                        />
+
+                        {/* # */}
+                        <span className="text-[11px] font-bold" style={{ color: '#6e7681' }}>#{ti + 1}</span>
+
+                        {/* Par */}
+                        <span className="text-xs font-bold px-2 py-0.5 rounded inline-block w-fit" style={{ background: '#21262d', color: '#e6edf3' }}>
+                          {t.pair}
+                        </span>
+
+                        {/* Direção */}
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded inline-block w-fit"
+                          style={{
+                            background: t.dir === 'BUY' ? 'rgba(0,211,149,0.15)' : 'rgba(255,77,77,0.15)',
+                            color: t.dir === 'BUY' ? '#00d395' : '#ff4d4d',
+                          }}>
+                          {t.dir}
+                        </span>
+
+                        {/* Resultado */}
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded inline-block w-fit"
+                          style={{
+                            background: t.result === 'WIN' ? 'rgba(0,211,149,0.15)' : 'rgba(255,77,77,0.15)',
+                            color: t.result === 'WIN' ? '#00d395' : '#ff4d4d',
+                          }}>
+                          {t.result}
+                        </span>
+
+                        {/* P&L */}
+                        <span className="text-xs font-extrabold text-right" style={{ color: totalPnlTrade > 0 ? '#00d395' : totalPnlTrade < 0 ? '#ff4d4d' : '#6e7681' }}>
+                          {totalPnlTrade !== 0 ? (totalPnlTrade > 0 ? '+' : '') + '$' + fmtNum(totalPnlTrade) : '–'}
+                        </span>
+
+                        {/* VM indicator */}
+                        <span className="text-center">
+                          {t.hasVM && <RefreshCw size={14} style={{ color: '#f59e0b', opacity: 0.7 }} />}
+                        </span>
+
+                        {/* Edit */}
+                        <button
+                          className="flex items-center justify-center w-7 h-7 rounded transition-colors hover:bg-[#21262d]"
+                          onClick={() => openEditModal(t)}
+                          title="Editar trade"
+                        >
+                          <Pencil size={14} style={{ color: '#8b949e' }} />
+                        </button>
+
+                        {/* Delete */}
+                        <button
+                          className="flex items-center justify-center w-7 h-7 rounded transition-colors hover:bg-[rgba(255,77,77,0.15)]"
+                          onClick={() => setDeleteModal({ open: true, id: t.id })}
+                          title="Excluir trade"
+                        >
+                          <X size={14} style={{ color: '#ff4d4d', opacity: 0.6 }} />
+                        </button>
                       </div>
                     );
                   })}
@@ -595,7 +633,9 @@ export default function PlanilhaPage() {
       {/* Hidden file input */}
       <input type="file" ref={fileInputRef} accept=".html,.htm" style={{ display: 'none' }} onChange={handleFileImport} />
 
-      {/* Modals */}
+      {/* ── Modals ── */}
+
+      {/* Rename Modal */}
       <Modal open={renameModal.open} onClose={() => setRenameModal({ ...renameModal, open: false })} title="Renomear Conta"
         footer={<>
           <button className="btn-gpfx btn-gpfx-ghost" onClick={() => setRenameModal({ ...renameModal, open: false })}>Cancelar</button>
@@ -607,6 +647,7 @@ export default function PlanilhaPage() {
           autoFocus />
       </Modal>
 
+      {/* Reset Modal */}
       <Modal open={resetModal} onClose={() => setResetModal(false)} title="Resetar Conta"
         footer={<>
           <button className="btn-gpfx btn-gpfx-ghost" onClick={() => setResetModal(false)}>Cancelar</button>
@@ -615,6 +656,7 @@ export default function PlanilhaPage() {
         <p className="text-sm" style={{ color: '#8b949e' }}>Tem certeza que deseja <strong>apagar todos os trades</strong> desta conta? O saldo inicial será mantido.</p>
       </Modal>
 
+      {/* Single Delete Modal */}
       <Modal open={deleteModal.open} onClose={() => setDeleteModal({ open: false, id: '' })} title="Excluir Trade"
         footer={<>
           <button className="btn-gpfx btn-gpfx-ghost" onClick={() => setDeleteModal({ open: false, id: '' })}>Cancelar</button>
@@ -623,6 +665,98 @@ export default function PlanilhaPage() {
         <p className="text-sm" style={{ color: '#8b949e' }}>Tem certeza que deseja excluir este trade?</p>
       </Modal>
 
+      {/* Edit Trade Modal */}
+      <Modal open={editModal.open} onClose={() => setEditModal({ open: false, trade: null })}
+        title={`Editar Trade — ${editForm.pair || ''} ${editForm.date || ''}`}
+        footer={<>
+          <button className="btn-gpfx btn-gpfx-ghost" onClick={() => setEditModal({ open: false, trade: null })}>Cancelar</button>
+          <button className="btn-gpfx btn-gpfx-primary" onClick={saveEdit}>Salvar alterações</button>
+        </>}>
+        <div className="grid grid-cols-2 gap-3">
+          <TradeField label="Par">
+            <select className="gpfx-select w-full text-xs" value={editForm.pair || ''} onChange={e => setEditForm(f => ({ ...f, pair: e.target.value }))}>
+              {PAIRS.map(p => <option key={p}>{p}</option>)}
+            </select>
+          </TradeField>
+          <TradeField label="Direção">
+            <select className={`gpfx-select w-full text-xs`} value={editForm.dir || ''} onChange={e => setEditForm(f => ({ ...f, dir: e.target.value }))}>
+              {DIRECTIONS.map(d => <option key={d}>{d}</option>)}
+            </select>
+          </TradeField>
+          <TradeField label="Resultado">
+            <select className={`gpfx-select w-full text-xs`} value={editForm.result || ''} onChange={e => setEditForm(f => ({ ...f, result: e.target.value }))}>
+              {RESULTS.map(r => <option key={r}>{r}</option>)}
+            </select>
+          </TradeField>
+          <TradeField label="P&L (USD)">
+            <input type="number" step="0.01" className="gpfx-input w-full text-xs" value={editForm.pnl || ''} onChange={e => setEditForm(f => ({ ...f, pnl: parseFloat(e.target.value) || 0 }))} />
+          </TradeField>
+          <TradeField label="Lots">
+            <input type="number" step="0.01" className="gpfx-input w-full text-xs" value={editForm.lots || ''} onChange={e => setEditForm(f => ({ ...f, lots: parseFloat(e.target.value) || 0 }))} />
+          </TradeField>
+        </div>
+
+        {/* VM Section */}
+        <div className="mt-3 p-3 rounded-lg" style={{ background: '#161b22', border: '1px solid #21262d' }}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold" style={{ color: editForm.hasVM ? '#f59e0b' : '#6e7681' }}>🔄 Virada de Mão</span>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={editForm.hasVM || false}
+                onChange={e => setEditForm(f => ({ ...f, hasVM: e.target.checked }))}
+                style={{ accentColor: '#f59e0b' }} />
+              <span className="text-[11px]" style={{ color: '#8b949e' }}>Ativar</span>
+            </label>
+          </div>
+          {editForm.hasVM && (
+            <div className="grid grid-cols-2 gap-3">
+              <TradeField label="Resultado VM">
+                <select className="gpfx-select w-full text-xs" value={editForm.vmResult || 'WIN'} onChange={e => setEditForm(f => ({ ...f, vmResult: e.target.value }))}>
+                  {RESULTS.map(r => <option key={r}>{r}</option>)}
+                </select>
+              </TradeField>
+              <TradeField label="P&L VM (USD)">
+                <input type="number" step="0.01" className="gpfx-input w-full text-xs" value={editForm.vmPnl || ''} onChange={e => setEditForm(f => ({ ...f, vmPnl: parseFloat(e.target.value) || 0 }))} />
+              </TradeField>
+              <TradeField label="Lots VM">
+                <input type="number" step="0.01" className="gpfx-input w-full text-xs" value={editForm.vmLots || ''} onChange={e => setEditForm(f => ({ ...f, vmLots: parseFloat(e.target.value) || 0 }))} />
+              </TradeField>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Bulk Delete Modal */}
+      <Modal open={bulkDeleteModal} onClose={() => setBulkDeleteModal(false)} title="Confirmar exclusão"
+        footer={<>
+          <button className="btn-gpfx btn-gpfx-ghost" onClick={() => setBulkDeleteModal(false)}>Cancelar</button>
+          <button className="btn-gpfx" style={{ background: '#ff4d4d', color: '#fff', border: 'none' }} onClick={handleBulkDelete}>Sim, apagar</button>
+        </>}>
+        <div className="flex items-center gap-3 mb-3">
+          <AlertTriangle size={28} style={{ color: '#f59e0b' }} />
+          <p className="text-sm" style={{ color: '#c9d1d9' }}>
+            Você está prestes a apagar <strong>{selectedCount} trade{selectedCount !== 1 ? 's' : ''}</strong>. Esta ação não pode ser desfeita.
+          </p>
+        </div>
+        <div className="p-3 rounded-lg text-xs flex flex-col gap-1" style={{ background: '#161b22', color: '#8b949e', maxHeight: 200, overflowY: 'auto' }}>
+          {selectedTrades.slice(0, 5).map(t => {
+            const pnl = signedPnl(t.pnl, t.result) + (t.hasVM ? signedPnl(t.vmPnl, t.vmResult) : 0);
+            const dateStr = t.date ? t.date.split('-').slice(1).reverse().join('/') : '??';
+            return (
+              <div key={t.id}>
+                • {dateStr} {t.pair} {t.dir} {t.result}{' '}
+                <span style={{ color: pnl >= 0 ? '#00d395' : '#ff4d4d' }}>
+                  {pnl >= 0 ? '+' : ''}${fmtNum(pnl)}
+                </span>
+              </div>
+            );
+          })}
+          {selectedCount > 5 && (
+            <div style={{ color: '#6e7681' }}>+ {selectedCount - 5} outros trades</div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Export Modal */}
       <Modal open={exportModal} onClose={() => setExportModal(false)} title="⬇ Exportar para CSV"
         footer={<>
           <button className="btn-gpfx btn-gpfx-ghost" onClick={() => setExportModal(false)}>Cancelar</button>
@@ -644,6 +778,7 @@ export default function PlanilhaPage() {
         </div>
       </Modal>
 
+      {/* MT5 Import Modal */}
       <Modal open={mt5Modal} onClose={() => setMt5Modal(false)} title="📥 Importar Relatório MT5"
         footer={<>
           <button className="btn-gpfx btn-gpfx-ghost" onClick={() => setMt5Modal(false)}>Cancelar</button>
@@ -662,16 +797,6 @@ export default function PlanilhaPage() {
           4. Selecione o arquivo abaixo
         </div>
       </Modal>
-    </div>
-  );
-}
-
-function StatBox({ label, value, sub, cls }: { label: string; value: string; sub?: string; cls?: string }) {
-  return (
-    <div className="stat-box">
-      <div className="stat-label">{label}</div>
-      <div className={`stat-value text-base ${cls || ''}`}>{value}</div>
-      {sub && <div className="text-[11px] mt-0.5" style={{ color: '#6e7681' }}>{sub}</div>}
     </div>
   );
 }
