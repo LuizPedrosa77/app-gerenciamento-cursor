@@ -4,6 +4,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { AppSidebar } from '@/components/GPFXSidebar';
 import DashboardPage from '@/pages/DashboardPage';
 import EvolucaoPage from '@/pages/EvolucaoPage';
+import CalendarioPage from '@/pages/CalendarioPage';
 import PlanilhaPage from '@/pages/PlanilhaPage';
 import AnalisePage from '@/pages/AnalisePage';
 import ContasAtivasPage from '@/pages/ContasAtivasPage';
