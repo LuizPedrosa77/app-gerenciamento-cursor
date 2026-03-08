@@ -94,6 +94,8 @@ export default function TradingViewPage() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [tradePeriod, setTradePeriod] = useState('all');
   const [showMarkers, setShowMarkers] = useState(() => localStorage.getItem('gpfx_show_markers') !== 'false');
+  const [screenshotModal, setScreenshotModal] = useState<{ open: boolean; trade: Trade | null }>({ open: false, trade: null });
+  const [lightbox, setLightbox] = useState<{ open: boolean; images: { data: string; caption: string; tradePair?: string }[]; index: number }>({ open: false, images: [], index: 0 });
 
   // New filters
   const [accountFilter, setAccountFilter] = useState(() => localStorage.getItem('gpfx_tv_account') || 'all');
