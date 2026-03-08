@@ -112,6 +112,14 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     });
   }, [doSave]);
 
+  const updateMonthlyGoal = useCallback((accIdx: number, val: number) => {
+    doSave(s => {
+      const accounts = [...s.accounts];
+      accounts[accIdx] = { ...accounts[accIdx], monthlyGoal: val };
+      return { ...s, accounts };
+    });
+  }, [doSave]);
+
   const addTrade = useCallback((date?: string) => {
     doSave(s => {
       const accounts = [...s.accounts];
