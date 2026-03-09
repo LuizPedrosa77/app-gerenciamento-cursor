@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     # Crypto (credenciais broker)
     BROKER_CREDENTIALS_KEY: str = "change-me-32-bytes-base64-encoded"
 
+    # Internal API (n8n integration)
+    INTERNAL_API_KEY: str | None = None  # Chave para endpoints internos
+    N8N_WEBHOOK_URL: str | None = None  # URL do webhook n8n
+
     # MinIO / S3 (screenshots)
     MINIO_ENDPOINT: str = "localhost:9000"
     MINIO_ACCESS_KEY: str = "minioadmin"

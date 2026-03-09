@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     daily_notes,
     dashboard,
     health,
+    internal,
     replay,
     screenshot,
     trades,
@@ -28,3 +29,4 @@ api_router.include_router(screenshot.router, prefix="/trades", tags=["screenshot
 api_router.include_router(brokers.router, prefix="/api/v1", tags=["brokers"])
 api_router.include_router(replay.router, prefix="/api/v1", tags=["replay"])
 api_router.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])
+api_router.include_router(internal.router, prefix="/api/v1", tags=["internal"])
