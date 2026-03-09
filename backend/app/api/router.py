@@ -8,6 +8,7 @@ from app.api.v1.endpoints import (
     auth,
     brokers,
     daily_notes,
+    dashboard,
     health,
     replay,
     screenshot,
@@ -26,3 +27,4 @@ api_router.include_router(daily_notes.router, prefix="/daily-notes", tags=["dail
 api_router.include_router(screenshot.router, prefix="/trades", tags=["screenshots"])
 api_router.include_router(brokers.router, prefix="/api/v1", tags=["brokers"])
 api_router.include_router(replay.router, prefix="/api/v1", tags=["replay"])
+api_router.include_router(dashboard.router, prefix="/api/v1", tags=["dashboard"])

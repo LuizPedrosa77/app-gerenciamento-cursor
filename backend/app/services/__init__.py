@@ -49,6 +49,17 @@ from .storage_service import (
     get_screenshot_url,
     upload_screenshot,
 )
+from .dashboard_service import (
+    account_evolution,
+    pnl_by_direction,
+    pnl_by_month,
+    pnl_by_pair,
+    pnl_by_week_of_month,
+    pnl_by_weekday,
+    summary,
+    top_trades,
+    weekly_report,
+)
 from .trade_service import (
     create_daily_note,
     create_trade,
@@ -105,6 +116,16 @@ __all__ = [
     "ReplayEngine",
     "get_replay_engine",
     "remove_replay_engine",
+    # Dashboard service
+    "account_evolution",
+    "pnl_by_direction",
+    "pnl_by_month",
+    "pnl_by_pair",
+    "pnl_by_week_of_month",
+    "pnl_by_weekday",
+    "summary",
+    "top_trades",
+    "weekly_report",
     # Storage service
     "delete_screenshot",
     "get_screenshot_url",
