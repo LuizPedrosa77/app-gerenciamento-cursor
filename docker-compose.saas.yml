@@ -1,0 +1,178 @@
+version: "3.8"
+
+services:
+  # Frontend React
+  frontend:
+    image: hubnexusai/gpfx-frontend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    networks:
+      - digital_network
+      - traefik_public
+    environment:
+      - VITE_API_URL=https://api.hubnexusai.com
+      - VITE_WS_URL=wss://api.hubnexusai.com
+      - VITE_APP_NAME=Gustavo Pedrosa FX
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == database
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.gpfx.rule=Host(`fx.hubnexusai.com`)
+        - traefik.http.routers.gpfx.entrypoints=websecure
+        - traefik.http.services.gpfx.loadbalancer.server.port=80
+        - traefik.http.routers.gpfx.service=gpfx
+        - traefik.http.routers.gpfx.tls.certresolver=le
+        - com.centurylinklabs.watchtower.enable=true
+
+  # Backend FastAPI
+  backend:
+    image: hubnexusai/gpfx-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    networks:
+      - digital_network
+      - traefik_public
+    environment:
+      - DATABASE_URL=postgresql://postgres:hub123nexusai@postgres:5432/saas_gerenciamento_fx
+      - SECRET_KEY=${SECRET_KEY}
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
+      - REDIS_URL=redis://redis:6379/5
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == database
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.gpfx-api.rule=Host(`api.hubnexusai.com`)
+        - traefik.http.routers.gpfx-api.entrypoints=websecure
+        - traefik.http.services.gpfx-api.loadbalancer.server.port=8000
+        - traefik.http.routers.gpfx-api.service=gpfx-api
+        - traefik.http.routers.gpfx-api.tls.certresolver=le
+        - traefik.http.middlewares.gpfx-cors.headers.accesscontrolalloworiginlist=https://fx.hubnexusai.com
+        - traefik.http.routers.gpfx-api.middlewares=gpfx-cors
+        - com.centurylinklabs.watchtower.enable=true
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    networks:
+      - digital_network
+    environment:
+      - POSTGRES_DB=saas_gerenciamento_fx
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=hub123nexusai
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d saas_gerenciamento_fx"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    networks:
+      - digital_network
+    command: redis-server --appendonly yes --replicaof no --requirepass redis123
+    environment:
+      - REDIS_PASSWORD=redis123
+    volumes:
+      - redis_data:/data
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == database
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MinIO para screenshots
+  minio:
+    image: minio/minio:latest
+    networks:
+      - digital_network
+    volumes:
+      - minio_data:/data
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY}
+      - MINIO_BROWSER_REDIRECT_URL=https://minio.hubnexusai.com
+    command: server /data --console-address ":9001"
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == database
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MinIO Client (para criação de buckets)
+  minio-setup:
+    image: minio/mc:latest
+    networks:
+      - digital_network
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY} &&
+      /usr/bin/mc mb myminio/gpfx-screenshots --ignore-existing &&
+      /usr/bin/mc mb myminio/gpfx-exports --ignore-existing &&
+      /usr/bin/mc mb myminio/gpfx-backups --ignore-existing &&
+      echo 'MinIO buckets created successfully'
+      "
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == database
+
+volumes:
+  postgres_data:
+    external: false
+    name: gpfx-postgres-data
+  redis_data:
+    external: false
+    name: gpfx-redis-data
+  minio_data:
+    external: false
+    name: gpfx-minio-data
+
+networks:
+  digital_network:
+    external: true
+    name: digital_network
+  traefik_public:
+    external: true
+    name: traefik_public
