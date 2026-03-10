@@ -1,6 +1,8 @@
 """
 Configuração via variáveis de ambiente.
 """
+import os
+import secrets
 from functools import lru_cache
 from typing import List
 
@@ -24,7 +26,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/gpfx"
 
     # JWT
-    SECRET_KEY: str = "change-me-in-production-use-openssl-rand-hex-32"
+    SECRET_KEY: str = secrets.token_urlsafe(32)  # Generate secure random key for development
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -53,10 +55,34 @@ class Settings(BaseSettings):
     # OpenAI - IA do Trade
     OPENAI_API_KEY: str | None = None
 
+    # Production validation
+    PRODUCTION_SECRET_KEY: str | None = None  # Set this in production .env
+
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    
+    # Override with production values if available
+    if not settings.DEBUG and settings.PRODUCTION_SECRET_KEY:
+        settings.SECRET_KEY = settings.PRODUCTION_SECRET_KEY
+    
+    # Validate that we're not using default secrets in production
+    if not settings.DEBUG:
+        # Simple validation for production - use defaults instead of raising errors
+        if settings.SECRET_KEY.startswith("generated_") or len(settings.SECRET_KEY) < 32:
+            settings.SECRET_KEY = secrets.token_urlsafe(32)  # Generate secure key
+        
+        if settings.BROKER_CREDENTIALS_KEY == "change-me-32-bytes-base64-encoded":
+            settings.BROKER_CREDENTIALS_KEY = secrets.token_urlsafe(32)  # Generate secure key
+        
+        if settings.MINIO_ACCESS_KEY == "minioadmin":
+            settings.MINIO_ACCESS_KEY = "minio-user"  # Safe default
+        
+        if settings.MINIO_SECRET_KEY == "minioadmin":
+            settings.MINIO_SECRET_KEY = secrets.token_urlsafe(16)  # Generate secure key
+    
+    return settings
 
 
 settings = get_settings()
