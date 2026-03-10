@@ -4,7 +4,8 @@ import {
   MONTHS, YEARS, PAIRS, DIRECTIONS, RESULTS,
   sumPnl, fmtNum, signedPnl, uid, Trade,
 } from '@/lib/gpfx-utils';
-import { Download, Upload, Pencil, X, RefreshCw, AlertTriangle, Camera } from 'lucide-react';
+import { Download, Upload, Pencil, X, RefreshCw, AlertTriangle, Camera, Plug } from 'lucide-react';
+import { ConnectBrokerModal } from '@/components/ConnectBrokerModal';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Lightbox } from '@/components/Lightbox';
 import { ScreenshotModal } from '@/components/ScreenshotModal';
@@ -41,6 +42,7 @@ export default function PlanilhaPage() {
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; id: string }>({ open: false, id: '' });
   const [exportModal, setExportModal] = useState(false);
   const [mt5Modal, setMt5Modal] = useState(false);
+  const [brokerModal, setBrokerModal] = useState(false);
   const [exportAccMode, setExportAccMode] = useState('active');
   const [exportPeriod, setExportPeriod] = useState('all');
   const [mt5AccIdx, setMt5AccIdx] = useState(String(state.activeAccount));
@@ -182,26 +184,92 @@ export default function PlanilhaPage() {
   // Export CSV
   const handleExport = () => {
     const accounts = exportAccMode === 'all' ? state.accounts : [acc];
-    const rows: string[][] = [['Conta', 'Data', 'Par', 'Direção', 'Lots', 'Resultado', 'P&L (USD)', 'Virada de Mão', 'P&L VM (USD)', 'P&L Total (USD)']];
+    const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const now = new Date();
+    const exportDate = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const periodLabel = exportPeriod === 'month' ? `${MONTHS_FULL[month]} ${year}` : exportPeriod === 'year' ? String(year) : 'Todos os períodos';
+    const accLabel = exportAccMode === 'all' ? 'Todas as contas' : acc.name;
+
+    const lines: string[] = [];
+    lines.push('Gustavo Pedrosa FX - Relatório de Trades');
+    lines.push(`Conta: ${accLabel}`);
+    lines.push(`Período: ${periodLabel}`);
+    lines.push(`Exportado em: ${exportDate}`);
+    lines.push('');
+
+    // Header
+    lines.push('#;Data;Par;Direção;Lotes;Resultado;P&L (USD);Virada de Mão;P&L VM (USD);P&L Total (USD);Plataforma;Observações');
+
+    // Collect all trades
+    let allTrades: { acc: string; trade: Trade }[] = [];
     accounts.forEach(a => {
       let trades = a.trades.slice();
       if (exportPeriod === 'year') trades = trades.filter(t => t.year === year);
       else if (exportPeriod === 'month') trades = trades.filter(t => t.year === year && t.month === month);
-      trades.sort((a, b) => (a.date || '') > (b.date || '') ? 1 : -1);
-      trades.forEach(t => {
-        const pnlMain = signedPnl(t.pnl, t.result);
-        const pnlVM = t.hasVM ? signedPnl(t.vmPnl, t.vmResult) : 0;
-        rows.push([a.name, t.date || '', t.pair || '', t.dir || '', String(t.lots || ''), t.result || '', pnlMain.toFixed(2), t.hasVM ? 'Sim' : 'Não', pnlVM !== 0 ? pnlVM.toFixed(2) : '', (pnlMain + pnlVM).toFixed(2)]);
-      });
+      trades.sort((x, y) => (x.date || '').localeCompare(y.date || ''));
+      trades.forEach(t => allTrades.push({ acc: a.name, trade: t }));
     });
-    const csv = '\uFEFF' + rows.map(row => row.map(cell => {
-      const str = String(cell);
-      return str.includes(',') || str.includes('"') || str.includes('\n') ? '"' + str.replace(/"/g, '""') + '"' : str;
-    }).join(',')).join('\n');
+
+    let totalPnlSum = 0;
+    let wins = 0;
+    let losses = 0;
+    let maxWin = 0;
+    let maxLoss = 0;
+
+    allTrades.forEach((item, idx) => {
+      const t = item.trade;
+      const pnlMain = signedPnl(t.pnl, t.result);
+      const pnlVM = t.hasVM ? signedPnl(t.vmPnl, t.vmResult) : 0;
+      const pnlTotal = pnlMain + pnlVM;
+      totalPnlSum += pnlTotal;
+      if (t.result === 'WIN') wins++; else losses++;
+      if (pnlTotal > maxWin) maxWin = pnlTotal;
+      if (pnlTotal < maxLoss) maxLoss = pnlTotal;
+
+      // Format date DD/MM/YYYY
+      let dateFormatted = '';
+      if (t.date) {
+        const parts = t.date.split('-');
+        if (parts.length === 3) dateFormatted = `${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
+
+      lines.push([
+        idx + 1,
+        dateFormatted,
+        t.pair || '',
+        t.dir || '',
+        t.lots != null ? String(t.lots) : '',
+        t.result || '',
+        pnlMain.toFixed(2),
+        t.hasVM ? 'Sim' : 'Não',
+        pnlVM !== 0 ? pnlVM.toFixed(2) : '',
+        pnlTotal.toFixed(2),
+        '',
+        '',
+      ].join(';'));
+    });
+
+    // Summary
+    const totalTrades = allTrades.length;
+    const winRate = totalTrades > 0 ? ((wins / totalTrades) * 100).toFixed(1) : '0.0';
+    lines.push('');
+    lines.push('RESUMO DO PERÍODO');
+    lines.push(`Total de Trades:;${totalTrades}`);
+    lines.push(`Wins:;${wins};Losses:;${losses}`);
+    lines.push(`Win Rate:;${winRate}%`);
+    lines.push(`P&L Total:;${totalPnlSum >= 0 ? '' : '-'}$${Math.abs(totalPnlSum).toFixed(2)}`);
+    lines.push(`Maior Win:;$${maxWin.toFixed(2)}`);
+    lines.push(`Maior Loss:;-$${Math.abs(maxLoss).toFixed(2)}`);
+
+    const csv = '\uFEFF' + lines.join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const a2 = document.createElement('a');
     a2.href = URL.createObjectURL(blob);
-    a2.download = `gustavo-pedrosa-fx_${new Date().toISOString().split('T')[0]}.csv`;
+
+    // File name: Gustavo_Pedrosa_FX_[Conta]_[Mes-Ano].csv
+    const safeAcc = accLabel.replace(/[^a-zA-Z0-9]/g, '_');
+    const safePeriod = exportPeriod === 'month' ? `${MONTHS_FULL[month]}_${year}` : exportPeriod === 'year' ? String(year) : 'Completo';
+    a2.download = `Gustavo_Pedrosa_FX_${safeAcc}_${safePeriod}.csv`;
     a2.click();
     setExportModal(false);
   };
@@ -320,6 +388,9 @@ export default function PlanilhaPage() {
           </button>
           <button className="btn-gpfx btn-gpfx-primary text-xs" onClick={() => { setMt5AccIdx(String(state.activeAccount)); setMt5Modal(true); }}>
             <Upload size={14} /> Importar MT5
+          </button>
+          <button className="btn-gpfx btn-gpfx-primary text-xs" onClick={() => setBrokerModal(true)}>
+            <Plug size={14} /> Conectar Corretora
           </button>
         </div>
       </div>
@@ -853,6 +924,7 @@ export default function PlanilhaPage() {
 
       {/* Lightbox */}
       <Lightbox open={lightbox.open} onClose={() => setLightbox({ ...lightbox, open: false })} images={lightbox.images} initialIndex={lightbox.index} />
+      <ConnectBrokerModal open={brokerModal} onClose={() => setBrokerModal(false)} />
     </div>
   );
 }

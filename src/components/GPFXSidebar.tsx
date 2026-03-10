@@ -3,7 +3,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import {
   LayoutDashboard, TrendingUp, ClipboardList, BarChart3, Wallet,
   Menu, Moon, Sun, LineChart, ChevronLeft,
-  CandlestickChart, CheckCircle, CalendarDays, Bot, Plug
+  CandlestickChart, CheckCircle, CalendarDays, Bot, Plug, UserCircle, LogOut
 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useGPFX } from '@/contexts/GPFXContext';
@@ -21,6 +21,7 @@ interface SidebarProps {
   onToggleMobile: () => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  onLogout?: () => void;
 }
 
 const menuItems = [
@@ -33,29 +34,31 @@ const menuItems = [
   { id: 'contas', label: 'Contas Ativas', icon: Wallet },
   { id: 'ia', label: 'IA do Trade', icon: Bot },
   { id: 'apis', label: 'APIs', icon: Plug },
+  { id: 'perfil', label: 'Perfil', icon: UserCircle },
 ];
 
-export function AppSidebar({ activeView, onChangeView, mobileOpen, onToggleMobile, collapsed, onToggleCollapse }: SidebarProps) {
+export function AppSidebar({ activeView, onChangeView, mobileOpen, onToggleMobile, collapsed, onToggleCollapse, onLogout }: SidebarProps) {
   const { showSaved } = useGPFX();
   const isMobile = useIsMobile();
   const effectiveCollapsed = isMobile ? false : collapsed;
   const { theme, toggleTheme } = useTheme();
   const [clickedItem, setClickedItem] = useState<string | null>(null);
   const [showScanLine, setShowScanLine] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const handleClick = (id: string) => {
     if (id === activeView) return;
-    
-    // Ping animation
     setClickedItem(id);
     setTimeout(() => setClickedItem(null), 300);
-    
-    // Scan line
     setShowScanLine(true);
     setTimeout(() => setShowScanLine(false), 400);
-    
     onChangeView(id);
     if (mobileOpen) onToggleMobile();
+  };
+
+  const handleLogoutConfirm = () => {
+    setShowLogoutModal(false);
+    onLogout?.();
   };
 
   return (
@@ -101,10 +104,7 @@ export function AppSidebar({ activeView, onChangeView, mobileOpen, onToggleMobil
       >
         {/* Grid background */}
         <div className="sidebar-grid-bg" />
-
-        {/* Orb 1 */}
         <div className="sidebar-orb sidebar-orb-1" />
-        {/* Orb 2 */}
         <div className="sidebar-orb sidebar-orb-2" />
 
         {/* Logo Section */}
@@ -128,7 +128,6 @@ export function AppSidebar({ activeView, onChangeView, mobileOpen, onToggleMobil
             )}
           </div>
 
-          {/* Toggle button - hidden on mobile */}
           <button
             onClick={onToggleCollapse}
             className="hidden md:flex sidebar-toggle-btn"
@@ -142,10 +141,8 @@ export function AppSidebar({ activeView, onChangeView, mobileOpen, onToggleMobil
           </button>
         </div>
 
-        {/* Logo separator */}
         <div className="sidebar-separator mx-3" />
 
-        {/* Navigation label */}
         {!effectiveCollapsed && (
           <div className="px-5 pt-5 pb-2">
             <span className="text-[9px] font-bold uppercase tracking-[3px]" style={{ color: 'rgba(255,255,255,0.45)' }}>
@@ -205,6 +202,33 @@ export function AppSidebar({ activeView, onChangeView, mobileOpen, onToggleMobil
         {/* Footer separator */}
         <div className="sidebar-separator mx-3" />
 
+        {/* Logout button */}
+        <div className="relative z-10 px-3 py-2">
+          {effectiveCollapsed ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setShowLogoutModal(true)}
+                  className="w-[44px] h-[44px] mx-auto rounded-xl flex items-center justify-center transition-all hover:bg-[rgba(239,68,68,0.1)]"
+                  style={{ border: '1px solid rgba(239,68,68,0.2)' }}
+                >
+                  <LogOut size={18} color="#ff4d4d" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="text-xs">Sair da conta</TooltipContent>
+            </Tooltip>
+          ) : (
+            <button
+              onClick={() => setShowLogoutModal(true)}
+              className="w-full flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all hover:bg-[rgba(239,68,68,0.1)]"
+              style={{ color: '#ff4d4d' }}
+            >
+              <LogOut size={16} />
+              <span>Sair</span>
+            </button>
+          )}
+        </div>
+
         {/* Footer */}
         <div className="relative z-10 flex items-center px-3 py-3" style={{ justifyContent: effectiveCollapsed ? 'center' : 'space-between' }}>
           {!effectiveCollapsed && (
@@ -235,6 +259,33 @@ export function AppSidebar({ activeView, onChangeView, mobileOpen, onToggleMobil
           </div>
         )}
       </aside>
+
+      {/* Logout confirmation modal */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
+          <div className="w-full max-w-sm rounded-xl p-6 space-y-4" style={{ background: 'var(--gpfx-card)', border: '1px solid var(--gpfx-border)' }}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.1)' }}>
+                <LogOut size={20} color="#ff4d4d" />
+              </div>
+              <h3 className="text-lg font-bold" style={{ color: 'var(--gpfx-text-primary)' }}>Sair da conta</h3>
+            </div>
+            <p className="text-sm" style={{ color: 'var(--gpfx-text-secondary)' }}>Deseja realmente sair da conta?</p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowLogoutModal(false)}
+                className="flex-1 h-10 rounded-lg text-sm font-semibold"
+                style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--gpfx-text-secondary)', border: '1px solid var(--gpfx-border)' }}>
+                Cancelar
+              </button>
+              <button onClick={handleLogoutConfirm}
+                className="flex-1 h-10 rounded-lg text-sm font-semibold text-white"
+                style={{ background: '#ff4d4d' }}>
+                Sair
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </TooltipProvider>
   );
 }

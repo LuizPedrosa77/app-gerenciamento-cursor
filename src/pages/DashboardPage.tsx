@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
+import { Wallet } from 'lucide-react';
 import { useGPFX } from '@/contexts/GPFXContext';
 import {
-  MONTHS, WEEKDAYS, sumPnl, fmtNum, getAccountBalance, getWinRate, getTradePnl, Trade, signedPnl, getWeekOfMonth, getMonthPnl,
+  MONTHS, WEEKDAYS, sumPnl, fmtNum, getAccountBalance, getWinRate, getTradePnl, Trade, getWeekOfMonth, getMonthPnl,
 } from '@/lib/gpfx-utils';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -338,9 +339,37 @@ export default function DashboardPage() {
       {/* Monthly Goal Card */}
       <MonthlyGoalCard accFilter={accFilter} />
 
+      {/* Saldo Total Card — Destaque */}
+      <div
+        className="gpfx-card p-5 flex flex-col gap-2"
+        style={{
+          border: '1px solid rgba(0,211,149,0.25)',
+          background: 'rgba(0,211,149,0.04)',
+        }}
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl" style={{ background: 'rgba(0,211,149,0.12)' }}>
+            <Wallet size={22} style={{ color: '#00d395' }} />
+          </div>
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--gpfx-text-muted)' }}>Saldo Total</div>
+            <div className="text-xs" style={{ color: 'var(--gpfx-text-muted)' }}>Soma de todas as contas ativas</div>
+          </div>
+        </div>
+        <div className="text-3xl font-black" style={{ color: 'var(--gpfx-text-primary)' }}>
+          ${fmtNum(stats.totalBalance)}
+        </div>
+        {state.accounts.length > 1 && (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: 'var(--gpfx-text-muted)', opacity: 0.7 }}>
+            {state.accounts.map((acc, i) => (
+              <span key={i}>{acc.name}: <span className="font-semibold" style={{ color: 'var(--gpfx-text-secondary)' }}>${fmtNum(getAccountBalance(acc))}</span></span>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* KPI Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Saldo Total" value={'$' + fmtNum(stats.totalBalance)} color="var(--gpfx-text-primary)" sparkData={stats.balCum} />
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <KpiCard label="P&L Total" value={(stats.totalPnl >= 0 ? '+' : '') + '$' + fmtNum(stats.totalPnl)} color={stats.totalPnl >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)'} sparkData={stats.monthlyPnls.slice(-7)} variation={{ pct: stats.pnlVariation, label: 'vs mês ant.' }} />
         <KpiCard label="Win Rate Geral" value={stats.winRate + '%'} color="var(--gpfx-amber)" sparkData={stats.wrSpark} variation={{ pct: stats.wrSpark.length >= 2 ? stats.wrSpark[stats.wrSpark.length - 1] - stats.wrSpark[stats.wrSpark.length - 2] : 0, label: 'vs mês ant.' }} />
         <KpiCard label="Total de Trades" value={String(stats.totalTrades)} color="#60a5fa" />

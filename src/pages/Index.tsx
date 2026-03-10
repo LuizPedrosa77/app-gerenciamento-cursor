@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { GPFXProvider } from '@/contexts/GPFXContext';
+import { GPFXProvider, useGPFX } from '@/contexts/GPFXContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import OnboardingWizard, { shouldShowOnboarding } from '@/components/OnboardingWizard';
 import { AppSidebar } from '@/components/GPFXSidebar';
 import DashboardPage from '@/pages/DashboardPage';
 import EvolucaoPage from '@/pages/EvolucaoPage';
@@ -11,11 +12,15 @@ import ContasAtivasPage from '@/pages/ContasAtivasPage';
 import TradingViewPage from '@/pages/TradingViewPage';
 import IADoTradePage from '@/pages/IADoTradePage';
 import APIsPage from '@/pages/APIsPage';
+import PerfilPage from '@/pages/PerfilPage';
+import AuthPage from '@/pages/AuthPage';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-function AppLayout() {
+function AppLayout({ onLogout }: { onLogout: () => void }) {
+  const { state } = useGPFX();
   const [activeView, setActiveView] = useState('planilha');
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(() => shouldShowOnboarding(state.accounts));
   const isMobile = useIsMobile();
 
   const [collapsed, setCollapsed] = useState(() => {
@@ -42,6 +47,7 @@ function AppLayout() {
       case 'analise': return <AnalisePage />;
       case 'ia': return <IADoTradePage />;
       case 'apis': return <APIsPage />;
+      case 'perfil': return <PerfilPage />;
       default: return <PlanilhaPage />;
     }
   };
@@ -55,6 +61,7 @@ function AppLayout() {
         onToggleMobile={() => setMobileOpen(!mobileOpen)}
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed(!collapsed)}
+        onLogout={onLogout}
       />
       <main
         className="overflow-y-auto main-content-bg transition-all duration-300 page-fade-in"
@@ -66,15 +73,40 @@ function AppLayout() {
       >
         {renderPage()}
       </main>
+      {showOnboarding && (
+        <OnboardingWizard onComplete={() => setShowOnboarding(false)} onNavigate={setActiveView} />
+      )}
     </div>
   );
 }
 
 export default function Index() {
+  const [authenticated, setAuthenticated] = useState(() => {
+    return localStorage.getItem('gpfx_authenticated') === 'true';
+  });
+
+  const handleLogin = () => {
+    localStorage.setItem('gpfx_authenticated', 'true');
+    setAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('gpfx_authenticated');
+    setAuthenticated(false);
+  };
+
+  if (!authenticated) {
+    return (
+      <ThemeProvider>
+        <AuthPage onLogin={handleLogin} />
+      </ThemeProvider>
+    );
+  }
+
   return (
     <ThemeProvider>
       <GPFXProvider>
-        <AppLayout />
+        <AppLayout onLogout={handleLogout} />
       </GPFXProvider>
     </ThemeProvider>
   );

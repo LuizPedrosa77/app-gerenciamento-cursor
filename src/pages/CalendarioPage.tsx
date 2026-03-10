@@ -2,10 +2,11 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useGPFX } from '@/contexts/GPFXContext';
 import {
   MONTHS_FULL, WEEKDAYS, PAIRS, DIRECTIONS, RESULTS,
-  sumPnl, fmtNum, signedPnl, getWinRate, getTradePnl, uid, Trade,
+  sumPnl, fmtNum, signedPnl, getWinRate, getTradePnl, uid, Trade, getAccountBalance,
 } from '@/lib/gpfx-utils';
 import {
   ChevronLeft, ChevronRight, Plus, Calendar, Camera,
+  BarChart2, TrendingUp, Trophy, X as XIcon,
 } from 'lucide-react';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip,
@@ -13,6 +14,7 @@ import {
 } from 'recharts';
 import { Lightbox } from '@/components/Lightbox';
 import { ScreenshotModal } from '@/components/ScreenshotModal';
+import { AccountSelector } from '@/components/GPFXFilters';
 
 /* ── Modal ── */
 function Modal({ open, onClose, title, children, footer }: {
@@ -171,7 +173,9 @@ interface CalendarioPageProps {
 
 export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) {
   const { state, activeAcc, addTrade, setState, save, updateTrade } = useGPFX();
-  const acc = activeAcc;
+  const [accFilter, setAccFilter] = useState<string>(String(state.activeAccount));
+  const acc = accFilter === 'all' ? activeAcc : (state.accounts[parseInt(accFilter)] || activeAcc);
+  const filteredAccounts = accFilter === 'all' ? state.accounts : [acc];
   const now = new Date();
 
   const [calYear, setCalYear] = useState(state.activeYear);
@@ -203,10 +207,13 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
   }, [noteTimer]);
 
   // Month trades
-  const monthTrades = useMemo(() =>
-    acc.trades.filter(t => t.year === calYear && t.month === calMonth),
-    [acc.trades, calYear, calMonth]
-  );
+  const monthTrades = useMemo(() => {
+    let trades: Trade[] = [];
+    filteredAccounts.forEach(a => {
+      trades.push(...a.trades.filter(t => t.year === calYear && t.month === calMonth));
+    });
+    return trades;
+  }, [filteredAccounts, calYear, calMonth]);
 
   const monthPnl = sumPnl(monthTrades);
   const daysOperated = new Set(monthTrades.map(t => t.date)).size;
@@ -419,9 +426,43 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
 
   return (
     <div className="page-fade-in flex flex-col gap-5 max-w-[1600px] mx-auto p-6">
+      {/* Goal Achievement Banners */}
+      {(() => {
+        const goal = acc.monthlyGoal || 0;
+        if (goal <= 0) return null;
+        const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+        const midMonth = 15;
+
+        // Quinzenal trades
+        const q1Trades = monthTrades.filter(t => { const d = parseInt((t.date || '').split('-')[2] || '0'); return d >= 1 && d <= midMonth; });
+        const q2Trades = monthTrades.filter(t => { const d = parseInt((t.date || '').split('-')[2] || '0'); return d > midMonth && d <= daysInMonth; });
+        const q1Pnl = sumPnl(q1Trades);
+        const q2Pnl = sumPnl(q2Trades);
+        const biweeklyGoal = goal / 2;
+        const q1Hit = q1Pnl >= biweeklyGoal;
+        const q2Hit = q2Pnl >= biweeklyGoal;
+        const monthlyHit = monthPnl >= goal;
+
+        const banners: { label: string; value: number }[] = [];
+        if (q1Hit) banners.push({ label: 'quinzenal (1ª quinzena)', value: biweeklyGoal });
+        if (q2Hit) banners.push({ label: 'quinzenal (2ª quinzena)', value: biweeklyGoal });
+        if (monthlyHit) banners.push({ label: 'mensal', value: goal });
+
+        return banners.map((b, i) => (
+          <div key={i} className="flex items-center justify-between p-3 rounded-lg" style={{ background: 'rgba(0,211,149,0.1)', border: '1px solid #00d395' }}>
+            <div className="flex items-center gap-2">
+              <Trophy size={18} style={{ color: '#00d395' }} />
+              <span className="text-sm font-bold" style={{ color: '#00d395' }}>
+                🎉 Parabéns! Você atingiu sua meta {b.label} de ${fmtNum(b.value)}!
+              </span>
+            </div>
+          </div>
+        ));
+      })()}
+
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-xl font-extrabold" style={{ color: 'var(--gpfx-text-primary)' }}>📅 Calendário</h1>
           <div className="flex items-center gap-1">
             <button className="btn-gpfx btn-gpfx-ghost p-1" onClick={prevMonth}><ChevronLeft size={18} /></button>
@@ -432,21 +473,11 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
           </div>
           <button className="text-[11px] px-3 py-1 rounded-full font-bold" style={{ background: 'rgba(0,211,149,0.15)', color: '#00d395', border: '1px solid rgba(0,211,149,0.3)' }}
             onClick={goThisMonth}>Este mês</button>
+          <AccountSelector value={accFilter} onChange={setAccFilter} accounts={state.accounts} />
           <span className="text-sm font-bold" style={{ color: monthPnl >= 0 ? '#00d395' : '#ff4d4d' }}>
             {monthPnl >= 0 ? '+' : ''}${fmtNum(monthPnl)}
           </span>
           <span className="text-xs" style={{ color: 'var(--gpfx-text-muted)' }}>{daysOperated} dias operados</span>
-          {(() => {
-            const goal = acc.monthlyGoal || 0;
-            if (goal <= 0) return null;
-            const pct = Math.min(100, Math.max(0, (monthPnl / goal) * 100));
-            const pillColor = pct >= 100 ? '#00d395' : pct >= 71 ? '#3b82f6' : pct >= 41 ? '#f59e0b' : '#ff4d4d';
-            return (
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: pillColor + '20', color: pillColor }}>
-                🎯 {pct.toFixed(0)}%
-              </span>
-            );
-          })()}
         </div>
         <button className="btn-gpfx btn-gpfx-primary text-xs" onClick={() => {
           const mm = String(calMonth + 1).padStart(2, '0');
@@ -565,7 +596,178 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
         </div>
       </div>
 
-      {/* Day Review Panel */}
+      {/* Meta Quinzenal e Mensal */}
+      {(() => {
+        const goal = acc.monthlyGoal || 0;
+        if (goal <= 0) return null;
+        const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+        const biweeklyGoal = goal / 2;
+        const q1Trades = monthTrades.filter(t => { const d = parseInt((t.date || '').split('-')[2] || '0'); return d >= 1 && d <= 15; });
+        const q2Trades = monthTrades.filter(t => { const d = parseInt((t.date || '').split('-')[2] || '0'); return d > 15 && d <= daysInMonth; });
+        const q1Pnl = sumPnl(q1Trades);
+        const q2Pnl = sumPnl(q2Trades);
+        const q1Pct = Math.min(100, Math.max(0, (q1Pnl / biweeklyGoal) * 100));
+        const q2Pct = Math.min(100, Math.max(0, (q2Pnl / biweeklyGoal) * 100));
+        const monthPct = Math.min(100, Math.max(0, (monthPnl / goal) * 100));
+        const barColor = (pct: number) => pct >= 100 ? '#00d395' : pct >= 71 ? '#3b82f6' : pct >= 41 ? '#f59e0b' : '#ff4d4d';
+
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Quinzenal 1 */}
+            <div className="gpfx-card p-4">
+              <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--gpfx-text-muted)' }}>🎯 Meta Quinzenal — 1ª Quinzena</div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-bold" style={{ color: 'var(--gpfx-text-primary)' }}>${fmtNum(q1Pnl)} <span style={{ color: 'var(--gpfx-text-muted)', fontWeight: 400, fontSize: '11px' }}>/ ${fmtNum(biweeklyGoal)}</span></span>
+                <span className="text-xs font-bold" style={{ color: barColor(q1Pct) }}>{q1Pct.toFixed(0)}%</span>
+              </div>
+              <div className="h-2 rounded-full overflow-hidden" style={{ background: '#21262d' }}>
+                <div className="h-full rounded-full transition-all" style={{ width: q1Pct + '%', background: barColor(q1Pct) }} />
+              </div>
+            </div>
+            {/* Quinzenal 2 */}
+            <div className="gpfx-card p-4">
+              <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--gpfx-text-muted)' }}>🎯 Meta Quinzenal — 2ª Quinzena</div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-bold" style={{ color: 'var(--gpfx-text-primary)' }}>${fmtNum(q2Pnl)} <span style={{ color: 'var(--gpfx-text-muted)', fontWeight: 400, fontSize: '11px' }}>/ ${fmtNum(biweeklyGoal)}</span></span>
+                <span className="text-xs font-bold" style={{ color: barColor(q2Pct) }}>{q2Pct.toFixed(0)}%</span>
+              </div>
+              <div className="h-2 rounded-full overflow-hidden" style={{ background: '#21262d' }}>
+                <div className="h-full rounded-full transition-all" style={{ width: q2Pct + '%', background: barColor(q2Pct) }} />
+              </div>
+            </div>
+            {/* Mensal */}
+            <div className="gpfx-card p-4 md:col-span-2">
+              <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--gpfx-text-muted)' }}>🎯 Meta Mensal</div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-bold" style={{ color: 'var(--gpfx-text-primary)' }}>${fmtNum(monthPnl)} <span style={{ color: 'var(--gpfx-text-muted)', fontWeight: 400, fontSize: '11px' }}>/ ${fmtNum(goal)}</span></span>
+                <span className="text-xs font-bold" style={{ color: barColor(monthPct) }}>{monthPct.toFixed(0)}%</span>
+              </div>
+              <div className="h-2.5 rounded-full overflow-hidden" style={{ background: '#21262d' }}>
+                <div className={`h-full rounded-full transition-all ${monthPct >= 100 ? 'animate-pulse' : ''}`} style={{ width: monthPct + '%', background: barColor(monthPct) }} />
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 3 Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Card 1 — Resumo do Mês */}
+        <div className="p-4 rounded-lg" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="flex items-center gap-2 mb-3">
+            <BarChart2 size={18} style={{ color: '#00d395' }} />
+            <span className="text-sm font-bold" style={{ color: 'var(--gpfx-text-primary)' }}>Resumo de {MONTHS_FULL[calMonth]}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="text-[10px] font-bold uppercase" style={{ color: 'var(--gpfx-text-muted)' }}>Total de Trades</div>
+              <div className="text-lg font-black" style={{ color: 'var(--gpfx-text-primary)' }}>{monthTrades.length}</div>
+            </div>
+            <div>
+              <div className="text-[10px] font-bold uppercase" style={{ color: 'var(--gpfx-text-muted)' }}>Win Rate</div>
+              <div className="text-lg font-black" style={{ color: '#f59e0b' }}>{getWinRate(monthTrades)}%</div>
+            </div>
+            <div>
+              <div className="text-[10px] font-bold uppercase" style={{ color: 'var(--gpfx-text-muted)' }}>P&L Total</div>
+              <div className="text-lg font-black" style={{ color: monthPnl >= 0 ? '#00d395' : '#ff4d4d' }}>{monthPnl >= 0 ? '+' : ''}${fmtNum(monthPnl)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] font-bold uppercase" style={{ color: 'var(--gpfx-text-muted)' }}>Dias Operados</div>
+              <div className="text-lg font-black" style={{ color: 'var(--gpfx-text-primary)' }}>{daysOperated}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 2 — Sequências */}
+        {(() => {
+          const sorted = [...monthTrades].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+          let maxWins = 0, maxLosses = 0, curWins = 0, curLosses = 0;
+          let currentType = '', currentCount = 0;
+          sorted.forEach(t => {
+            if (t.result === 'WIN') { curWins++; curLosses = 0; if (curWins > maxWins) maxWins = curWins; }
+            else { curLosses++; curWins = 0; if (curLosses > maxLosses) maxLosses = curLosses; }
+          });
+          // Current streak
+          if (sorted.length > 0) {
+            const last = sorted[sorted.length - 1];
+            currentType = last.result;
+            currentCount = 1;
+            for (let i = sorted.length - 2; i >= 0; i--) {
+              if (sorted[i].result === currentType) currentCount++;
+              else break;
+            }
+          }
+          return (
+            <div className="p-4 rounded-lg" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingUp size={18} style={{ color: '#00d395' }} />
+                <span className="text-sm font-bold" style={{ color: 'var(--gpfx-text-primary)' }}>Sequências</span>
+              </div>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs" style={{ color: 'var(--gpfx-text-muted)' }}>Maior seq. de wins</span>
+                  <span className="text-sm font-bold" style={{ color: '#00d395' }}>{maxWins} dias</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs" style={{ color: 'var(--gpfx-text-muted)' }}>Maior seq. de losses</span>
+                  <span className="text-sm font-bold" style={{ color: '#ff4d4d' }}>{maxLosses} dias</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs" style={{ color: 'var(--gpfx-text-muted)' }}>Sequência atual</span>
+                  {sorted.length > 0 ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{
+                      color: currentType === 'WIN' ? '#00d395' : '#ff4d4d',
+                      background: currentType === 'WIN' ? 'rgba(0,211,149,0.15)' : 'rgba(255,77,77,0.15)',
+                    }}>{currentCount} {currentType === 'WIN' ? 'wins' : 'losses'}</span>
+                  ) : (
+                    <span className="text-xs" style={{ color: 'var(--gpfx-text-muted)' }}>—</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Card 3 — Melhor dia da semana */}
+        {(() => {
+          const DOW_LABELS = ['SEG', 'TER', 'QUA', 'QUI', 'SEX'];
+          const dowPnl = [0, 0, 0, 0, 0]; // Mon-Fri
+          monthTrades.forEach(t => {
+            if (t.date) {
+              const d = new Date(t.date + 'T12:00:00').getDay(); // 0=Sun
+              if (d >= 1 && d <= 5) dowPnl[d - 1] += getTradePnl(t);
+            }
+          });
+          const maxAbs = Math.max(...dowPnl.map(Math.abs), 1);
+          const ranked = DOW_LABELS.map((label, i) => ({ label, pnl: dowPnl[i] })).sort((a, b) => b.pnl - a.pnl);
+
+          return (
+            <div className="p-4 rounded-lg" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="flex items-center gap-2 mb-3">
+                <Calendar size={18} style={{ color: '#00d395' }} />
+                <span className="text-sm font-bold" style={{ color: 'var(--gpfx-text-primary)' }}>Melhor dia da semana</span>
+              </div>
+              <div className="flex flex-col gap-2">
+                {ranked.map(d => (
+                  <div key={d.label} className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold w-7" style={{ color: 'var(--gpfx-text-muted)' }}>{d.label}</span>
+                    <div className="flex-1 h-3 rounded-full overflow-hidden" style={{ background: '#21262d' }}>
+                      <div className="h-full rounded-full transition-all" style={{
+                        width: Math.max(2, (Math.abs(d.pnl) / maxAbs) * 100) + '%',
+                        background: d.pnl >= 0 ? '#00d395' : '#ff4d4d',
+                      }} />
+                    </div>
+                    <span className="text-[10px] font-bold min-w-[70px] text-right" style={{ color: d.pnl >= 0 ? '#00d395' : '#ff4d4d' }}>
+                      {d.pnl >= 0 ? '+' : ''}${fmtNum(d.pnl)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
       <div className="gpfx-card">
         <div className="gpfx-card-header flex-wrap">
           <div className="flex items-center gap-3">
