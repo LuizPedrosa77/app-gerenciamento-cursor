@@ -1,7 +1,7 @@
 """Add market data and replay system tables
 
-Revision ID: 004_add_market_data_and_replay
-Revises: 003_add_broker_connections_and_symbols
+Revision ID: 004
+Revises: 003
 Create Date: 2026-03-09 11:25:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '004_add_market_data_and_replay'
-down_revision = '003_add_broker_connections_and_symbols'
+revision = '004'
+down_revision = '003'
 branch_labels = None
 depends_on = None
 

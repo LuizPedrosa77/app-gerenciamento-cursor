@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -67,12 +67,12 @@ class BrokerSymbol(Base):
     symbol: Mapped[str] = mapped_column(String(50), nullable=False)
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     digits: Mapped[int] = mapped_column(nullable=False)
-    point: Mapped[Decimal] = mapped_column(Decimal(20, 10), nullable=False)
-    tick_size: Mapped[Decimal] = mapped_column(Decimal(20, 10), nullable=False)
-    contract_size: Mapped[Decimal] = mapped_column(Decimal(20, 2), nullable=False)
-    min_lot: Mapped[Decimal] = mapped_column(Decimal(20, 4), nullable=False)
-    max_lot: Mapped[Decimal] = mapped_column(Decimal(20, 4), nullable=False)
-    lot_step: Mapped[Decimal] = mapped_column(Decimal(20, 4), nullable=False)
+    point: Mapped[Decimal] = mapped_column(Numeric(20, 10), nullable=False)
+    tick_size: Mapped[Decimal] = mapped_column(Numeric(20, 10), nullable=False)
+    contract_size: Mapped[Decimal] = mapped_column(Numeric(20, 2), nullable=False)
+    min_lot: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    max_lot: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
+    lot_step: Mapped[Decimal] = mapped_column(Numeric(20, 4), nullable=False)
     spread: Mapped[int | None] = mapped_column(nullable=True)
     is_tradeable: Mapped[bool] = mapped_column(default=True, nullable=False)
     last_updated: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -1,7 +1,7 @@
 """Add broker_connections and symbols tables
 
-Revision ID: 003_add_broker_connections_and_symbols
-Revises: 002_add_trading_accounts_trades_withdrawals_notes
+Revision ID: 003
+Revises: 002
 Create Date: 2026-03-09 10:40:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '003_add_broker_connections_and_symbols'
-down_revision = '002_add_trading_accounts_trades_withdrawals_notes'
+revision = '003'
+down_revision = '002'
 branch_labels = None
 depends_on = None
 

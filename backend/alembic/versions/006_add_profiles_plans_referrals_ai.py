@@ -1,7 +1,7 @@
 """Add user profiles, plans, referrals, and AI conversations
 
-Revision ID: 006_add_profiles_plans_referrals_ai
-Revises: 005_add_frontend_compatibility_and_goals
+Revision ID: 006
+Revises: 005
 Create Date: 2025-01-10 12:30:00.000000
 
 """
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '006_add_profiles_plans_referrals_ai'
-down_revision: Union[str, None] = '005_add_frontend_compatibility_and_goals'
+revision: str = '006'
+down_revision: Union[str, None] = '005'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

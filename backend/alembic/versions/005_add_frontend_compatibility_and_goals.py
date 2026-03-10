@@ -1,7 +1,7 @@
 """Add frontend compatibility fields and goals
 
-Revision ID: 005_add_frontend_compatibility_and_goals
-Revises: 004_add_market_data_and_replay
+Revision ID: 005
+Revises: 004
 Create Date: 2025-01-10 12:00:00.000000
 
 """
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '005_add_frontend_compatibility_and_goals'
-down_revision: Union[str, None] = '004_add_market_data_and_replay'
+revision: str = '005'
+down_revision: Union[str, None] = '004'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
