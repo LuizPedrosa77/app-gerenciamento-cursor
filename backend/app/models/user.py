@@ -15,6 +15,7 @@ class User(Base):
     full_name = Column(String(255), nullable=False)
     cpf = Column(String(14), unique=True, nullable=True)
     hashed_password = Column(String(255), nullable=False)
+    google_id = Column(String(255), unique=True, nullable=True)
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
     plan = Column(String(50), default="basic")
