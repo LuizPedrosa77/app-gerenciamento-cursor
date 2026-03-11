@@ -32,9 +32,11 @@ services:
       - SECRET_KEY=gpfx-secret-key-2026-production
       - INTERNAL_API_KEY=gpfx-internal-key-2026
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - MINIO_ENDPOINT=minio.hubnexusai.com
+      - MINIO_ENDPOINT=s3.hubnexusai.com
       - MINIO_ACCESS_KEY=574184765162
       - MINIO_SECRET_KEY=8332bdeca11c80fe91685492
+      - MINIO_BUCKET=appgerenciamentofx
+      - MINIO_USE_SSL=true
       - REDIS_URL=redis://redis:6379/5
       - N8N_WEBHOOK_URL=https://n8n.hubnexusai.com/webhook
     deploy:
@@ -51,27 +53,6 @@ services:
         - traefik.http.routers.gpfx-api.service=gpfx-api
         - traefik.http.routers.gpfx-api.tls.certresolver=le
         - com.centurylinklabs.watchtower.enable=true
-
-  minio:
-    image: minio/minio:latest
-    volumes:
-      - gpfx-minio-data:/data
-    networks:
-      - digital_network
-    environment:
-      - MINIO_ROOT_USER=hubnexusai
-      - MINIO_ROOT_PASSWORD=hub123nexusai
-    command: server /data --console-address ":9001"
-    deploy:
-      mode: replicated
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-
-volumes:
-  gpfx-minio-data:
-    name: gpfx-minio-data
 
 networks:
   digital_network:
