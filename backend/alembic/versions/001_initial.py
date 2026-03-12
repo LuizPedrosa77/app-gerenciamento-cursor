@@ -29,7 +29,18 @@ def upgrade() -> None:
             is_superuser BOOLEAN DEFAULT FALSE,
             plan VARCHAR(50) DEFAULT 'basic',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            phone VARCHAR(20) NULL,
+            bio TEXT NULL,
+            avatar_url TEXT NULL,
+            trading_style VARCHAR(50) NULL,
+            experience_level VARCHAR(50) NULL,
+            theme VARCHAR(20) DEFAULT 'dark',
+            language VARCHAR(10) DEFAULT 'pt-BR',
+            currency VARCHAR(10) DEFAULT 'USD',
+            timezone VARCHAR(50) DEFAULT 'America/Sao_Paulo',
+            notifications_email BOOLEAN DEFAULT true,
+            notifications_push BOOLEAN DEFAULT true
         )
     """)
 

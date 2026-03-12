@@ -59,6 +59,14 @@ api_router.include_router(
     tags=["goals"]
 )
 
+# Import and include profile router
+from app.api.v1.endpoints import profile
+api_router.include_router(
+    profile.router,
+    prefix="/profile",
+    tags=["profile"]
+)
+
 # Add endpoint routers here when they are created
 # Example:
 # from app.api.v1.endpoints.analytics import router as analytics_router
