@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Mail, Lock, User, CreditCard, Eye, EyeOff, ArrowLeft, Check, LayoutDashboard, Calendar, Plug, Play, Bot, FileText } from 'lucide-react';
+import { authService, LoginCredentials, RegisterData } from '../services/authService';
 
 type AuthView = 'login' | 'signup' | 'forgot';
 
@@ -130,23 +131,62 @@ export default function AuthPage({ onLogin }: { onLogin: () => void }) {
 
   const strength = useMemo(() => passwordStrength(signupPw), [signupPw]);
 
-  const handleLogin = useCallback((e: React.FormEvent) => {
+  const handleLogin = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => { setLoading(false); onLogin(); }, 1200);
-  }, [onLogin]);
+    
+    try {
+      const credentials: LoginCredentials = {
+        email,
+        password
+      };
+      
+      await authService.login(credentials);
+      onLogin();
+    } catch (error: any) {
+      console.error('Login error:', error);
+      // O erro já é tratado pelo toast no interceptor do api.ts
+    } finally {
+      setLoading(false);
+    }
+  }, [email, password, onLogin]);
 
-  const handleSignup = useCallback((e: React.FormEvent) => {
+  const handleSignup = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => { setLoading(false); onLogin(); }, 1200);
-  }, [onLogin]);
+    
+    try {
+      const userData: RegisterData = {
+        name,
+        email,
+        cpf,
+        password: signupPw
+      };
+      
+      await authService.register(userData);
+      onLogin();
+    } catch (error: any) {
+      console.error('Signup error:', error);
+      // O erro já é tratado pelo toast no interceptor do api.ts
+    } finally {
+      setLoading(false);
+    }
+  }, [name, email, cpf, signupPw, onLogin]);
 
-  const handleForgot = useCallback((e: React.FormEvent) => {
+  const handleForgot = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => { setLoading(false); setForgotSent(true); }, 1200);
-  }, []);
+    
+    try {
+      await authService.forgotPassword(email);
+      setForgotSent(true);
+    } catch (error: any) {
+      console.error('Forgot password error:', error);
+      // O erro já é tratado pelo toast no interceptor do api.ts
+    } finally {
+      setLoading(false);
+    }
+  }, [email]);
 
   const switchView = (v: AuthView) => {
     setView(v);

@@ -24,7 +24,10 @@ export interface AuthResponse {
     id: string;
     email: string;
     full_name: string;
+    cpf: string;
     is_active: boolean;
+    plan: string;
+    has_google: boolean;
     created_at: string;
   };
 }

@@ -4,8 +4,8 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 
 // Configuração base da API
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.hubnexusai.com';
+const WS_URL = import.meta.env.VITE_WS_URL || 'wss://api.hubnexusai.com';
 
 // Interface para resposta de erro da API
 export interface ApiError {
