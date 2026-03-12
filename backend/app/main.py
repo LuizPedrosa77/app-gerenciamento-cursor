@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
 
-app = FastAPI(title="Gustavo Pedrosa FX API")
+app = FastAPI(title="Gustavo Pedrosa FX API", redirect_slashes=False)
 
 # Configure CORS
 app.add_middleware(
