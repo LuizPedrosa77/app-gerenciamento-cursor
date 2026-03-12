@@ -67,6 +67,14 @@ api_router.include_router(
     tags=["profile"]
 )
 
+# Import and include brokers router
+from app.api.v1.endpoints import brokers
+api_router.include_router(
+    brokers.router,
+    prefix="/brokers",
+    tags=["brokers"]
+)
+
 # Add endpoint routers here when they are created
 # Example:
 # from app.api.v1.endpoints.analytics import router as analytics_router

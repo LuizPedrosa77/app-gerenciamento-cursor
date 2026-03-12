@@ -75,6 +75,9 @@ def upgrade() -> None:
             monthly_goal NUMERIC(15,2),
             meta NUMERIC(15,2),
             notes TEXT,
+            broker_type VARCHAR(50) NULL,
+            broker_login VARCHAR(100) NULL,
+            broker_server VARCHAR(100) NULL,
             is_active BOOLEAN DEFAULT TRUE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
