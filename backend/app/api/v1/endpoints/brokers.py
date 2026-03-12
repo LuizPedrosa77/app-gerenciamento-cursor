@@ -6,6 +6,7 @@ from app.core.database import get_db
 from app.dependencies import get_current_user
 from app.models.account import Account
 from app.models.user import User
+from app.models.workspace import Workspace
 from app.schemas.broker import (
     BrokerConnectionCreate,
     BrokerConnectionResponse,
@@ -23,8 +24,15 @@ def get_brokers(
 ):
     """Retorna lista de todas as contas com informações de corretora do workspace do usuário"""
     try:
+        workspace = db.query(Workspace).filter(
+            Workspace.owner_id == current_user.id
+        ).first()
+        
+        if not workspace:
+            raise HTTPException(status_code=404, detail="Workspace não encontrado")
+        
         accounts = db.query(Account).filter(
-            Account.workspace_id == current_user.workspace_id,
+            Account.workspace_id == workspace.id,
             Account.broker_type.isnot(None)
         ).all()
         
@@ -53,8 +61,15 @@ def connect_broker(
 ):
     """Cria uma nova conta vinculada à corretora informada"""
     try:
+        workspace = db.query(Workspace).filter(
+            Workspace.owner_id == current_user.id
+        ).first()
+        
+        if not workspace:
+            raise HTTPException(status_code=404, detail="Workspace não encontrado")
+        
         account = Account(
-            workspace_id=current_user.workspace_id,
+            workspace_id=workspace.id,
             name=broker_data.account_name,
             broker_type=broker_data.broker_type.value,
             broker_login=broker_data.login,
@@ -91,9 +106,16 @@ def update_broker_connection(
 ):
     """Atualiza dados da conexão"""
     try:
+        workspace = db.query(Workspace).filter(
+            Workspace.owner_id == current_user.id
+        ).first()
+        
+        if not workspace:
+            raise HTTPException(status_code=404, detail="Workspace não encontrado")
+        
         account = db.query(Account).filter(
             Account.id == account_id,
-            Account.workspace_id == current_user.workspace_id
+            Account.workspace_id == workspace.id
         ).first()
         
         if not account:
@@ -133,9 +155,16 @@ def disconnect_broker(
 ):
     """Remove broker_type, broker_login e broker_server da conta"""
     try:
+        workspace = db.query(Workspace).filter(
+            Workspace.owner_id == current_user.id
+        ).first()
+        
+        if not workspace:
+            raise HTTPException(status_code=404, detail="Workspace não encontrado")
+        
         account = db.query(Account).filter(
             Account.id == account_id,
-            Account.workspace_id == current_user.workspace_id
+            Account.workspace_id == workspace.id
         ).first()
         
         if not account:
