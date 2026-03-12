@@ -99,6 +99,14 @@ api_router.include_router(
     tags=["import"]
 )
 
+# Import and include replay router
+from app.api.v1.endpoints import replay
+api_router.include_router(
+    replay.router,
+    prefix="/replay",
+    tags=["replay"]
+)
+
 # Add endpoint routers here when they are created
 # Example:
 # from app.api.v1.endpoints.analytics import router as analytics_router
