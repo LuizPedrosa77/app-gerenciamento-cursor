@@ -395,6 +395,7 @@ export default function DashboardPage() {
                 <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => ['$' + fmtNum(v), 'P&L']} />
                 <ReferenceLine y={stats.avgMonthly} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: 'Média', fill: '#f59e0b', fontSize: 10 }} />
                 <Bar dataKey="pnl" radius={[4, 4, 0, 0]}
+                  // @ts-ignore
                   shape={(props: any) => {
                     const { x, y, width, height, payload } = props;
                     return <rect x={x} y={y} width={width} height={height} fill={payload.pnl >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)'} rx={4} />;

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { GPFXState, Account, Trade, loadState, saveState, createAccount, uid } from '@/lib/gpfx-utils';
 
 interface GPFXContextType {
@@ -51,9 +51,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const activeAcc = useMemo(() => {
-    return state.accounts[state.activeAccount] || state.accounts[0];
-  }, [state.accounts, state.activeAccount]);
+  const activeAcc = state.accounts[state.activeAccount] || state.accounts[0];
 
   const switchAccount = useCallback((i: number) => {
     doSave(s => ({ ...s, activeAccount: i }));

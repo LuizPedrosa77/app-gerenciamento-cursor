@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { GPFXProvider, useGPFX } from '@/contexts/GPFXContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
-import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import OnboardingWizard, { shouldShowOnboarding } from '@/components/OnboardingWizard';
 import { AppSidebar } from '@/components/GPFXSidebar';
 import DashboardPage from '@/pages/DashboardPage';
@@ -82,24 +81,32 @@ function AppLayout({ onLogout }: { onLogout: () => void }) {
 }
 
 export default function Index() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const [authenticated, setAuthenticated] = useState(() => {
+    return localStorage.getItem('gpfx_authenticated') === 'true';
+  });
 
-  if (isLoading) {
+  const handleLogin = () => {
+    localStorage.setItem('gpfx_authenticated', 'true');
+    setAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('gpfx_authenticated');
+    setAuthenticated(false);
+  };
+
+  if (!authenticated) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center" style={{ background: '#0d1117' }}>
-        <div className="text-white">Carregando...</div>
-      </div>
+      <ThemeProvider>
+        <AuthPage onLogin={handleLogin} />
+      </ThemeProvider>
     );
-  }
-
-  if (!isAuthenticated) {
-    return <AuthPage onLogin={() => {}} />;
   }
 
   return (
     <ThemeProvider>
       <GPFXProvider>
-        <AppLayout onLogout={() => {}} />
+        <AppLayout onLogout={handleLogout} />
       </GPFXProvider>
     </ThemeProvider>
   );

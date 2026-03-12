@@ -1,7 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Mail, Lock, User, CreditCard, Eye, EyeOff, ArrowLeft, Check, LayoutDashboard, Calendar, Plug, Play, Bot, FileText } from 'lucide-react';
-import { authService } from '@/services/authService';
-import { toast } from 'sonner';
 
 type AuthView = 'login' | 'signup' | 'forgot';
 
@@ -132,61 +130,23 @@ export default function AuthPage({ onLogin }: { onLogin: () => void }) {
 
   const strength = useMemo(() => passwordStrength(signupPw), [signupPw]);
 
-  const handleLogin = useCallback(async (e: React.FormEvent) => {
+  const handleLogin = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
-    try {
-      await authService.login({ email, password });
-      toast.success('Login realizado com sucesso!');
-      onLogin();
-    } catch (error: any) {
-      console.error('Login error:', error);
-      const message = error?.response?.data?.detail || 'Erro ao fazer login. Verifique suas credenciais.';
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
-  }, [email, password, onLogin]);
+    setTimeout(() => { setLoading(false); onLogin(); }, 1200);
+  }, [onLogin]);
 
-  const handleSignup = useCallback(async (e: React.FormEvent) => {
+  const handleSignup = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
-    try {
-      await authService.register({ 
-        name, 
-        email, 
-        cpf: cpf.replace(/\D/g, ''), // Remove formatação do CPF
-        password: signupPw 
-      });
-      toast.success('Conta criada com sucesso!');
-      onLogin();
-    } catch (error: any) {
-      console.error('Signup error:', error);
-      const message = error?.response?.data?.detail || 'Erro ao criar conta. Tente novamente.';
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
-  }, [name, email, cpf, signupPw, onLogin]);
+    setTimeout(() => { setLoading(false); onLogin(); }, 1200);
+  }, [onLogin]);
 
-  const handleForgot = useCallback(async (e: React.FormEvent) => {
+  const handleForgot = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
-    try {
-      await authService.forgotPassword(email);
-      setForgotSent(true);
-      toast.success('E-mail de recuperação enviado!');
-    } catch (error: any) {
-      console.error('Forgot password error:', error);
-      const message = error?.response?.data?.detail || 'Erro ao enviar e-mail de recuperação.';
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
-  }, [email]);
+    setTimeout(() => { setLoading(false); setForgotSent(true); }, 1200);
+  }, []);
 
   const switchView = (v: AuthView) => {
     setView(v);
