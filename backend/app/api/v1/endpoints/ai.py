@@ -153,8 +153,11 @@ def get_last_30_trades_context(db: Session, workspace_id: str, account_id: Optio
     """
     
     for pair, data in pairs.items():
-        pair_win_rate = (data["wins"] / (data["wins"] + data["losses"]) * 100) if (data["wins"] + data["losses"]) > 0 else 0
-        context += f"\n{pair}: {data["wins"]}W/{data["losses"]}L ({pair_win_rate:.1f}%) - PnL: {data["pnl"]:.2f}"
+        wins = data["wins"]
+        losses = data["losses"]
+        pnl = data["pnl"]
+        pair_win_rate = (wins / (wins + losses) * 100) if (wins + losses) > 0 else 0
+        context += f"\n{pair}: {wins}W/{losses}L ({pair_win_rate:.1f}%) - PnL: {pnl:.2f}"
     
     return context
 
