@@ -91,6 +91,14 @@ api_router.include_router(
     tags=["ai"]
 )
 
+# Import and include import MT5 router
+from app.api.v1.endpoints import import_mt5
+api_router.include_router(
+    import_mt5.router,
+    prefix="/import",
+    tags=["import"]
+)
+
 # Add endpoint routers here when they are created
 # Example:
 # from app.api.v1.endpoints.analytics import router as analytics_router
