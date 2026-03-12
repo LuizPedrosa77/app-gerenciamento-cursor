@@ -83,6 +83,14 @@ api_router.include_router(
     tags=["screenshots"]
 )
 
+# Import and include AI router
+from app.api.v1.endpoints import ai
+api_router.include_router(
+    ai.router,
+    prefix="/ai",
+    tags=["ai"]
+)
+
 # Add endpoint routers here when they are created
 # Example:
 # from app.api.v1.endpoints.analytics import router as analytics_router
