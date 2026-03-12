@@ -26,7 +26,7 @@ def create_withdrawal_response(withdrawal: Withdrawal) -> WithdrawalResponse:
     )
 
 
-@router.get("/", response_model=List[WithdrawalResponse])
+@router.get("", response_model=List[WithdrawalResponse])
 def get_withdrawals(
     current_user: CurrentUser,
     db: DbSession,
@@ -65,7 +65,7 @@ def get_withdrawals(
     return [create_withdrawal_response(withdrawal) for withdrawal in withdrawals]
 
 
-@router.post("/", response_model=WithdrawalResponse)
+@router.post("", response_model=WithdrawalResponse)
 def create_withdrawal(
     withdrawal_data: WithdrawalCreate,
     current_user: CurrentUser,

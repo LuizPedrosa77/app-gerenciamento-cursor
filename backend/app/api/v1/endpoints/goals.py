@@ -34,7 +34,7 @@ def calculate_progress(current: float, goal: Optional[float]) -> float:
     return min((current / goal) * 100, 100.0)
 
 
-@router.get("/", response_model=List[GoalResponse])
+@router.get("", response_model=List[GoalResponse])
 def get_goals(
     current_user: CurrentUser,
     db: DbSession,

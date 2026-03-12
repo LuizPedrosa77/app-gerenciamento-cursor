@@ -60,7 +60,7 @@ def update_account_balance(db: Session, account_id: str):
     db.commit()
 
 
-@router.get("/", response_model=List[TradeResponse])
+@router.get("", response_model=List[TradeResponse])
 def get_trades(
     current_user: CurrentUser,
     db: DbSession,
@@ -95,7 +95,7 @@ def get_trades(
     return [create_trade_response(trade) for trade in trades]
 
 
-@router.post("/", response_model=TradeResponse)
+@router.post("", response_model=TradeResponse)
 def create_trade(
     trade_data: TradeCreate,
     current_user: CurrentUser,
@@ -281,7 +281,7 @@ def delete_trade(
     return {"message": "Trade removido"}
 
 
-@router.delete("/")
+@router.delete("")
 def delete_trades(
     trade_ids: dict,
     current_user: CurrentUser,

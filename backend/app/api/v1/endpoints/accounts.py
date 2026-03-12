@@ -28,7 +28,7 @@ def create_account_response(account: Account) -> AccountResponse:
     )
 
 
-@router.get("/", response_model=List[AccountResponse])
+@router.get("", response_model=List[AccountResponse])
 def get_accounts(
     current_user: CurrentUser,
     db: DbSession
@@ -43,7 +43,7 @@ def get_accounts(
     return [create_account_response(account) for account in accounts]
 
 
-@router.post("/", response_model=AccountResponse)
+@router.post("", response_model=AccountResponse)
 def create_account(
     account_data: AccountCreate,
     current_user: CurrentUser,

@@ -26,7 +26,7 @@ def create_daily_note_response(daily_note: DailyNote) -> DailyNoteResponse:
     )
 
 
-@router.get("/", response_model=List[DailyNoteResponse])
+@router.get("", response_model=List[DailyNoteResponse])
 def get_daily_notes(
     current_user: CurrentUser,
     db: DbSession,
@@ -65,7 +65,7 @@ def get_daily_notes(
     return [create_daily_note_response(note) for note in daily_notes]
 
 
-@router.post("/", response_model=DailyNoteResponse)
+@router.post("", response_model=DailyNoteResponse)
 def create_or_update_daily_note(
     note_data: DailyNoteCreate,
     current_user: CurrentUser,

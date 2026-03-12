@@ -13,7 +13,7 @@ from app.schemas.plan import PlanResponse, PlansListResponse
 router = APIRouter()
 
 
-@router.get("/", response_model=ProfileResponse)
+@router.get("", response_model=ProfileResponse)
 def get_profile(current_user: User = Depends(get_current_user)):
     """Get current user profile"""
     return ProfileResponse(
@@ -32,7 +32,7 @@ def get_profile(current_user: User = Depends(get_current_user)):
     )
 
 
-@router.patch("/", response_model=ProfileResponse)
+@router.patch("", response_model=ProfileResponse)
 def update_profile(
     profile_data: ProfileUpdate,
     current_user: User = Depends(get_current_user),
