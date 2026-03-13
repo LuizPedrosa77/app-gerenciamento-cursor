@@ -127,7 +127,7 @@ api_router.include_router(
 from app.api.v1.endpoints import metaapi
 api_router.include_router(
     metaapi.router,
-    prefix="/api/v1/metaapi",
+    prefix="/metaapi",
     tags=["metaapi"]
 )
 

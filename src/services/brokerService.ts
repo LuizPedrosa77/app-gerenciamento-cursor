@@ -11,11 +11,19 @@ export interface BrokerConnection {
 }
 
 export interface CreateConnectionData {
-  account_id: string;
   broker_type: string;
-  broker_login: string;
-  broker_server: string;
+  account_name: string;
+  login?: string;
+  server?: string;
+  notes?: string;
+}
+
+export interface MetaApiConnectionData {
+  account_id: string;
+  login: string;
   password: string;
+  server: string;
+  platform: string;
 }
 
 export interface SyncResult {
@@ -64,13 +72,7 @@ class BrokerService {
     return response.data;
   }
 
-  async connectMetaApi(data: {
-    login: string;
-    password: string;
-    server: string;
-    platform: string;
-    account_id: string;
-  }): Promise<any> {
+  async connectMetaApi(data: MetaApiConnectionData): Promise<any> {
     const response = await api.post('/api/v1/metaapi/connect', data);
     return response.data;
   }

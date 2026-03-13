@@ -7,7 +7,7 @@ import {
   Shield, Eye, EyeOff, CheckCircle, XCircle, Loader2,
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-import { brokerService } from '@/services/brokerService';
+import { brokerService, CreateConnectionData, MetaApiConnectionData } from '@/services/brokerService';
 import { accountService } from '@/services/accountService';
 
 type Platform = 'MT5' | 'MT4' | 'NinjaTrader' | 'Tradovate' | 'cTrader';
@@ -73,17 +73,30 @@ export function ConnectBrokerModal({ open, onClose }: Props) {
   }, [open]);
 
   const handleConnect = async () => {
-    if (!selected || !server || !login || !password || !accountId) return;
+    if (!selected || !server || !login || !password || !accountId || !accountName) return;
     setModalState('loading');
     try {
-      // Conecta no MetaApi
-      await brokerService.connectMetaApi({
-        login,
-        password,
-        server,
-        platform: selected.toLowerCase(),
+      // 1. Primeiro cria a conexão básica com o broker
+      const connectionData: CreateConnectionData = {
+        broker_type: selected,
+        account_name: accountName,
+        login: login,
+        server: server,
+        notes: ''
+      };
+      
+      const connection = await brokerService.createConnection(connectionData);
+      
+      // 2. Depois conecta no MetaApi
+      const metaApiData: MetaApiConnectionData = {
         account_id: accountId,
-      });
+        login: login,
+        password: password,
+        server: server,
+        platform: selected.toLowerCase()
+      };
+      
+      await brokerService.connectMetaApi(metaApiData);
       setModalState('success');
       // Inicia sincronização em background
       brokerService.syncHistory(accountId).catch(() => {});
@@ -101,7 +114,7 @@ export function ConnectBrokerModal({ open, onClose }: Props) {
 
   const isMT = selected === 'MT5' || selected === 'MT4';
   const serverPlaceholder = isMT ? 'Ex: MetaQuotes-Demo' : 'Ex: https://api.tradovate.com';
-  const canSubmit = selected && server.trim() && login.trim() && password.trim() && accountId;
+  const canSubmit = selected && server.trim() && login.trim() && password.trim() && accountId && accountName.trim();
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
@@ -209,7 +222,7 @@ export function ConnectBrokerModal({ open, onClose }: Props) {
                   {/* Account Name */}
                   <div className="flex flex-col gap-1">
                     <label className="text-[9px] font-bold uppercase tracking-[2px]" style={{ color: '#64748b' }}>
-                      Nome da Conta <span style={{ color: '#475569' }}>(opcional)</span>
+                      Nome da Conta <span style={{ color: '#ff4d4d' }}>*</span>
                     </label>
                     <input
                       className="gpfx-input text-xs"
