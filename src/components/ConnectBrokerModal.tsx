@@ -7,6 +7,8 @@ import {
   Shield, Eye, EyeOff, CheckCircle, XCircle, Loader2,
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { brokerService } from '@/services/brokerService';
+import { accountService } from '@/services/accountService';
 
 type Platform = 'MT5' | 'MT4' | 'NinjaTrader' | 'Tradovate' | 'cTrader';
 
@@ -34,6 +36,9 @@ export function ConnectBrokerModal({ open, onClose }: Props) {
   const [showPw, setShowPw] = useState(false);
   const [modalState, setModalState] = useState<ModalState>('form');
   const [progress, setProgress] = useState(0);
+  const [accountId, setAccountId] = useState<string>('');
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     if (!open) {
@@ -46,7 +51,15 @@ export function ConnectBrokerModal({ open, onClose }: Props) {
         setShowPw(false);
         setModalState('form');
         setProgress(0);
+        setAccountId('');
+        setErrorMsg('');
       }, 300);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      accountService.listAccounts().then(data => setAccounts(data)).catch(() => {});
     }
   }, [open]);
 
@@ -58,22 +71,34 @@ export function ConnectBrokerModal({ open, onClose }: Props) {
     }
   }, [modalState, onClose]);
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
+    if (!selected || !server || !login || !password || !accountId) return;
     setModalState('loading');
-    setTimeout(() => {
-      // Mock: 70% chance success
-      setModalState(Math.random() > 0.3 ? 'success' : 'error');
-    }, 1500);
+    try {
+      await brokerService.connectMetaApi({
+        login,
+        password,
+        server,
+        platform: selected.toLowerCase(),
+        account_id: accountId,
+      });
+      setModalState('success');
+      brokerService.syncHistory(accountId).catch(() => {});
+    } catch (err: any) {
+      setErrorMsg(err?.response?.data?.detail || 'Erro ao conectar. Verifique suas credenciais.');
+      setModalState('error');
+    }
   };
 
-  const handleTest = () => {
+  const handleTest = async () => {
+    if (!selected || !server || !login || !password) return;
     setModalState('loading');
     setTimeout(() => setModalState('form'), 1200);
   };
 
   const isMT = selected === 'MT5' || selected === 'MT4';
   const serverPlaceholder = isMT ? 'Ex: MetaQuotes-Demo' : 'Ex: https://api.tradovate.com';
-  const canSubmit = selected && server.trim() && login.trim() && password.trim();
+  const canSubmit = selected && server.trim() && login.trim() && password.trim() && accountId;
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
@@ -98,7 +123,6 @@ export function ConnectBrokerModal({ open, onClose }: Props) {
             </DialogHeader>
 
             <div className="px-6 pb-6 flex flex-col gap-4">
-              {/* Platform selector */}
               <div>
                 <span className="text-[9px] font-bold uppercase tracking-[2px] mb-2 block" style={{ color: '#64748b' }}>
                   Plataforma
@@ -128,7 +152,23 @@ export function ConnectBrokerModal({ open, onClose }: Props) {
 
               {selected && (
                 <>
-                  {/* Server */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] font-bold uppercase tracking-[2px]" style={{ color: '#64748b' }}>
+                      Vincular à Conta
+                    </label>
+                    <select
+                      className="gpfx-input text-xs"
+                      value={accountId}
+                      onChange={e => setAccountId(e.target.value)}
+                      style={{ background: '#0d1117', color: '#e2e8f0' }}
+                    >
+                      <option value="">Selecione uma conta</option>
+                      {accounts.map(a => (
+                        <option key={a.id} value={a.id}>{a.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div className="flex flex-col gap-1">
                     <label className="text-[9px] font-bold uppercase tracking-[2px]" style={{ color: '#64748b' }}>
                       Servidor / URL
@@ -141,7 +181,6 @@ export function ConnectBrokerModal({ open, onClose }: Props) {
                     />
                   </div>
 
-                  {/* Login */}
                   <div className="flex flex-col gap-1">
                     <label className="text-[9px] font-bold uppercase tracking-[2px]" style={{ color: '#64748b' }}>
                       Login / Usuário
@@ -154,7 +193,6 @@ export function ConnectBrokerModal({ open, onClose }: Props) {
                     />
                   </div>
 
-                  {/* Password */}
                   <div className="flex flex-col gap-1">
                     <label className="text-[9px] font-bold uppercase tracking-[2px]" style={{ color: '#64748b' }}>
                       Senha Investidor
@@ -178,7 +216,6 @@ export function ConnectBrokerModal({ open, onClose }: Props) {
                     </div>
                   </div>
 
-                  {/* Account Name */}
                   <div className="flex flex-col gap-1">
                     <label className="text-[9px] font-bold uppercase tracking-[2px]" style={{ color: '#64748b' }}>
                       Nome da Conta <span style={{ color: '#475569' }}>(opcional)</span>
@@ -191,7 +228,6 @@ export function ConnectBrokerModal({ open, onClose }: Props) {
                     />
                   </div>
 
-                  {/* Security notice */}
                   <div className="flex items-start gap-2 p-3 rounded-lg" style={{ background: 'rgba(0,211,149,0.04)', border: '1px solid rgba(0,211,149,0.08)' }}>
                     <Shield size={14} style={{ color: '#00d395', marginTop: 1, flexShrink: 0 }} />
                     <span className="text-[11px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.4)' }}>
@@ -199,7 +235,6 @@ export function ConnectBrokerModal({ open, onClose }: Props) {
                     </span>
                   </div>
 
-                  {/* Action buttons */}
                   <div className="flex items-center gap-2 pt-1">
                     <button
                       className="px-3 py-2 rounded-lg text-xs font-semibold transition-colors"
@@ -260,7 +295,7 @@ export function ConnectBrokerModal({ open, onClose }: Props) {
               Não foi possível conectar
             </span>
             <span className="text-xs" style={{ color: 'var(--gpfx-text-muted, #64748b)' }}>
-              Verifique suas credenciais e tente novamente
+              {errorMsg || 'Verifique suas credenciais e tente novamente'}
             </span>
             <button
               className="mt-2 px-4 py-2 rounded-lg text-xs font-bold"
