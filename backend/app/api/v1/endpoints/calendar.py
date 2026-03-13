@@ -36,16 +36,16 @@ def get_calendar_data(
         end = datetime(year, month + 1, 1)
     query = db.query(Trade).join(Account).filter(
         Account.workspace_id == workspace.id,
-        Trade.entry_date >= start,
-        Trade.entry_date < end
+        Trade.date >= start,
+        Trade.date < end
     )
     if account_id:
         query = query.filter(Account.id == account_id)
     trades = query.all()
     days = {}
     for t in trades:
-        if t.entry_date:
-            day_key = t.entry_date.strftime("%Y-%m-%d")
+        if t.date:
+            day_key = t.date.strftime("%Y-%m-%d")
             if day_key not in days:
                 days[day_key] = {"date": day_key, "pnl": 0, "trades": 0, "wins": 0}
             days[day_key]["pnl"] += t.pnl or 0
@@ -88,8 +88,8 @@ def get_calendar_summary(
         end = datetime(year, month + 1, 1)
     query = db.query(Trade).join(Account).filter(
         Account.workspace_id == workspace.id,
-        Trade.entry_date >= start,
-        Trade.entry_date < end
+        Trade.date >= start,
+        Trade.date < end
     )
     if account_id:
         query = query.filter(Account.id == account_id)
@@ -98,8 +98,8 @@ def get_calendar_summary(
     wins = len([t for t in trades if (t.pnl or 0) > 0])
     pnl = sum(t.pnl or 0 for t in trades)
     trading_days = len(set(
-        t.entry_date.strftime("%Y-%m-%d")
-        for t in trades if t.entry_date
+        t.date.strftime("%Y-%m-%d")
+        for t in trades if t.date
     ))
     return {
         "year": year,
@@ -124,14 +124,14 @@ def get_calendar_streaks(
         return {"current_streak": 0, "best_streak": 0}
     query = db.query(Trade).join(Account).filter(
         Account.workspace_id == workspace.id
-    ).order_by(Trade.entry_date.asc())
+    ).order_by(Trade.date.asc())
     if account_id:
         query = query.filter(Account.id == account_id)
     trades = query.all()
     day_pnl = {}
     for t in trades:
-        if t.entry_date:
-            day_key = t.entry_date.strftime("%Y-%m-%d")
+        if t.date:
+            day_key = t.date.strftime("%Y-%m-%d")
             day_pnl[day_key] = day_pnl.get(day_key, 0) + (t.pnl or 0)
     sorted_days = sorted(day_pnl.items())
     current = 0
@@ -164,16 +164,16 @@ def get_calendar_heatmap(
     end = datetime(year, 12, 31)
     query = db.query(Trade).join(Account).filter(
         Account.workspace_id == workspace.id,
-        Trade.entry_date >= start,
-        Trade.entry_date <= end
+        Trade.date >= start,
+        Trade.date <= end
     )
     if account_id:
         query = query.filter(Account.id == account_id)
     trades = query.all()
     heatmap = {}
     for t in trades:
-        if t.entry_date:
-            day_key = t.entry_date.strftime("%Y-%m-%d")
+        if t.date:
+            day_key = t.date.strftime("%Y-%m-%d")
             heatmap[day_key] = heatmap.get(day_key, 0) + (t.pnl or 0)
     result = [
         {"date": k, "pnl": round(v, 2)}
@@ -204,7 +204,7 @@ def get_calendar_goals(
             start = now.replace(day=1, hour=0, minute=0, second=0)
             trades = db.query(Trade).filter(
                 Trade.account_id == acc.id,
-                Trade.entry_date >= start
+                Trade.date >= start
             ).all()
             pnl = sum(t.pnl or 0 for t in trades)
             progress = (pnl / acc.monthly_goal * 100) if acc.monthly_goal > 0 else 0

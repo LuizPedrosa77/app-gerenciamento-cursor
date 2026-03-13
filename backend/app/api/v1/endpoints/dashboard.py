@@ -440,8 +440,8 @@ def get_dashboard_stats(
         query = query.filter(Account.id == account_id)
     if month:
         query = query.filter(
-            Trade.entry_date >= datetime(year, month, 1),
-            Trade.entry_date < datetime(year, month + 1, 1) if month < 12 else datetime(year + 1, 1, 1)
+            Trade.date >= datetime(year, month, 1),
+            Trade.date < datetime(year, month + 1, 1) if month < 12 else datetime(year + 1, 1, 1)
         )
     trades = query.all()
     total = len(trades)
@@ -453,8 +453,8 @@ def get_dashboard_stats(
     worst = min((t.pnl or 0 for t in trades), default=0)
     monthly = {}
     for t in trades:
-        if t.entry_date:
-            key = t.entry_date.month
+        if t.date:
+            key = t.date.month
             if key not in monthly:
                 monthly[key] = {"pnl": 0, "trades": 0, "wins": 0}
             monthly[key]["pnl"] += t.pnl or 0
@@ -505,11 +505,11 @@ def get_dashboard_stats(
         "pair_data": pair_list,
         "avg_monthly": round(pnl / len(monthly_data), 2) if monthly_data else 0,
         "top5_best": sorted(
-            [{"pair": t.pair, "pnl": t.pnl, "date": str(t.entry_date)} for t in trades],
+            [{"pair": t.pair, "pnl": t.pnl, "date": str(t.date)} for t in trades],
             key=lambda x: x["pnl"] or 0, reverse=True
         )[:5],
         "top5_worst": sorted(
-            [{"pair": t.pair, "pnl": t.pnl, "date": str(t.entry_date)} for t in trades],
+            [{"pair": t.pair, "pnl": t.pnl, "date": str(t.date)} for t in trades],
             key=lambda x: x["pnl"] or 0
         )[:5]
     }
@@ -569,9 +569,9 @@ def get_account_evolution(
         year = now.year
     query = db.query(Trade).join(Account).filter(
         Account.workspace_id == workspace.id,
-        Trade.entry_date >= datetime(year, 1, 1),
-        Trade.entry_date <= datetime(year, 12, 31)
-    ).order_by(Trade.entry_date.asc())
+        Trade.date >= datetime(year, 1, 1),
+        Trade.date <= datetime(year, 12, 31)
+    ).order_by(Trade.date.asc())
     if account_id:
         query = query.filter(Account.id == account_id)
     trades = query.all()
@@ -580,7 +580,7 @@ def get_account_evolution(
     for t in trades:
         cumulative += t.pnl or 0
         evolution.append({
-            "date": t.entry_date.strftime("%Y-%m-%d") if t.entry_date else None,
+            "date": t.date.strftime("%Y-%m-%d") if t.date else None,
             "pnl": round(t.pnl or 0, 2),
             "cumulative": round(cumulative, 2)
         })

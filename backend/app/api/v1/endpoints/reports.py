@@ -42,12 +42,12 @@ def get_weekly_report(
     if account_id:
         query = query.filter(Account.id == account_id)
     week_trades = query.filter(
-        Trade.entry_date >= week_start,
-        Trade.entry_date <= week_end
+        Trade.date >= week_start,
+        Trade.date <= week_end
     ).all()
     prev_trades = query.filter(
-        Trade.entry_date >= prev_start,
-        Trade.entry_date <= prev_end
+        Trade.date >= prev_start,
+        Trade.date <= prev_end
     ).all()
     week_pnl = sum(t.pnl or 0 for t in week_trades)
     prev_pnl = sum(t.pnl or 0 for t in prev_trades)
@@ -58,7 +58,7 @@ def get_weekly_report(
     chart_data = []
     for i in range(7):
         day = week_start + timedelta(days=i)
-        day_trades = [t for t in week_trades if t.entry_date and t.entry_date.date() == day.date()]
+        day_trades = [t for t in week_trades if t.date and t.date.date() == day.date()]
         chart_data.append({
             "day": day.strftime("%a"),
             "date": day.strftime("%Y-%m-%d"),
@@ -138,8 +138,8 @@ def get_gp_score_history(
         month_date = now.replace(day=1) - timedelta(days=i * 30)
         query = db.query(Trade).join(Account).filter(
             Account.workspace_id == workspace.id,
-            Trade.entry_date >= month_date.replace(day=1),
-            Trade.entry_date < (month_date.replace(day=28) + timedelta(days=4)).replace(day=1)
+            Trade.date >= month_date.replace(day=1),
+            Trade.date < (month_date.replace(day=28) + timedelta(days=4)).replace(day=1)
         )
         if account_id:
             query = query.filter(Account.id == account_id)
@@ -169,7 +169,7 @@ def get_streaks(
                 "best_win_streak": 0, "best_loss_streak": 0}
     query = db.query(Trade).join(Account).filter(
         Account.workspace_id == workspace.id
-    ).order_by(Trade.entry_date.asc())
+    ).order_by(Trade.date.asc())
     if account_id:
         query = query.filter(Account.id == account_id)
     trades = query.all()
@@ -223,8 +223,8 @@ def get_best_day(
     days = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
     day_data = {i: {"pnl": 0, "trades": 0, "wins": 0} for i in range(7)}
     for t in trades:
-        if t.entry_date:
-            wd = t.entry_date.weekday()
+        if t.date:
+            wd = t.date.weekday()
             day_data[wd]["pnl"] += t.pnl or 0
             day_data[wd]["trades"] += 1
             if (t.pnl or 0) > 0:
@@ -266,8 +266,8 @@ def get_monthly_summary(
         end = datetime(year, month + 1, 1)
     query = db.query(Trade).join(Account).filter(
         Account.workspace_id == workspace.id,
-        Trade.entry_date >= start,
-        Trade.entry_date < end
+        Trade.date >= start,
+        Trade.date < end
     )
     if account_id:
         query = query.filter(Account.id == account_id)
@@ -299,7 +299,7 @@ def get_risk_metrics(
         return {"max_drawdown": 0, "sharpe_ratio": 0, "profit_factor": 0}
     query = db.query(Trade).join(Account).filter(
         Account.workspace_id == workspace.id
-    ).order_by(Trade.entry_date.asc())
+    ).order_by(Trade.date.asc())
     if account_id:
         query = query.filter(Account.id == account_id)
     trades = query.all()
