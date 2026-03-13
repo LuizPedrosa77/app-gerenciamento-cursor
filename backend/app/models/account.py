@@ -21,6 +21,7 @@ class Account(Base):
     broker_type = Column(String(50), nullable=True)
     broker_login = Column(String(100), nullable=True)
     broker_server = Column(String(100), nullable=True)
+    metaapi_account_id = Column(String(100), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)

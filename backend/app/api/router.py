@@ -123,6 +123,14 @@ api_router.include_router(
     tags=["calendar"]
 )
 
+# Import and include metaapi router
+from app.api.v1.endpoints import metaapi
+api_router.include_router(
+    metaapi.router,
+    prefix="/api/v1/metaapi",
+    tags=["metaapi"]
+)
+
 # Add endpoint routers here when they are created
 # Example:
 # from app.api.v1.endpoints.analytics import router as analytics_router
