@@ -68,7 +68,7 @@ export function ConnectBrokerModal({ open, onClose }: Props) {
 
   useEffect(() => {
     if (open) {
-      accountService.getAccounts().then(data => setAccounts(data)).catch(() => {});
+      accountService.listAccounts().then(data => setAccounts(data)).catch(() => {});
     }
   }, [open]);
 
