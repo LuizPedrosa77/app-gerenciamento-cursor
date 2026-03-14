@@ -38,6 +38,7 @@ services:
       - N8N_WEBHOOK_URL=https://n8n.hubnexusai.com/webhook
       - ACCESS_TOKEN_EXPIRE_MINUTES=480
       - REFRESH_TOKEN_EXPIRE_DAYS=30
+      - MTCONNECT_API_KEY=FfDghn2d9it8Mesmo2uVYh2YXdYgDAAm
     deploy:
       mode: replicated
       replicas: 1
