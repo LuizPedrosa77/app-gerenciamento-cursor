@@ -7,7 +7,7 @@ from app.models.withdrawal import Withdrawal
 from app.models.daily_note import DailyNote
 
 from app.core.database import Base
-
+ 
 
 class Workspace(Base):
     __tablename__ = "workspaces"

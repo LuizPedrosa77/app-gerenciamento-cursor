@@ -6,7 +6,7 @@ from sqlalchemy.orm import relationship
 
 from app.core.database import Base
 
-
+ 
 class Account(Base):
     __tablename__ = "accounts"
 

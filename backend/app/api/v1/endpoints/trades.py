@@ -13,7 +13,7 @@ from app.models.workspace import Workspace
 from app.schemas.trade import TradeCreate, TradeUpdate, TradeResponse
 
 router = APIRouter()
-
+ 
 
 def create_trade_response(trade: Trade) -> TradeResponse:
     """Create TradeResponse from Trade model."""
