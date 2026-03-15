@@ -91,13 +91,7 @@ api_router.include_router(
     tags=["ai"]
 )
 
-# Import and include import MT5 router
-from app.api.v1.endpoints import import_mt5
-api_router.include_router(
-    import_mt5.router,
-    prefix="/import",
-    tags=["import"]
-)
+
 
 # Import and include replay router
 from app.api.v1.endpoints import replay
@@ -129,6 +123,13 @@ api_router.include_router(
     metaapi.router,
     prefix="/metaapi",
     tags=["metaapi"]
+)
+
+from app.api.v1.endpoints import mt5_ea
+api_router.include_router(
+    mt5_ea.router,
+    prefix="/mt5-ea",
+    tags=["mt5-ea"]
 )
 
 
