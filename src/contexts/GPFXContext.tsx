@@ -588,6 +588,22 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     const token = getAuthToken();
     if (!token) return;
 
+    // Verifica se token está expirado antes de conectar
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const expiry = payload.exp * 1000;
+      if (Date.now() >= expiry) {
+        console.warn('[GPFX WS] Token expirado — fazendo refresh antes de conectar');
+        // Força logout para renovar token
+        localStorage.removeItem('gpfx_auth_token');
+        localStorage.removeItem('gpfx_authenticated');
+        window.location.href = '/';
+        return;
+      }
+    } catch {
+      console.warn('[GPFX WS] Não foi possível verificar token');
+    }
+
     if (wsRef.current) {
       wsRef.current.onclose = null;
       wsRef.current.close();
