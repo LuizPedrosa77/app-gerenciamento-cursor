@@ -122,13 +122,13 @@ def create_trade(
     
     # Create trade
     trade = Trade(
-        account_id=trade_data.account_id,
         workspace_id=workspace.id,
+        account_id=trade_data.account_id,
         date=trade_data.date,
         year=trade_data.date.year,
-        month=trade_data.date.month,
+        month=trade_data.date.month - 1,  # JS 0-indexed
         pair=trade_data.pair,
-        direction=trade_data.direction,
+        direction=trade_data.get_direction(),
         lots=trade_data.lots,
         result=trade_data.result,
         pnl=trade_data.pnl,
@@ -136,7 +136,7 @@ def create_trade(
         vm_lots=trade_data.vm_lots,
         vm_result=trade_data.vm_result,
         vm_pnl=trade_data.vm_pnl,
-        notes=trade_data.notes
+        notes=trade_data.notes,
     )
     db.add(trade)
     db.commit()
@@ -251,6 +251,14 @@ def update_trade(
     
     # Update fields
     update_data = trade_data.dict(exclude_unset=True)
+    
+    if 'dir' in update_data:
+        update_data['direction'] = update_data.pop('dir')
+    if 'year' in update_data:
+        del update_data['year']
+    if 'month' in update_data:
+        del update_data['month']
+        
     for field, value in update_data.items():
         setattr(trade, field, value)
     
