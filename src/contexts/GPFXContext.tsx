@@ -563,14 +563,14 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener('keydown', handler);
   }, [doSave]);
 
-  const reloadAccount = useCallback(async (accountId: string) => {
+  const reloadAccount = useCallback(async (accountId: string, newBalance?: number) => {
     try {
       const apiTrades = await tradeService.list(accountId);
       const trades = apiTrades.map(apiTradeToLocal);
       setState(prev => {
         const accounts = prev.accounts.map(acc => {
           if ((acc as any)._apiId === accountId) {
-            return { ...acc, trades };
+            return { ...acc, trades, balance: newBalance !== undefined ? newBalance : acc.balance };
           }
           return acc;
         });
@@ -606,7 +606,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     ws.onmessage = async (event) => {
       try {
         const msg = JSON.parse(event.data);
-        const { type, account_id, account_name, imported, updated, pnl, result, ticket, symbol } = msg;
+        const { type, account_id, account_name, imported, updated, pnl, result, ticket, symbol, balance, new_balance } = msg;
 
         if (type === 'connected') {
           console.log('[GPFX WS] Handshake OK, user_id:', msg.user_id);
@@ -617,13 +617,13 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
 
         if (type === 'trade_synced' && account_id) {
           console.log(`[GPFX WS] trade_synced: ${imported} novos, ${updated} atualizados — ${account_name}`);
-          await reloadAccount(account_id);
+          await reloadAccount(account_id, balance);
           return;
         }
 
         if (type === 'trade_closed' && account_id) {
           console.log(`[GPFX WS] trade_closed: ticket=${ticket} ${symbol} ${result} PnL=${pnl}`);
-          await reloadAccount(account_id);
+          await reloadAccount(account_id, new_balance);
           return;
         }
       } catch (err) {
