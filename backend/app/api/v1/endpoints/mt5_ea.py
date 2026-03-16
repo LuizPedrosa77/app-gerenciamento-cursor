@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
@@ -126,6 +127,12 @@ async def sync(req: SyncRequest, db: Session = Depends(get_db)):
         db, workspace, req.account_login,
         req.account_name, req.server
     )
+    await ws_manager.send_to_user(str(user.id), {
+        "type": "account_created",
+        "account_id": str(account.id),
+        "account_name": account.name,
+        "balance": float(account.balance),
+    })
     imported = 0
     updated = 0
     for t in req.trades:
@@ -155,10 +162,18 @@ async def sync(req: SyncRequest, db: Session = Depends(get_db)):
                 lots=float(t.volume),
                 pnl=pnl,
                 result=result,
+                open_time=t.open_time,
                 notes=f"EA Sync | Ticket:{t.ticket}"
             )
             db.add(trade)
             imported += 1
+    db.commit()
+
+    # Recalcula saldo da conta
+    total_pnl = db.query(func.sum(Trade.pnl)).filter(
+        Trade.account_id == account.id
+    ).scalar() or 0
+    account.balance = float(account.initial_balance or 0) + float(total_pnl)
     db.commit()
 
     if imported > 0 or updated > 0:
@@ -168,6 +183,7 @@ async def sync(req: SyncRequest, db: Session = Depends(get_db)):
             "account_name": account.name,
             "imported": imported,
             "updated": updated,
+            "balance": float(account.balance),
         })
 
     return {
@@ -234,11 +250,16 @@ async def close_trade(req: CloseRequest, db: Session = Depends(get_db)):
             lots=float(req.volume),
             pnl=pnl,
             result=result,
+            open_time=req.open_time,
             notes=f"EA Sync | Ticket:{req.ticket}"
         )
         db.add(trade)
         updated_msg = "criado"
-    account.balance = 0
+    # Recalcula saldo com base em todos os trades da conta
+    total_pnl = db.query(func.sum(Trade.pnl)).filter(
+        Trade.account_id == account.id
+    ).scalar() or 0
+    account.balance = float(account.initial_balance or 0) + float(total_pnl)
     db.commit()
 
     await ws_manager.send_to_user(str(user.id), {
@@ -249,6 +270,7 @@ async def close_trade(req: CloseRequest, db: Session = Depends(get_db)):
         "symbol": req.symbol,
         "pnl": float(req.profit),
         "result": result,
+        "new_balance": float(account.balance),
     })
 
     return {
