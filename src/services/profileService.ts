@@ -107,7 +107,7 @@ class ProfileService {
    */
   async getProfile(): Promise<UserProfile> {
     try {
-      const response = await api.get<UserProfile>('/api/v1/profile');
+      const response = await api.get<UserProfile>('/api/v1/profiles/me');
       return response.data;
     } catch (error) {
       console.error('Get profile error:', error);
@@ -120,7 +120,7 @@ class ProfileService {
    */
   async updateProfile(data: UpdateProfileData): Promise<UserProfile> {
     try {
-      const response = await api.patch<UserProfile>('/api/v1/profile', data);
+      const response = await api.put<UserProfile>('/api/v1/profiles/me', data);
       return response.data;
     } catch (error) {
       console.error('Update profile error:', error);
@@ -132,16 +132,25 @@ class ProfileService {
    * Faz upload do avatar
    */
   async uploadAvatar(file: File): Promise<string> {
-    // Retorna vazio silenciosamente — endpoint não implementado ainda
-    return {} as any;
+    try {
+      const response = await api.upload('/api/v1/profiles/me/avatar', file);
+      return response.data.avatar_url;
+    } catch (error) {
+      console.error('Upload avatar error:', error);
+      throw error;
+    }
   }
 
   /**
    * Remove o avatar atual
    */
   async removeAvatar(): Promise<void> {
-    // Retorna vazio silenciosamente — endpoint não implementado ainda
-    return {} as any;
+    try {
+      await api.delete('/api/v1/profiles/me/avatar');
+    } catch (error) {
+      console.error('Remove avatar error:', error);
+      throw error;
+    }
   }
 
   /**
@@ -154,8 +163,13 @@ class ProfileService {
     twitter_url?: string;
     facebook_url?: string;
   }): Promise<UserProfile> {
-    // Retorna vazio silenciosamente — endpoint não implementado ainda
-    return {} as any;
+    try {
+      const response = await api.put<UserProfile>('/api/v1/profiles/me/social-links', links);
+      return response.data;
+    } catch (error) {
+      console.error('Update social links error:', error);
+      throw error;
+    }
   }
 
   /**
@@ -163,7 +177,7 @@ class ProfileService {
    */
   async getPreferences(): Promise<UserPreferences> {
     try {
-      const response = await api.get<UserPreferences>('/api/v1/profile/preferences');
+      const response = await api.get<UserPreferences>('/api/v1/profiles/preferences');
       return response.data;
     } catch (error) {
       console.error('Get preferences error:', error);
@@ -176,7 +190,7 @@ class ProfileService {
    */
   async updatePreferences(data: Partial<UserPreferences>): Promise<UserPreferences> {
     try {
-      const response = await api.patch<UserPreferences>('/api/v1/profile/preferences', data);
+      const response = await api.put<UserPreferences>('/api/v1/profiles/preferences', data);
       return response.data;
     } catch (error) {
       console.error('Update preferences error:', error);
@@ -188,40 +202,64 @@ class ProfileService {
    * Obtém código de indicação
    */
   async getReferralCode(): Promise<ReferralCode> {
-    // Retorna vazio silenciosamente — endpoint não implementado ainda
-    return {} as any;
+    try {
+      const response = await api.get<ReferralCode>('/api/v1/profiles/referral-code');
+      return response.data;
+    } catch (error) {
+      console.error('Get referral code error:', error);
+      throw error;
+    }
   }
 
   /**
    * Obtém histórico de indicações
    */
   async getReferralHistory(): Promise<ReferralHistory[]> {
-    // Retorna vazio silenciosamente — endpoint não implementado ainda
-    return {} as any;
+    try {
+      const response = await api.get<ReferralHistory[]>('/api/v1/profiles/referral-history');
+      return response.data;
+    } catch (error) {
+      console.error('Get referral history error:', error);
+      throw error;
+    }
   }
 
   /**
    * Obtém descontos disponíveis
    */
   async getDiscounts(): Promise<Discount[]> {
-    // Retorna vazio silenciosamente — endpoint não implementado ainda
-    return {} as any;
+    try {
+      const response = await api.get<Discount[]>('/api/v1/profiles/discounts');
+      return response.data;
+    } catch (error) {
+      console.error('Get discounts error:', error);
+      throw error;
+    }
   }
 
   /**
    * Aplica código de desconto
    */
   async applyDiscount(code: string): Promise<Discount> {
-    // Retorna vazio silenciosamente — endpoint não implementado ainda
-    return {} as any;
+    try {
+      const response = await api.post<Discount>('/api/v1/profiles/discounts/apply', { code });
+      return response.data;
+    } catch (error) {
+      console.error('Apply discount error:', error);
+      throw error;
+    }
   }
 
   /**
    * Remove código de desconto
    */
   async removeDiscount(discountId: string): Promise<void> {
-    // Retorna vazio silenciosamente — endpoint não implementado ainda
-    return {} as any;
+    try {
+      await api.delete(`/api/v1/profiles/discounts/${discountId}`);
+    } catch (error) {
+      console.error('Remove discount error:', error);
+      throw error;
+    }
   }
 
   /**
@@ -236,32 +274,56 @@ class ProfileService {
     referral_count: number;
     last_login: string;
   }> {
-    // Retorna vazio silenciosamente — endpoint não implementado ainda
-    return {} as any;
+    try {
+      const response = await api.get<any>('/api/v1/profiles/stats');
+      return response.data;
+    } catch (error) {
+      console.error('Get profile stats error:', error);
+      throw error;
+    }
   }
 
   /**
    * Exporta dados do perfil
    */
   async exportProfileData(format: 'json' | 'csv' = 'json'): Promise<Blob> {
-    // Retorna vazio silenciosamente — endpoint não implementado ainda
-    return {} as any;
+    try {
+      const response = await api.get(`/api/v1/profiles/export?format=${format}`, {
+        responseType: 'blob'
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Export profile data error:', error);
+      throw error;
+    }
   }
 
   /**
    * Solicita exclusão da conta
    */
   async requestAccountDeletion(reason: string, password: string): Promise<void> {
-    // Retorna vazio silenciosamente — endpoint não implementado ainda
-    return {} as any;
+    try {
+      await api.post('/api/v1/profiles/request-deletion', {
+        reason,
+        password
+      });
+    } catch (error) {
+      console.error('Request account deletion error:', error);
+      throw error;
+    }
   }
 
   /**
    * Cancela solicitação de exclusão
    */
   async cancelAccountDeletion(): Promise<void> {
-    // Retorna vazio silenciosamente — endpoint não implementado ainda
-    return {} as any;
+    try {
+      await api.post('/api/v1/profiles/cancel-deletion');
+    } catch (error) {
+      console.error('Cancel account deletion error:', error);
+      throw error;
+    }
   }
 
   /**
@@ -273,16 +335,26 @@ class ProfileService {
     deletion_date?: string;
     reason?: string;
   }> {
-    // Retorna vazio silenciosamente — endpoint não implementado ainda
-    return {} as any;
+    try {
+      const response = await api.get<any>('/api/v1/profiles/deletion-status');
+      return response.data;
+    } catch (error) {
+      console.error('Check deletion status error:', error);
+      throw error;
+    }
   }
 
   /**
    * Obtém atividades recentes do usuário
    */
   async getRecentActivities(limit: number = 10): Promise<any[]> {
-    // Retorna vazio silenciosamente — endpoint não implementado ainda
-    return {} as any;
+    try {
+      const response = await api.get<any[]>(`/api/v1/profiles/activities?limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      console.error('Get recent activities error:', error);
+      throw error;
+    }
   }
 
   /**
@@ -293,8 +365,13 @@ class ProfileService {
     push_notifications?: boolean;
     notifications_enabled?: boolean;
   }): Promise<UserProfile> {
-    // Retorna vazio silenciosamente — endpoint não implementado ainda
-    return {} as any;
+    try {
+      const response = await api.put<UserProfile>('/api/v1/profiles/notifications', settings);
+      return response.data;
+    } catch (error) {
+      console.error('Update notifications error:', error);
+      throw error;
+    }
   }
 
   /**
@@ -304,8 +381,13 @@ class ProfileService {
     success: boolean;
     message: string;
   }> {
-    // Retorna vazio silenciosamente — endpoint não implementado ainda
-    return {} as any;
+    try {
+      const response = await api.post<any>('/api/v1/profiles/test-push-notification');
+      return response.data;
+    } catch (error) {
+      console.error('Test push notification error:', error);
+      throw error;
+    }
   }
 
   /**
@@ -322,24 +404,37 @@ class ProfileService {
       is_current: boolean;
     }>;
   }> {
-    // Retorna vazio silenciosamente — endpoint não implementado ainda
-    return {} as any;
+    try {
+      const response = await api.get<any>('/api/v1/profiles/security-settings');
+      return response.data;
+    } catch (error) {
+      console.error('Get security settings error:', error);
+      throw error;
+    }
   }
 
   /**
    * Revoga sessão específica
    */
   async revokeSession(sessionId: string): Promise<void> {
-    // Retorna vazio silenciosamente — endpoint não implementado ainda
-    return {} as any;
+    try {
+      await api.delete(`/api/v1/profiles/sessions/${sessionId}`);
+    } catch (error) {
+      console.error('Revoke session error:', error);
+      throw error;
+    }
   }
 
   /**
    * Revoga todas as outras sessões
    */
   async revokeAllOtherSessions(): Promise<void> {
-    // Retorna vazio silenciosamente — endpoint não implementado ainda
-    return {} as any;
+    try {
+      await api.post('/api/v1/profiles/revoke-all-sessions');
+    } catch (error) {
+      console.error('Revoke all other sessions error:', error);
+      throw error;
+    }
   }
 }
 

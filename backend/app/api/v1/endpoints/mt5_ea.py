@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
@@ -11,7 +10,6 @@ from app.models.trade import Trade
 from app.models.workspace import Workspace
 import asyncio
 from app.websocket.trade_ws import manager as ws_manager
-from app.api.v1.endpoints.trades import update_account_balance
 
 router = APIRouter()
 
@@ -127,21 +125,14 @@ async def sync(req: SyncRequest, db: Session = Depends(get_db)):
         db, workspace, req.account_login,
         req.account_name, req.server
     )
-    await ws_manager.send_to_user(str(user.id), {
-        "type": "account_created",
-        "account_id": str(account.id),
-        "account_name": account.name,
-        "balance": float(account.balance),
-    })
     imported = 0
     updated = 0
     for t in req.trades:
+        if t.is_open:
+            continue
         dt = parse_dt(t.close_time or t.open_time)
         pnl = float(t.profit)
-        if t.is_open:
-            result = "OPEN"
-        else:
-            result = "WIN" if pnl > 0 else "LOSS" if pnl < 0 else "BE"
+        result = "WIN" if pnl > 0 else "LOSS" if pnl < 0 else "BE"
         direction = "BUY" if t.type.upper() == "BUY" else "SELL"
         existing = db.query(Trade).filter(
             Trade.account_id == account.id,
@@ -163,67 +154,28 @@ async def sync(req: SyncRequest, db: Session = Depends(get_db)):
                 lots=float(t.volume),
                 pnl=pnl,
                 result=result,
-                open_time=t.open_time,
                 notes=f"EA Sync | Ticket:{t.ticket}"
             )
             db.add(trade)
             imported += 1
-
-    # Process open positions sent in req.positions array
-    for p in req.positions:
-        dt = parse_dt(p.open_time)
-        pnl = float(p.profit)
-        result = "OPEN"
-        direction = "BUY" if p.type.upper() == "BUY" else "SELL"
-        existing = db.query(Trade).filter(
-            Trade.account_id == account.id,
-            Trade.notes.contains(f"Ticket:{p.ticket}")
-        ).first()
-        if existing:
-            existing.pnl = pnl
-            existing.result = result
-            updated += 1
-        else:
-            trade = Trade(
-                account_id=account.id,
-                workspace_id=workspace.id,
-                date=dt.date(),
-                year=dt.year,
-                month=dt.month - 1,
-                pair=p.symbol,
-                direction=direction,
-                lots=float(p.volume),
-                pnl=pnl,
-                result=result,
-                open_time=p.open_time,
-                notes=f"EA Sync | Ticket:{p.ticket}"
-            )
-            db.add(trade)
-            imported += 1
-    db.commit()
-
-    # Recalcula saldo da conta
-    total_pnl = db.query(func.sum(Trade.pnl)).filter(
-        Trade.account_id == account.id
-    ).scalar() or 0
-    account.balance = float(account.initial_balance or 0) + float(total_pnl)
     db.commit()
 
     if imported > 0 or updated > 0:
-        await ws_manager.send_to_user(str(user.id), {
+        asyncio.create_task(ws_manager.send_to_user(str(user.id), {
             "type": "trade_synced",
             "account_id": str(account.id),
             "account_name": account.name,
             "imported": imported,
             "updated": updated,
             "balance": float(account.balance),
-        })
+        }))
 
     return {
         "success": True,
         "imported": imported,
         "updated": updated,
         "account_id": str(account.id),
+        "balance": float(account.balance)
     }
 
 @router.post("/open")
@@ -283,19 +235,13 @@ async def close_trade(req: CloseRequest, db: Session = Depends(get_db)):
             lots=float(req.volume),
             pnl=pnl,
             result=result,
-            open_time=req.open_time,
             notes=f"EA Sync | Ticket:{req.ticket}"
         )
         db.add(trade)
         updated_msg = "criado"
-    # Recalcula saldo com base em todos os trades da conta
-    total_pnl = db.query(func.sum(Trade.pnl)).filter(
-        Trade.account_id == account.id
-    ).scalar() or 0
-    account.balance = float(account.initial_balance or 0) + float(total_pnl)
     db.commit()
 
-    await ws_manager.send_to_user(str(user.id), {
+    asyncio.create_task(ws_manager.send_to_user(str(user.id), {
         "type": "trade_closed",
         "account_id": str(account.id),
         "account_name": account.name,
@@ -303,11 +249,12 @@ async def close_trade(req: CloseRequest, db: Session = Depends(get_db)):
         "symbol": req.symbol,
         "pnl": float(req.profit),
         "result": result,
-        "new_balance": float(account.balance),
-    })
+        "new_balance": 0.0,
+    }))
 
     return {
         "success": True,
         "message": f"Trade {updated_msg} com sucesso",
         "account_id": str(account.id),
+        "new_balance": 0.0,
     }

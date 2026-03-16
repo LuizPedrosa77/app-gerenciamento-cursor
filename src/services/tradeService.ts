@@ -28,11 +28,7 @@ const tradeService = {
   },
 
   create: async (payload: Partial<APITrade>): Promise<APITrade> => {
-    const body = {
-      ...payload,
-      direction: (payload as any).dir || payload.direction || 'BUY',
-    };
-    const { data } = await api.post('/api/v1/trades', body);
+    const { data } = await api.post('/api/v1/trades', payload);
     return data;
   },
 

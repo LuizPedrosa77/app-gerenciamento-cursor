@@ -12,7 +12,7 @@ export const PAIRS = [
   'Outro',
 ];
 export const DIRECTIONS = ['BUY', 'SELL'];
-export const RESULTS = ['WIN', 'LOSS', 'BE', 'OPEN'];
+export const RESULTS = ['WIN', 'LOSS'];
 export const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 export interface TradeScreenshot {
@@ -100,10 +100,8 @@ export function getMonthPnl(acc: Account, year: number, month: number): number {
 
 export function getWinRate(trades: Trade[]): number {
   if (trades.length === 0) return 0;
-  const closedTrades = trades.filter(t => t.result !== 'OPEN');
-  if (closedTrades.length === 0) return 0;
-  const wins = closedTrades.filter(t => t.result === 'WIN').length;
-  return Math.round((wins / closedTrades.length) * 100);
+  const wins = trades.filter(t => t.result === 'WIN').length;
+  return Math.round((wins / trades.length) * 100);
 }
 
 export function getTradePnl(t: Trade): number {

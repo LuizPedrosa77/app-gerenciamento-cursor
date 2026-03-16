@@ -14,7 +14,6 @@ class Trade(Base):
     account_id = Column(UUID(as_uuid=True), ForeignKey("accounts.id"))
     workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id"))
     date = Column(Date, nullable=False)
-    open_time = Column(String(20), nullable=True)
     year = Column(Integer)
     month = Column(Integer)
     pair = Column(String(20))

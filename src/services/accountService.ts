@@ -18,23 +18,12 @@ const accountService = {
   },
 
   create: async (payload: { name: string; balance: number }): Promise<APIAccount> => {
-    const body = {
-      name: payload.name,
-      initial_balance: payload.balance, // backend usa initial_balance
-    };
-    const { data } = await api.post('/api/v1/accounts', body);
+    const { data } = await api.post('/api/v1/accounts', payload);
     return data;
   },
 
   update: async (id: string, payload: Partial<APIAccount>): Promise<APIAccount> => {
-    // Remove withdrawals pois backend não aceita esse campo
-    const { withdrawals, ...rest } = payload as any;
-    // Converte balance para o formato correto
-    const body: any = { ...rest };
-    if ('balance' in body && body.balance !== undefined) {
-      body.balance = body.balance;
-    }
-    const { data } = await api.patch(`/api/v1/accounts/${id}`, body);
+    const { data } = await api.patch(`/api/v1/accounts/${id}`, payload);
     return data;
   },
 

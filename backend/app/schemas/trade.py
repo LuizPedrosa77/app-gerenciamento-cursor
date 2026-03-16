@@ -6,27 +6,22 @@ from pydantic import BaseModel, Field
 class TradeCreate(BaseModel):
     date: date
     pair: str = Field(..., min_length=1)
-    direction: Optional[str] = Field(None, pattern="^(BUY|SELL)$")
-    dir: Optional[str] = Field(None, pattern="^(BUY|SELL)$")  # alias frontend
+    direction: str = Field(..., pattern="^(BUY|SELL)$")
     lots: Optional[float] = None
-    result: str = Field(..., pattern="^(WIN|LOSS|BE|OPEN)$")
+    result: str = Field(..., pattern="^(WIN|LOSS)$")
     pnl: float
     has_vm: bool = False
     vm_lots: Optional[float] = None
-    vm_result: Optional[str] = Field(None, pattern="^(WIN|LOSS|BE|OPEN)$")
+    vm_result: Optional[str] = Field(None, pattern="^(WIN|LOSS)$")
     vm_pnl: float = 0
     notes: Optional[str] = None
     account_id: str
-
-    def get_direction(self) -> str:
-        return self.direction or self.dir or 'BUY'
 
 
 class TradeUpdate(BaseModel):
     date: Optional[date] = None
     pair: Optional[str] = None
     direction: Optional[str] = None
-    dir: Optional[str] = None
     lots: Optional[float] = None
     result: Optional[str] = None
     pnl: Optional[float] = None

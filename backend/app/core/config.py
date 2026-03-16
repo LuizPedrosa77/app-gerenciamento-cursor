@@ -17,7 +17,6 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://redis:6379/0"
     N8N_WEBHOOK_URL: str = ""
     MTCONNECT_API_KEY: str = ""
-    METAAPI_KEY: str = ""
 
     class Config:
         env_file = ".env"
