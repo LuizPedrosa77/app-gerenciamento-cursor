@@ -9,11 +9,11 @@ class TradeCreate(BaseModel):
     direction: Optional[str] = Field(None, pattern="^(BUY|SELL)$")
     dir: Optional[str] = Field(None, pattern="^(BUY|SELL)$")  # alias frontend
     lots: Optional[float] = None
-    result: str = Field(..., pattern="^(WIN|LOSS|BE)$")
+    result: str = Field(..., pattern="^(WIN|LOSS|BE|OPEN)$")
     pnl: float
     has_vm: bool = False
     vm_lots: Optional[float] = None
-    vm_result: Optional[str] = Field(None, pattern="^(WIN|LOSS|BE)$")
+    vm_result: Optional[str] = Field(None, pattern="^(WIN|LOSS|BE|OPEN)$")
     vm_pnl: float = 0
     notes: Optional[str] = None
     account_id: str

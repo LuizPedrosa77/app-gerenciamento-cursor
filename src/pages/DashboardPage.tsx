@@ -672,10 +672,18 @@ export default function DashboardPage() {
                       <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${t.dir === 'BUY' ? 'dir-buy' : 'dir-sell'}`}>{t.dir}</span>
                     </td>
                     <td className="py-2">
-                      <span className={`text-[11px] font-bold ${t.result === 'WIN' ? 'text-gpfx-green' : 'text-gpfx-red'}`}>{t.result}</span>
+                      <span className={`text-[11px] font-bold ${
+                        t.result === 'WIN' ? 'text-gpfx-green' : 
+                        t.result === 'LOSS' ? 'text-gpfx-red' : 
+                        t.result === 'OPEN' ? 'text-blue-500' : 'text-gray-400'
+                      }`}>{t.result}</span>
                     </td>
-                    <td className="py-2 text-right text-xs font-bold" style={{ color: t.pnl >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)' }}>
-                      {t.pnl >= 0 ? '+' : ''}${fmtNum(t.pnl)}
+                    <td className="py-2 text-right text-xs font-bold" style={{ 
+                      color: t.result === 'OPEN' ? '#3b82f6' : 
+                             t.pnl > 0 ? 'var(--gpfx-green)' : 
+                             t.pnl < 0 ? 'var(--gpfx-red)' : 'var(--gpfx-text-muted)' 
+                    }}>
+                      {t.pnl > 0 && t.result !== 'OPEN' ? '+' : ''}${fmtNum(t.pnl)}
                     </td>
                   </tr>
                 ))}

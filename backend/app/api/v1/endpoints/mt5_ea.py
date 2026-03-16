@@ -136,11 +136,12 @@ async def sync(req: SyncRequest, db: Session = Depends(get_db)):
     imported = 0
     updated = 0
     for t in req.trades:
-        if t.is_open:
-            continue
         dt = parse_dt(t.close_time or t.open_time)
         pnl = float(t.profit)
-        result = "WIN" if pnl > 0 else "LOSS" if pnl < 0 else "BE"
+        if t.is_open:
+            result = "OPEN"
+        else:
+            result = "WIN" if pnl > 0 else "LOSS" if pnl < 0 else "BE"
         direction = "BUY" if t.type.upper() == "BUY" else "SELL"
         existing = db.query(Trade).filter(
             Trade.account_id == account.id,
@@ -164,6 +165,38 @@ async def sync(req: SyncRequest, db: Session = Depends(get_db)):
                 result=result,
                 open_time=t.open_time,
                 notes=f"EA Sync | Ticket:{t.ticket}"
+            )
+            db.add(trade)
+            imported += 1
+
+    # Process open positions sent in req.positions array
+    for p in req.positions:
+        dt = parse_dt(p.open_time)
+        pnl = float(p.profit)
+        result = "OPEN"
+        direction = "BUY" if p.type.upper() == "BUY" else "SELL"
+        existing = db.query(Trade).filter(
+            Trade.account_id == account.id,
+            Trade.notes.contains(f"Ticket:{p.ticket}")
+        ).first()
+        if existing:
+            existing.pnl = pnl
+            existing.result = result
+            updated += 1
+        else:
+            trade = Trade(
+                account_id=account.id,
+                workspace_id=workspace.id,
+                date=dt.date(),
+                year=dt.year,
+                month=dt.month - 1,
+                pair=p.symbol,
+                direction=direction,
+                lots=float(p.volume),
+                pnl=pnl,
+                result=result,
+                open_time=p.open_time,
+                notes=f"EA Sync | Ticket:{p.ticket}"
             )
             db.add(trade)
             imported += 1

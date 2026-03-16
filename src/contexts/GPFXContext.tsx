@@ -631,6 +631,23 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
         }
         if (type === 'pong') return;
 
+        if (type === 'account_created' && account_id) {
+          console.log(`[GPFX WS] account_created: ${account_name}`);
+          // Reload the entire state accounts list when a new account is created
+          const apiAccounts = await accountService.list();
+          setState(prev => {
+            const accounts = [...prev.accounts];
+            for (const apiAcc of apiAccounts) {
+              const exists = accounts.find(a => getApiId(a) === apiAcc.id);
+              if (!exists) {
+                accounts.push(apiAccToLocal(apiAcc, []));
+              }
+            }
+            return { ...prev, accounts };
+          });
+          return;
+        }
+
         if (type === 'trade_synced' && account_id) {
           console.log(`[GPFX WS] trade_synced: ${imported} novos, ${updated} atualizados — ${account_name}`);
           await reloadAccount(account_id, balance);
