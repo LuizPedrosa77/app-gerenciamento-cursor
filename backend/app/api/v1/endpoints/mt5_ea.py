@@ -162,24 +162,19 @@ async def sync(req: SyncRequest, db: Session = Depends(get_db)):
     db.commit()
 
     if imported > 0 or updated > 0:
-        update_account_balance(db, str(account.id))
-        db.refresh(account)
-
-        asyncio.create_task(ws_manager.send_to_user(str(user.id), {
+        await ws_manager.send_to_user(str(user.id), {
             "type": "trade_synced",
             "account_id": str(account.id),
             "account_name": account.name,
             "imported": imported,
             "updated": updated,
-            "balance": float(account.balance),
-        }))
+        })
 
     return {
         "success": True,
         "imported": imported,
         "updated": updated,
         "account_id": str(account.id),
-        "balance": float(account.balance)
     }
 
 @router.post("/open")
@@ -243,12 +238,10 @@ async def close_trade(req: CloseRequest, db: Session = Depends(get_db)):
         )
         db.add(trade)
         updated_msg = "criado"
+    account.balance = 0
     db.commit()
 
-    update_account_balance(db, str(account.id))
-    db.refresh(account)
-
-    asyncio.create_task(ws_manager.send_to_user(str(user.id), {
+    await ws_manager.send_to_user(str(user.id), {
         "type": "trade_closed",
         "account_id": str(account.id),
         "account_name": account.name,
@@ -256,12 +249,10 @@ async def close_trade(req: CloseRequest, db: Session = Depends(get_db)):
         "symbol": req.symbol,
         "pnl": float(req.profit),
         "result": result,
-        "new_balance": float(account.balance),
-    }))
+    })
 
     return {
         "success": True,
         "message": f"Trade {updated_msg} com sucesso",
         "account_id": str(account.id),
-        "new_balance": float(account.balance),
     }
