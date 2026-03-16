@@ -1,4 +1,4 @@
-import api from './api';
+import { api } from '@/services/api';
 
 export interface MTConnectRequest {
   login: string;
@@ -30,22 +30,22 @@ export interface MTStatusResponse {
 
 const mtconnectService = {
   connect: async (data: MTConnectRequest): Promise<MTConnectResponse> => {
-    const response = await api.post('/metaapi/connect', data);
-    return response.data;
+    const { data: result } = await api.post('/api/v1/metaapi/connect', data);
+    return result;
   },
 
   sync: async (accountId: string): Promise<MTSyncResponse> => {
-    const response = await api.post(`/metaapi/sync/${accountId}`);
-    return response.data;
+    const { data: result } = await api.post(`/api/v1/metaapi/sync/${accountId}`);
+    return result;
   },
 
   status: async (accountId: string): Promise<MTStatusResponse> => {
-    const response = await api.get(`/metaapi/status/${accountId}`);
-    return response.data;
+    const { data: result } = await api.get(`/api/v1/metaapi/status/${accountId}`);
+    return result;
   },
 
   disconnect: async (accountId: string): Promise<void> => {
-    await api.delete(`/metaapi/disconnect/${accountId}`);
+    await api.delete(`/api/v1/metaapi/disconnect/${accountId}`);
   },
 };
 
