@@ -606,37 +606,47 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     ws.onmessage = async (event) => {
       try {
         const msg = JSON.parse(event.data);
-        const { type, account_id, account_name, imported, updated, balance, pnl, result, ticket, symbol, new_balance } = msg;
+        const { type, account_id, account_name, imported, updated, pnl, result, ticket, symbol } = msg;
 
         if (type === 'connected') {
           console.log('[GPFX WS] Handshake OK, user_id:', msg.user_id);
+          wsReconnectDelay.current = 2000; // reset delay no handshake
           return;
         }
         if (type === 'pong') return;
 
-        if (type === 'trade_synced') {
+        if (type === 'trade_synced' && account_id) {
           console.log(`[GPFX WS] trade_synced: ${imported} novos, ${updated} atualizados — ${account_name}`);
           await reloadAccount(account_id);
           return;
         }
 
-        if (type === 'trade_closed') {
+        if (type === 'trade_closed' && account_id) {
           console.log(`[GPFX WS] trade_closed: ticket=${ticket} ${symbol} ${result} PnL=${pnl}`);
           await reloadAccount(account_id);
           return;
         }
       } catch (err) {
-        console.warn('[GPFX WS] Erro ao processar mensagem', err);
+        console.warn('[GPFX WS] Erro ao processar mensagem — ignorando:', err);
+        // NUNCA fecha o WebSocket por erro de mensagem
       }
     };
 
-    ws.onerror = () => {
-      console.warn('[GPFX WS] Erro de conexão');
+    ws.onerror = (err) => {
+      console.warn('[GPFX WS] Erro de conexão — aguardando onclose para reconectar');
+      // Não fecha manualmente — deixa o onclose tratar
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       setWsConnected(false);
-      console.log(`[GPFX WS] Desconectado. Reconectando em ${wsReconnectDelay.current}ms...`);
+
+      // Não reconecta se foi fechamento intencional (código 1000 ou 4001)
+      if (event.code === 1000 || event.code === 4001) {
+        console.log('[GPFX WS] Conexão encerrada intencionalmente.');
+        return;
+      }
+
+      console.log(`[GPFX WS] Desconectado (código ${event.code}). Reconectando em ${wsReconnectDelay.current}ms...`);
       wsReconnectTimer.current = setTimeout(() => {
         wsReconnectDelay.current = Math.min(wsReconnectDelay.current * 2, 30000);
         connectWebSocket();
@@ -646,7 +656,11 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isAuthenticated()) return;
-    connectWebSocket();
+
+    // Delay inicial para garantir que o token está disponível
+    const initTimer = setTimeout(() => {
+      connectWebSocket();
+    }, 1000);
 
     const pingInterval = setInterval(() => {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -655,6 +669,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     }, 25000);
 
     return () => {
+      clearTimeout(initTimer);
       clearInterval(pingInterval);
       clearTimeout(wsReconnectTimer.current);
       if (wsRef.current) {
@@ -662,7 +677,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
         wsRef.current.close();
       }
     };
-  }, [connectWebSocket]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <GPFXContext.Provider value={{
