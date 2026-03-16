@@ -51,12 +51,12 @@ function apiAccToLocal(a: APIAccount, existingTrades: Trade[] = []): Account & {
     _apiId: a.id,
     name: a.name,
     balance: a.balance,
+    initialBalance: (a as any).initial_balance || a.balance || 0,
     notes: a.notes || '',
     trades: existingTrades,
-    withdrawals: a.withdrawals || {},
+    withdrawals: {},  // withdrawals não vem do backend, usa local
     meta: a.meta,
     monthlyGoal: a.monthly_goal,
-    initialBalance: (a as any).initial_balance || a.balance,
   } as any;
 }
 
