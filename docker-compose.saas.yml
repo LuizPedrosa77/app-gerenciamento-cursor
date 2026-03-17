@@ -29,7 +29,7 @@ services:
       - SECRET_KEY=gpfx-secret-key-2026-production
       - INTERNAL_API_KEY=gpfx-internal-key-2026
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - MINIO_ENDPOINT=s3.hubnexusai.com
+      - MINIO_ENDPOINT=s3.painelzap.com
       - MINIO_ACCESS_KEY=574184765162
       - MINIO_SECRET_KEY=8332bdeca11c80fe91685492
       - MINIO_BUCKET=appgerenciamentofx

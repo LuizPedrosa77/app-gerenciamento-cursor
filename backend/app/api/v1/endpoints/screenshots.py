@@ -71,7 +71,7 @@ async def upload_screenshot(
         )
         
         # Gerar URL pública
-        url = f"https://{os.getenv('MINIO_ENDPOINT', 's3.hubnexusai.com')}/{bucket_name}/{object_name}"
+        url = f"https://{os.getenv('MINIO_ENDPOINT', 's3.painelzap.com')}/{bucket_name}/{object_name}"
         
         # Atualizar screenshots no trade
         if not trade.screenshots:
