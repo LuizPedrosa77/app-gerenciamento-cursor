@@ -13,6 +13,35 @@ import WeeklyReport from '@/components/WeeklyReport';
 import dashboardService from '@/services/dashboardService';
 import tradeService from '@/services/tradeService';
 
+function normalizeRectSize(value: number) {
+  return Number.isFinite(value) ? Math.max(0, Math.abs(value)) : 0;
+}
+
+function buildSafeRect(props: any, fill: string, stroke?: string, strokeWidth?: number) {
+  const x = Number(props?.x ?? 0);
+  const y = Number(props?.y ?? 0);
+  const rawWidth = Number(props?.width ?? 0);
+  const rawHeight = Number(props?.height ?? 0);
+
+  const width = normalizeRectSize(rawWidth);
+  const height = normalizeRectSize(rawHeight);
+  const safeX = rawWidth < 0 ? x + rawWidth : x;
+  const safeY = rawHeight < 0 ? y + rawHeight : y;
+
+  return (
+    <rect
+      x={safeX}
+      y={safeY}
+      width={width}
+      height={height}
+      fill={fill}
+      rx={4}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+    />
+  );
+}
+
 /* ── Mini Sparkline for KPI cards ── */
 function MiniSparkline({ data, color }: { data: number[]; color: string }) {
   if (data.length < 2) return null;
@@ -268,7 +297,7 @@ export default function DashboardPage() {
       const accountSummary = await Promise.all(state.accounts.map(async a => {
         const apiId = (a as any)._apiId;
         if (!apiId) {
-          return { name: a.name, balance: a.balance || 0, pnl: 0, winRate: 0, trades: 0 };
+          return { apiId: null, name: a.name, balance: a.balance || 0, pnl: 0, winRate: 0, trades: 0 };
         }
         const sumAcc = await dashboardService.getSummary({
           account_ids: [apiId],
@@ -276,6 +305,7 @@ export default function DashboardPage() {
           end_date: filters.end_date,
         });
         return {
+          apiId,
           name: a.name,
           balance: sumAcc.total_balance ?? a.balance ?? 0,
           pnl: sumAcc.total_pnl ?? 0,
@@ -290,12 +320,13 @@ export default function DashboardPage() {
       start.setDate(end.getDate() - 90);
       const startStr = start.toISOString().split('T')[0];
       const endStr = end.toISOString().split('T')[0];
-      let weeklyAgg: Trade[] = [];
-      for (const id of filteredAccountIds) {
-        const res = await tradeService.list(id, 0, 10000, undefined, undefined, startStr, endStr);
-        const portion = (res.items || res).map(apiTradeToLocal);
-        weeklyAgg = weeklyAgg.concat(portion);
-      }
+      const weeklyChunks = await Promise.all(
+        filteredAccountIds.map(async (id) => {
+          const res = await tradeService.list(id, 0, 10000, undefined, undefined, startStr, endStr);
+          return (res.items || res).map(apiTradeToLocal);
+        })
+      );
+      const weeklyAgg = weeklyChunks.flat();
       setWeeklyTrades(weeklyAgg);
 
       setStats({
@@ -310,7 +341,7 @@ export default function DashboardPage() {
         pairData: pairData,
         dowData: dowDataParsed,
         bestDow: bestDowObj,
-        weekData: [], // Optional
+        weekData: (sum.week_data || []).map((w: any) => ({ name: w.name, pnl: w.pnl })),
         distribution: dist,
         balanceEvoSampled: evolutionMapped,
         heatmapData: heatmapData,
@@ -333,7 +364,7 @@ export default function DashboardPage() {
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, accFilter, dateRange]);
+  }, [state.accounts, state.activeAccount, accFilter, dateRange.start, dateRange.end]);
 
   const weekTrades = useMemo(() => {
     const now = new Date();
@@ -351,8 +382,9 @@ export default function DashboardPage() {
   const weekPnlTotal = sumPnl(weekTrades);
 
   const selectedAcc = accFilter === 'all' ? null : state.accounts[parseInt(accFilter)];
+  const selectedAccApiId = selectedAcc ? (selectedAcc as any)._apiId : null;
   const selectedAccSummary = selectedAcc
-    ? stats.accountSummary.find((a: any) => a.name === selectedAcc.name)
+    ? stats.accountSummary.find((a: any) => a.apiId === selectedAccApiId)
     : null;
   const totalBalanceDisplay = accFilter === 'all'
     ? stats.totalBalance
@@ -388,6 +420,11 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-extrabold" style={{ color: 'var(--gpfx-text-primary)' }}>Dashboard</h1>
         <div className="flex items-center gap-2 flex-wrap">
+          {loading && (
+            <span className="text-[11px] font-semibold" style={{ color: 'var(--gpfx-text-muted)' }}>
+              Atualizando...
+            </span>
+          )}
           <AccountSelector value={accFilter} onChange={setAccFilter} accounts={state.accounts} />
           <DateRangeFilter value={dateRange} onChange={setDateRange} />
         </div>
@@ -454,8 +491,8 @@ export default function DashboardPage() {
                 <Bar dataKey="pnl" radius={[4, 4, 0, 0]}
                   // @ts-ignore
                   shape={(props: any) => {
-                    const { x, y, width, height, payload } = props;
-                    return <rect x={x} y={y} width={width} height={height} fill={payload.pnl >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)'} rx={4} />;
+                    const fill = props.payload?.pnl >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)';
+                    return buildSafeRect(props, fill);
                   }}
                 >
                   <LabelList dataKey="pnl" position="top" formatter={(v: number) => (v >= 0 ? '+' : '') + '$' + fmtNum(v)} style={{ fill: 'var(--gpfx-text-muted)', fontSize: 9, fontWeight: 700 }} />
@@ -478,8 +515,8 @@ export default function DashboardPage() {
                 <Bar dataKey="pnl" radius={[0, 4, 4, 0]}
                   // @ts-ignore
                   shape={(props: any) => {
-                    const { x, y, width, height, payload } = props;
-                    return <rect x={x} y={y} width={width} height={height} fill={payload.pnl >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)'} rx={4} />;
+                    const fill = props.payload?.pnl >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)';
+                    return buildSafeRect(props, fill);
                   }}
                 />
               </BarChart>
@@ -500,9 +537,9 @@ export default function DashboardPage() {
                 <Bar dataKey="pnl" radius={[4, 4, 0, 0]}
                   // @ts-ignore
                   shape={(props: any) => {
-                    const { x, y, width, height, payload } = props;
-                    const isBest = payload.name === stats.bestDow?.name;
-                    return <rect x={x} y={y} width={width} height={height} fill={payload.pnl >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)'} rx={4} stroke={isBest ? '#00d395' : 'none'} strokeWidth={isBest ? 2 : 0} />;
+                    const isBest = props.payload?.name === stats.bestDow?.name;
+                    const fill = props.payload?.pnl >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)';
+                    return buildSafeRect(props, fill, isBest ? '#00d395' : undefined, isBest ? 2 : 0);
                   }}
                 />
               </BarChart>
@@ -523,8 +560,8 @@ export default function DashboardPage() {
                 <Bar dataKey="pnl" radius={[4, 4, 0, 0]}
                   // @ts-ignore
                   shape={(props: any) => {
-                    const { x, y, width, height, payload } = props;
-                    return <rect x={x} y={y} width={width} height={height} fill={payload.pnl >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)'} rx={4} />;
+                    const fill = props.payload?.pnl >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)';
+                    return buildSafeRect(props, fill);
                   }}
                 />
               </BarChart>
