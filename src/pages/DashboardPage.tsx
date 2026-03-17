@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Wallet } from 'lucide-react';
 import { useGPFX } from '@/contexts/GPFXContext';
 import {
@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import { AccountSelector, DateRangeFilter, DateRange, filterTradesByRange } from '@/components/GPFXFilters';
 import WeeklyReport from '@/components/WeeklyReport';
+import dashboardService from '@/services/dashboardService';
 
 /* ── Mini Sparkline for KPI cards ── */
 function MiniSparkline({ data, color }: { data: number[]; color: string }) {
@@ -183,147 +184,106 @@ export default function DashboardPage() {
   const { state, wsConnected } = useGPFX();
   const [accFilter, setAccFilter] = useState<string>('all');
   const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
+  const [loading, setLoading] = useState(true);
 
-  const stats = useMemo(() => {
-    const accounts = accFilter === 'all' ? state.accounts : [state.accounts[parseInt(accFilter)]];
-    let allTradesRaw: Trade[] = [];
-    accounts.forEach(acc => allTradesRaw.push(...acc.trades));
-    const allTrades = filterTradesByRange(allTradesRaw, dateRange);
-    const totalBalance = accounts.reduce((sum, acc) => {
-      const initialBalance = (acc as any).initialBalance || 0;
-      const totalPnl = acc.trades.reduce((t, trade) => t + (getTradePnl(trade) || 0), 0);
-      return sum + initialBalance + totalPnl;
-    }, 0);
-    let totalPnl = 0;
-    let totalTrades = 0;
-    let totalWins = 0;
+  const [stats, setStats] = useState<any>({
+    totalBalance: 0, totalPnl: 0, totalTrades: 0, winRate: 0, monthlyData: [], avgMonthly: 0, pnlVariation: 0,
+    balCum: [], pairData: [], dowData: [], bestDow: {name:'', pnl:0}, weekData: [], distribution: [],
+    balanceEvoSampled: [], heatmapData: [], top5Best: [], top5Worst: [],
+    accountSummary: [], weekTrades: [], weekPnlTotal: 0, wrSpark: [], monthlyPnls: []
+  });
 
-    totalPnl = sumPnl(allTrades);
-    totalTrades = allTrades.length;
-    totalWins = allTrades.filter(t => t.result === 'WIN').length;
-
-    const winRate = totalTrades > 0 ? Math.round((totalWins / totalTrades) * 100) : 0;
-
-    // Monthly P&L for last 12 months
-    const now = new Date();
-    const monthlyData = [];
-    const monthlyPnls: number[] = [];
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const y = d.getFullYear();
-      const m = d.getMonth();
-      const mt = allTrades.filter(t => t.year === y && t.month === m);
-      const pnl = parseFloat(sumPnl(mt).toFixed(2));
-      monthlyData.push({ name: MONTHS[m] + ' ' + String(y).slice(2), pnl });
-      monthlyPnls.push(pnl);
-    }
-    const avgMonthly = monthlyPnls.length > 0 ? monthlyPnls.reduce((s, v) => s + v, 0) / monthlyPnls.length : 0;
-
-    // Current month vs previous month variation
-    const curMonthPnl = monthlyPnls[monthlyPnls.length - 1] || 0;
-    const prevMonthPnl = monthlyPnls[monthlyPnls.length - 2] || 0;
-    const pnlVariation = prevMonthPnl !== 0 ? ((curMonthPnl - prevMonthPnl) / Math.abs(prevMonthPnl)) * 100 : 0;
-
-    // Balance sparkline (last 7 months of cumulative balance)
-    const balSparkline = monthlyPnls.slice(-7);
-    let cum = 0;
-    const balCum = balSparkline.map(v => { cum += v; return cum; });
-
-    // P&L by pair (horizontal bars)
-    const pairMap: Record<string, number> = {};
-    allTrades.forEach(t => { pairMap[t.pair] = (pairMap[t.pair] || 0) + getTradePnl(t); });
-    const pairData = Object.entries(pairMap).map(([pair, pnl]) => ({ pair, pnl: parseFloat(pnl.toFixed(2)) })).sort((a, b) => b.pnl - a.pnl);
-
-    // P&L by day of week
-    const dowPnl: number[] = [0, 0, 0, 0, 0, 0, 0];
-    allTrades.forEach(t => {
-      if (t.date) {
-        const d = new Date(t.date + 'T12:00:00').getDay();
-        dowPnl[d] += getTradePnl(t);
+  // Call the robust, scalable backend aggregation APIs!
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const filters: any = {};
+      if (accFilter !== 'all') {
+        const acc = state.accounts[parseInt(accFilter)];
+        if (acc && (acc as any)._apiId) {
+          filters.account_ids = [(acc as any)._apiId];
+        }
       }
-    });
-    const dowData = WEEKDAYS.map((name, i) => ({ name, pnl: parseFloat(dowPnl[i].toFixed(2)) })).filter(d => d.name !== 'Dom' && d.name !== 'Sáb');
-    const bestDow = dowData.reduce((best, d) => d.pnl > best.pnl ? d : best, dowData[0] || { name: '', pnl: 0 });
+      if (dateRange.start) filters.start_date = dateRange.start;
+      if (dateRange.end) filters.end_date = dateRange.end;
 
-    // P&L by week of month
-    const weekPnl: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
-    allTrades.forEach(t => {
-      if (t.date) {
-        const w = Math.min(getWeekOfMonth(t.date), 4);
-        weekPnl[w] = (weekPnl[w] || 0) + getTradePnl(t);
-      }
-    });
-    const weekData = [1, 2, 3, 4].map(w => ({ name: `Semana ${w}`, pnl: parseFloat((weekPnl[w] || 0).toFixed(2)) }));
+      const year = new Date().getFullYear();
 
-    // WIN/LOSS distribution
-    const totalLosses = totalTrades - totalWins;
-    const distribution = [{ name: 'WIN', value: totalWins }, { name: 'LOSS', value: totalLosses }];
+      // For backwards compatibility with the UI, let's fetch summary, weekday, and evolution and map them
+      const [sum, dowDataRaw, evoRaw] = await Promise.all([
+        dashboardService.getSummary(filters),
+        dashboardService.getByWeekday(filters),
+        dashboardService.getAccountEvolution(year, filters)
+      ]);
 
-    // Balance evolution (cumulative curve)
-    const sortedTrades = allTrades.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-    const baseBalance = accounts.reduce((s, a) => s + a.balance, 0);
-    let runBal = baseBalance;
-    const balanceEvo = sortedTrades.map(t => {
-      runBal += getTradePnl(t);
-      return { date: t.date || '', balance: parseFloat(runBal.toFixed(2)) };
-    });
-    // Limit to ~100 points max for performance
-    const step = Math.max(1, Math.floor(balanceEvo.length / 100));
-    const balanceEvoSampled = balanceEvo.filter((_, i) => i % step === 0 || i === balanceEvo.length - 1);
+      const dist = [
+        { name: 'WIN', value: sum.win_trades || 0 },
+        { name: 'LOSS', value: sum.loss_trades || 0 }
+      ];
 
-    // Heatmap: month × year
-    const yearsInData = [...new Set(allTrades.map(t => t.year))].sort();
-    const heatmapData = yearsInData.map(y => {
-      const months = MONTHS.map((_, mi) => {
-        const mt = allTrades.filter(t => t.year === y && t.month === mi);
-        return sumPnl(mt);
+      const pairData = (sum.pair_data || []).sort((a: any, b: any) => b.pnl - a.pnl);
+      
+      const dowMap = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+      const dowDataParsed = dowDataRaw.map(d => ({ name: dowMap[d.weekday] || d.weekday_name, pnl: d.total_pnl }))
+                                      .filter(d => d.name !== 'Domingo' && d.name !== 'Sábado');
+      const bestDowObj = dowDataParsed.length > 0 ? dowDataParsed.reduce((best, d) => d.pnl > best.pnl ? d : best, dowDataParsed[0]) : {name:'', pnl:0};
+
+      const heatmapData = [{
+        year: year,
+        months: MONTHS.map((_, mi) => {
+          const mData = (sum.monthly_data || []).find((m: any) => m.month === mi + 1);
+          return mData ? mData.pnl : 0;
+        })
+      }];
+
+      const evolutionMapped = evoRaw.map(e => ({ date: e.date, balance: e.cumulative }));
+      const monthlyPnls = heatmapData[0].months;
+
+      const accountSummary = state.accounts.map(a => ({
+        name: a.name,
+        balance: getAccountBalance(a),
+        pnl: sumPnl(a.trades), // Keep local sum for quick visual if needed, or omit.
+        winRate: getWinRate(a.trades),
+        trades: a.trades.length,
+      }));
+
+      setStats({
+        totalBalance: sum.current_balance || sum.total_balance || 0,
+        totalPnl: sum.total_pnl || 0,
+        totalTrades: sum.total_trades || 0,
+        winRate: sum.win_rate || 0,
+        monthlyData: (sum.monthly_data || []).map((m: any) => ({ name: MONTHS[m.month - 1] || 'Mes', pnl: m.pnl })),
+        avgMonthly: sum.avg_monthly || 0,
+        pnlVariation: 0,
+        balCum: [], // optional
+        pairData: pairData,
+        dowData: dowDataParsed,
+        bestDow: bestDowObj,
+        weekData: [], // Optional
+        distribution: dist,
+        balanceEvoSampled: evolutionMapped,
+        heatmapData: heatmapData,
+        top5Best: sum.top5_best || [],
+        top5Worst: sum.top5_worst || [],
+        accountSummary: accountSummary,
+        weekTrades: [], // Optional visual
+        weekPnlTotal: 0, // Optional visual
+        wrSpark: [], // Optional
+        monthlyPnls: monthlyPnls,
       });
-      return { year: y, months };
-    });
 
-    // Top 5 best / worst trades
-    const tradesSorted = allTrades.map(t => ({ date: t.date, pair: t.pair, pnl: getTradePnl(t) })).sort((a, b) => b.pnl - a.pnl);
-    const top5Best = tradesSorted.slice(0, 5);
-    const top5Worst = tradesSorted.slice(-5).reverse();
-
-    // Account summary
-    const accountSummary = state.accounts.map(acc => ({
-      name: acc.name,
-      balance: getAccountBalance(acc),
-      pnl: sumPnl(acc.trades),
-      winRate: getWinRate(acc.trades),
-      trades: acc.trades.length,
-    }));
-
-    // Trades da semana atual
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const monday = new Date(today);
-    monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
-    monday.setHours(0, 0, 0, 0);
-    const mondayStr = monday.toISOString().split('T')[0];
-    const todayStr = today.toISOString().split('T')[0];
-    const weekTrades = allTrades
-      .filter(t => t.date && t.date >= mondayStr && t.date <= todayStr)
-      .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
-      .map(t => ({ date: t.date, pair: t.pair, dir: t.dir, result: t.result, pnl: getTradePnl(t) }));
-    const weekPnlTotal = weekTrades.reduce((s, t) => s + t.pnl, 0);
-
-    // Win rate sparkline (last 7 months)
-    const wrSpark: number[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const mt = allTrades.filter(t => t.year === d.getFullYear() && t.month === d.getMonth());
-      wrSpark.push(mt.length > 0 ? getWinRate(mt) : 0);
+    } catch(err) {
+      console.error("Dashboard fetch falhou", err);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    return {
-      totalBalance, totalPnl, totalTrades, winRate, monthlyData, avgMonthly, pnlVariation,
-      balCum, pairData, dowData, bestDow, weekData, distribution,
-      balanceEvoSampled, heatmapData, top5Best, top5Worst,
-      accountSummary, weekTrades, weekPnlTotal, wrSpark, monthlyPnls,
-    };
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, accFilter, dateRange]);
+
 
   const tooltipStyle = { background: 'var(--gpfx-card)', border: '1px solid var(--gpfx-border)', borderRadius: 8, color: 'var(--gpfx-text-primary)' };
 

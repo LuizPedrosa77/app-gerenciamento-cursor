@@ -1,5 +1,10 @@
 import { api } from '@/services/api';
 
+export interface PaginatedTrades {
+  items: APITrade[];
+  total: number;
+}
+
 export interface APITrade {
   id: string;
   account_id: string;
@@ -20,10 +25,13 @@ export interface APITrade {
 }
 
 const tradeService = {
-  list: async (accountId: string): Promise<APITrade[]> => {
-    const { data } = await api.get('/api/v1/trades', {
-      params: { account_id: accountId },
-    });
+  list: async (accountId: string, skip: number = 0, limit: number = 50, year?: number, month?: number): Promise<PaginatedTrades> => {
+    const params: any = { account_id: accountId, skip, limit };
+    if (year) params.year = year;
+    if (month) params.month = month;
+    const { data } = await api.get('/api/v1/trades', { params });
+    // Backward compatibility just in case
+    if (Array.isArray(data)) return { items: data, total: data.length };
     return data;
   },
 

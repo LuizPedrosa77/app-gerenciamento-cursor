@@ -241,6 +241,17 @@ async def close_trade(req: CloseRequest, db: Session = Depends(get_db)):
         updated_msg = "criado"
     db.commit()
 
+    # Recalculate balance simply
+    from sqlalchemy.sql import func
+    total_pnl = db.query(func.sum(Trade.pnl)).filter(Trade.account_id == account.id).scalar() or 0.0
+    total_vm = db.query(func.sum(Trade.vm_pnl)).filter(
+        Trade.account_id == account.id, Trade.has_vm == True
+    ).scalar() or 0.0
+    account.balance = float(account.initial_balance) + float(total_pnl) + float(total_vm)
+    db.commit()
+
+    trade_id = str(existing.id) if existing else str(trade.id)
+
     asyncio.create_task(ws_manager.send_to_user(str(user.id), {
         "type": "trade_closed",
         "account_id": str(account.id),
@@ -249,12 +260,20 @@ async def close_trade(req: CloseRequest, db: Session = Depends(get_db)):
         "symbol": req.symbol,
         "pnl": float(req.profit),
         "result": result,
-        "new_balance": 0.0,
+        "new_balance": float(account.balance),
+        "trade": {
+            "id": trade_id,
+            "date": str(dt_close.date()),
+            "pair": req.symbol,
+            "direction": direction,
+            "pnl": float(req.profit),
+            "result": result
+        }
     }))
 
     return {
         "success": True,
         "message": f"Trade {updated_msg} com sucesso",
         "account_id": str(account.id),
-        "new_balance": 0.0,
+        "new_balance": float(account.balance),
     }

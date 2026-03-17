@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
-import { useGPFX } from '@/contexts/GPFXContext';
+import { useMemo, useState, useEffect } from 'react';
+import { useGPFX, apiTradeToLocal } from '@/contexts/GPFXContext';
 import { MONTHS_FULL, WEEKDAYS, Trade, sumPnl, fmtNum, getWinRate, getTradePnl, getWeekOfMonth } from '@/lib/gpfx-utils';
+import tradeService from '@/services/tradeService';
 import { AccountSelector, DateRangeFilter, DateRange, filterTradesByRange } from '@/components/GPFXFilters';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -48,17 +49,52 @@ export default function AnalisePage() {
   const { state } = useGPFX();
   const [accFilter, setAccFilter] = useState<string>('all');
   const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
+  const [fetchedTrades, setFetchedTrades] = useState<Trade[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const loadAllParams = async () => {
+      setLoading(true);
+      try {
+        const fetchAccIds: string[] = [];
+        if (accFilter === 'all') {
+          state.accounts.forEach(a => {
+            const apiId = (a as any)._apiId;
+            if (apiId) fetchAccIds.push(apiId);
+          });
+        } else {
+          const acc = state.accounts[parseInt(accFilter)];
+          const apiId = acc ? (acc as any)._apiId : null;
+          if (apiId) fetchAccIds.push(apiId);
+        }
+
+        let allT: Trade[] = [];
+        // Optional: filter by date Range specifically via API if start/end exist
+        // Note: Currently tradeService.list takes year, month. So we get all and filter locally for advanced ranges.
+        for (const id of fetchAccIds) {
+          const res = await tradeService.list(id, 0, 10000);
+          const rawItems = res.items || res;
+          const portion = rawItems.map(apiTradeToLocal);
+          allT = allT.concat(portion);
+        }
+
+        if (active) {
+          setFetchedTrades(allT);
+        }
+      } catch (err) {
+        console.error("Failed to load trades for analysis", err);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    loadAllParams();
+    return () => { active = false; };
+  }, [state.accounts, accFilter]);
 
   const filteredTrades = useMemo(() => {
-    let trades: Trade[] = [];
-    if (accFilter === 'all') {
-      state.accounts.forEach(acc => trades.push(...acc.trades));
-    } else {
-      const idx = parseInt(accFilter);
-      if (state.accounts[idx]) trades = [...state.accounts[idx].trades];
-    }
-    return filterTradesByRange(trades, dateRange);
-  }, [state, accFilter, dateRange]);
+    return filterTradesByRange(fetchedTrades, dateRange);
+  }, [fetchedTrades, dateRange]);
 
   const analytics = useMemo(() => {
     const trades = filteredTrades;
@@ -203,13 +239,19 @@ export default function AnalisePage() {
         </div>
       </div>
 
-      {noTrades && (
+      {loading && (
+        <div className="gpfx-card p-8 text-center" style={{ color: 'var(--gpfx-text-muted)' }}>
+          Carregando dados para análise...
+        </div>
+      )}
+
+      {noTrades && !loading && (
         <div className="gpfx-card p-8 text-center" style={{ color: 'var(--gpfx-text-muted)' }}>
           Nenhum trade encontrado para os filtros selecionados.
         </div>
       )}
 
-      {!noTrades && (
+      {!noTrades && !loading && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
           {/* ═══ 1. POR DIA DA SEMANA ═══ */}

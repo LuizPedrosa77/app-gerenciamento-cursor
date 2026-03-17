@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, date
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
@@ -60,19 +61,25 @@ def update_account_balance(db: Session, account_id: str):
     db.commit()
 
 
-@router.get("", response_model=List[TradeResponse])
+class PaginatedTrades(BaseModel):
+    items: List[TradeResponse]
+    total: int
+
+@router.get("", response_model=PaginatedTrades)
 def get_trades(
     current_user: CurrentUser,
     db: DbSession,
     account_id: Optional[str] = Query(None),
     year: Optional[int] = Query(None),
     month: Optional[int] = Query(None),
+    skip: int = Query(0),
+    limit: int = Query(50)
 ):
-    """Get trades with optional filters."""
+    """Get trades with optional filters and pagination."""
     # Get user's workspace
     workspace = db.query(Workspace).filter(Workspace.owner_id == current_user.id).first()
     if not workspace:
-        return []
+        return {"items": [], "total": 0}
     
     # Build query
     query = db.query(Trade).filter(Trade.workspace_id == workspace.id)
@@ -86,9 +93,14 @@ def get_trades(
     
     if month:
         query = query.filter(Trade.month == month)
+        
+    total = query.count()
     
-    trades = query.order_by(Trade.date.asc()).all()
-    return [create_trade_response(trade) for trade in trades]
+    trades = query.order_by(Trade.date.desc()).offset(skip).limit(limit).all()
+    return {
+        "items": [create_trade_response(trade) for trade in trades],
+        "total": total
+    }
 
 
 @router.post("", response_model=TradeResponse)

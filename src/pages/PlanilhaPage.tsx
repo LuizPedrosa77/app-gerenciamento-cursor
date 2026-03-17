@@ -1,5 +1,7 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
-import { useGPFX } from '@/contexts/GPFXContext';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { useGPFX, apiTradeToLocal } from '@/contexts/GPFXContext';
+import tradeService from '@/services/tradeService';
+import dashboardService from '@/services/dashboardService';
 import {
   MONTHS, YEARS, PAIRS, DIRECTIONS, RESULTS,
   sumPnl, fmtNum, signedPnl, uid, Trade,
@@ -64,40 +66,83 @@ export default function PlanilhaPage() {
   const [screenshotModal, setScreenshotModal] = useState<{ open: boolean; trade: Trade | null }>({ open: false, trade: null });
   const [lightbox, setLightbox] = useState<{ open: boolean; images: { data: string; caption: string; tradePair?: string }[]; index: number }>({ open: false, images: [], index: 0 });
 
+  // API data state
+  const [paginatedTrades, setPaginatedTrades] = useState<Trade[]>([]);
+  const [annualGrid, setAnnualGrid] = useState<Record<number, { pnl: number, count: number }>>({});
+  const [summaryData, setSummaryData] = useState<any>(null); // from getSummary for totalPnl etc
+  const [loading, setLoading] = useState(false);
+
   const year = state.activeYear;
   const month = state.activeMonth;
   const acc = activeAcc;
 
-  const allTrades = acc.trades;
-  let monthTrades = allTrades.filter(t => t.year === year && t.month === month);
-  const yearTrades = allTrades.filter(t => t.year === year);
+  const loadData = useCallback(async () => {
+    const apiId = (acc as any)._apiId;
+    if (!apiId) return;
 
-  // Apply filters
+    setLoading(true);
+    try {
+       // 1. Fetch trades for current month (limit to 1000 for visual spreadsheet)
+       const resTrades = await tradeService.list(apiId, 0, 1000, year, month);
+       const trades = (resTrades.items || resTrades).map(apiTradeToLocal);
+       setPaginatedTrades(trades);
+
+       // 2. Fetch monthly grid for the year
+       const resGrid = await dashboardService.getMonthly(year, { account_ids: [apiId] });
+       const gridMap: Record<number, { pnl: number, count: number }> = {};
+       resGrid.forEach(item => {
+          gridMap[item.month] = { pnl: item.pnl, count: item.trades_count };
+       });
+       setAnnualGrid(gridMap);
+
+       // 3. Optional Summary for max accuracy
+       const summary = await dashboardService.getSummary({ account_ids: [apiId], start_date: `${year}-01-01`, end_date: `${year}-12-31` });
+       setSummaryData(summary);
+    } catch(err) {
+       console.error("Failed to load spreadsheet data", err);
+    } finally {
+       setLoading(false);
+    }
+  }, [acc, year, month]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+     const handler = (e: any) => {
+        if (e.detail?.account_id === (acc as any)._apiId) {
+           loadData();
+        }
+     };
+     window.addEventListener('gpfx:trade_updated', handler);
+     return () => window.removeEventListener('gpfx:trade_updated', handler);
+  }, [loadData, acc]);
+
+  let monthTrades = paginatedTrades; // Paginated trades already filtered by year/month from backend
+
+  // Apply filters visually
   if (filterPair) monthTrades = monthTrades.filter(t => t.pair === filterPair);
   if (filterDir) monthTrades = monthTrades.filter(t => t.dir === filterDir);
   if (filterResult) monthTrades = monthTrades.filter(t => t.result === filterResult);
 
-  const monthPnl = sumPnl(acc.trades.filter(t => t.year === year && t.month === month));
-  const yearPnl = sumPnl(yearTrades);
-  const totalPnl = sumPnl(allTrades);
-  const allWithdrawals = Object.values(acc.withdrawals || {}).reduce((s, v) => s + v, 0);
-  const yearWithdrawals = Object.entries(acc.withdrawals || {}).filter(e => e[0].startsWith(year + '-')).reduce((s, e) => s + e[1], 0);
+  const monthPnl = sumPnl(paginatedTrades);
+  const totalPnl = summaryData?.total_pnl || 0; // Use backend aggregated total PnL
   const monthWithdrawal = (acc.withdrawals || {})[year + '-' + month] || 0;
-  const balance = acc.balance + totalPnl - allWithdrawals;
-  const monthWins = acc.trades.filter(t => t.year === year && t.month === month && t.result === 'WIN').length;
-  const monthLosses = acc.trades.filter(t => t.year === year && t.month === month && t.result === 'LOSS').length;
-  const monthTotal = acc.trades.filter(t => t.year === year && t.month === month).length;
+  
+  // Note: acc.balance dynamically calculated in backend includes initial_balance + sum_pnl.
+  // We can just rely on acc.balance direct from API, minus withdrawals done locally.
+  const allWithdrawals = Object.values(acc.withdrawals || {}).reduce((s, v) => s + v, 0);
+  const balance = (summaryData?.total_balance || acc.balance) - allWithdrawals;
+  
+  const monthWins = paginatedTrades.filter(t => t.result === 'WIN').length;
+  const monthLosses = paginatedTrades.filter(t => t.result === 'LOSS').length;
+  const monthTotal = paginatedTrades.length;
   const winRate = monthTotal > 0 ? Math.round((monthWins / monthTotal) * 100) : 0;
   const monthNet = monthPnl - monthWithdrawal;
 
-  // Monthly data for grid
-  const monthlyData = MONTHS.map((_, mi) => {
-    const mt = yearTrades.filter(t => t.month === mi);
-    return { pnl: sumPnl(mt), count: mt.length };
-  });
-
-  // Max win/loss
-  const allSignedPnls = acc.trades.filter(t => t.year === year && t.month === month).flatMap(t => {
+  // Max win/loss (from current month paginated list)
+  const allSignedPnls = paginatedTrades.flatMap(t => {
     const vals = [signedPnl(t.pnl, t.result)];
     if (t.hasVM) vals.push(signedPnl(t.vmPnl, t.vmResult));
     return vals;
@@ -182,7 +227,7 @@ export default function PlanilhaPage() {
   const monthPct = balance > 0 ? ((monthPnl / balance) * 100).toFixed(2) : '0.00';
 
   // Export CSV
-  const handleExport = () => {
+  const handleExport = async () => {
     const accounts = exportAccMode === 'all' ? state.accounts : [acc];
     const MONTHS_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
     const now = new Date();
@@ -200,31 +245,48 @@ export default function PlanilhaPage() {
     // Header
     lines.push('#;Data;Par;Direção;Lotes;Resultado;P&L (USD);Virada de Mão;P&L VM (USD);P&L Total (USD);Plataforma;Observações');
 
-    // Collect all trades
-    let allTrades: { acc: string; trade: Trade }[] = [];
-    accounts.forEach(a => {
-      let trades = a.trades.slice();
-      if (exportPeriod === 'year') trades = trades.filter(t => t.year === year);
-      else if (exportPeriod === 'month') trades = trades.filter(t => t.year === year && t.month === month);
-      trades.sort((x, y) => (x.date || '').localeCompare(y.date || ''));
-      trades.forEach(t => allTrades.push({ acc: a.name, trade: t }));
-    });
+    // Collect all trades from API
+    let allTradesData: { acc: string; trade: Trade }[] = [];
+    setLoading(true);
+    try {
+      for (const a of accounts) {
+        const apiId = (a as any)._apiId;
+        if (!apiId) continue;
+        
+        let targetYear: number | undefined = undefined;
+        let targetMonth: number | undefined = undefined;
+        
+        if (exportPeriod === 'year') { targetYear = year; }
+        else if (exportPeriod === 'month') { targetYear = year; targetMonth = month; }
+
+        const resTrades = await tradeService.list(apiId, 0, 10000, targetYear, targetMonth);
+        const trades = (resTrades.items || resTrades).map(apiTradeToLocal);
+        trades.sort((x: any, y: any) => (x.date || '').localeCompare(y.date || ''));
+        trades.forEach((t: any) => allTradesData.push({ acc: a.name, trade: t }));
+      }
+    } catch(err) {
+      console.error("Export falhou", err);
+      alert("Falha ao exportar dados.");
+      setLoading(false);
+      return;
+    }
+    setLoading(false);
 
     let totalPnlSum = 0;
     let wins = 0;
     let losses = 0;
-    let maxWin = 0;
-    let maxLoss = 0;
+    let maxWinTrade = 0;
+    let maxLossTrade = 0;
 
-    allTrades.forEach((item, idx) => {
+    allTradesData.forEach((item, idx) => {
       const t = item.trade;
       const pnlMain = signedPnl(t.pnl, t.result);
       const pnlVM = t.hasVM ? signedPnl(t.vmPnl, t.vmResult) : 0;
       const pnlTotal = pnlMain + pnlVM;
       totalPnlSum += pnlTotal;
       if (t.result === 'WIN') wins++; else losses++;
-      if (pnlTotal > maxWin) maxWin = pnlTotal;
-      if (pnlTotal < maxLoss) maxLoss = pnlTotal;
+      if (pnlTotal > maxWinTrade) maxWinTrade = pnlTotal;
+      if (pnlTotal < maxLossTrade) maxLossTrade = pnlTotal;
 
       // Format date DD/MM/YYYY
       let dateFormatted = '';
@@ -250,16 +312,16 @@ export default function PlanilhaPage() {
     });
 
     // Summary
-    const totalTrades = allTrades.length;
-    const winRate = totalTrades > 0 ? ((wins / totalTrades) * 100).toFixed(1) : '0.0';
+    const totalTrades = allTradesData.length;
+    const winRateData = totalTrades > 0 ? ((wins / totalTrades) * 100).toFixed(1) : '0.0';
     lines.push('');
     lines.push('RESUMO DO PERÍODO');
     lines.push(`Total de Trades:;${totalTrades}`);
     lines.push(`Wins:;${wins};Losses:;${losses}`);
-    lines.push(`Win Rate:;${winRate}%`);
+    lines.push(`Win Rate:;${winRateData}%`);
     lines.push(`P&L Total:;${totalPnlSum >= 0 ? '' : '-'}$${Math.abs(totalPnlSum).toFixed(2)}`);
-    lines.push(`Maior Win:;$${maxWin.toFixed(2)}`);
-    lines.push(`Maior Loss:;-$${Math.abs(maxLoss).toFixed(2)}`);
+    lines.push(`Maior Win:;$${maxWinTrade.toFixed(2)}`);
+    lines.push(`Maior Loss:;-$${Math.abs(maxLossTrade).toFixed(2)}`);
 
     const csv = '\uFEFF' + lines.join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -427,8 +489,6 @@ export default function PlanilhaPage() {
               <div className="absolute right-0 top-full mt-2 rounded-xl overflow-hidden z-50" style={{ background: '#161b22', border: '1px solid #30363d', boxShadow: '0 12px 32px rgba(0,0,0,0.4)', minWidth: 200, maxHeight: 400, overflowY: 'auto' }}>
                 <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: '#6e7681', borderBottom: '1px solid #21262d' }}>Selecionar Ano</div>
                 {YEARS.map(y => {
-                  const yTrades = acc.trades.filter(t => t.year === y);
-                  const yPnl = sumPnl(yTrades);
                   return (
                     <div key={y}
                       className={`flex items-center justify-between px-4 py-3 cursor-pointer text-sm font-semibold transition-colors ${y === year ? 'font-extrabold' : ''}`}
@@ -436,9 +496,6 @@ export default function PlanilhaPage() {
                       onClick={() => { switchYear(y); setYearPickerOpen(false); }}
                     >
                       <span>{y}</span>
-                      <span className="text-[11px] font-bold" style={{ color: yPnl > 0 ? '#00d395' : yPnl < 0 ? '#ff4d4d' : '#484f58' }}>
-                        {yPnl !== 0 ? (yPnl > 0 ? '+' : '') + '$' + fmtNum(yPnl) : '–'}
-                      </span>
                     </div>
                   );
                 })}
@@ -449,7 +506,7 @@ export default function PlanilhaPage() {
         <div className="gpfx-card-body">
           <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
             {MONTHS.map((m, mi) => {
-              const d = monthlyData[mi];
+              const d = annualGrid[mi] || { pnl: 0, count: 0 };
               const w = (acc.withdrawals || {})[year + '-' + mi] || 0;
               return (
                 <div

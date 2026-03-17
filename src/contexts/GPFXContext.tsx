@@ -60,7 +60,7 @@ function apiAccToLocal(a: APIAccount, existingTrades: Trade[] = []): Account & {
   } as any;
 }
 
-function apiTradeToLocal(t: APITrade): Trade {
+export function apiTradeToLocal(t: APITrade): Trade {
   const rawDate = t.date ? t.date.toString() : '';
   // Normaliza formato: "2026.03.15 10:30:00" → "2026-03-15"
   const normalizedDate = rawDate
@@ -146,14 +146,9 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
 
         const accounts: Account[] = [];
         for (const apiAcc of apiAccounts) {
-          let trades: Trade[] = [];
-          try {
-            const apiTrades = await tradeService.list(apiAcc.id);
-            trades = apiTrades.map(apiTradeToLocal);
-          } catch {
-            // usa trades vazios silenciosamente
-          }
-          accounts.push(apiAccToLocal(apiAcc, trades));
+          // STARTUP RÁPIDO: Não carregamos os trades aqui. 
+          // O DashboardPage.tsx e PlanilhaPage.tsx buscarão os dados mastigados e paginados sob demanda.
+          accounts.push(apiAccToLocal(apiAcc, []));
         }
 
         setState(prev => {
@@ -563,14 +558,13 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener('keydown', handler);
   }, [doSave]);
 
-  const reloadAccount = useCallback(async (accountId: string) => {
-    try {
-      const apiTrades = await tradeService.list(accountId);
-      const trades = apiTrades.map(apiTradeToLocal);
+  const reloadAccount = useCallback(async (accountId: string, newBalance?: number) => {
+    // Agora apenas atualizamos o balanço, delegando o Fetching de lista via CustomEvent
+    if (newBalance !== undefined) {
       setState(prev => {
         const accounts = prev.accounts.map(acc => {
           if ((acc as any)._apiId === accountId) {
-            return { ...acc, trades };
+            return { ...acc, balance: newBalance };
           }
           return acc;
         });
@@ -578,8 +572,6 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
         saveState(next);
         return next;
       });
-    } catch (err) {
-      console.warn('[GPFX WS] Falha ao recarregar conta', accountId, err);
     }
   }, []);
 
@@ -606,7 +598,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     ws.onmessage = async (event) => {
       try {
         const msg = JSON.parse(event.data);
-        const { type, account_id, account_name, imported, updated, balance, pnl, result, ticket, symbol, new_balance } = msg;
+        const { type, account_id, account_name, imported, updated, balance, pnl, result, ticket, symbol, new_balance, trade } = msg;
 
         if (type === 'connected') {
           console.log('[GPFX WS] Handshake OK, user_id:', msg.user_id);
@@ -616,13 +608,15 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
 
         if (type === 'trade_synced') {
           console.log(`[GPFX WS] trade_synced: ${imported} novos, ${updated} atualizados — ${account_name}`);
-          await reloadAccount(account_id);
+          if (balance !== undefined) await reloadAccount(account_id, Number(balance));
+          window.dispatchEvent(new CustomEvent('gpfx:trade_updated', { detail: { account_id } }));
           return;
         }
 
         if (type === 'trade_closed') {
           console.log(`[GPFX WS] trade_closed: ticket=${ticket} ${symbol} ${result} PnL=${pnl}`);
-          await reloadAccount(account_id);
+          if (new_balance !== undefined) await reloadAccount(account_id, Number(new_balance));
+          window.dispatchEvent(new CustomEvent('gpfx:trade_updated', { detail: { account_id, trade } }));
           return;
         }
       } catch (err) {

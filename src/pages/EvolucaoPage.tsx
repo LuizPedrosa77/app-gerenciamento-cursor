@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
-import { useGPFX } from '@/contexts/GPFXContext';
+import { useMemo, useState, useEffect } from 'react';
+import { useGPFX, apiTradeToLocal } from '@/contexts/GPFXContext';
 import { MONTHS, YEARS, sumPnl, fmtNum, Trade } from '@/lib/gpfx-utils';
+import tradeService from '@/services/tradeService';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, Area, AreaChart, Legend,
@@ -23,12 +24,50 @@ export default function EvolucaoPage() {
   const [yearFilter, setYearFilter] = useState<string>(String(state.activeYear));
   const [tab, setTab] = useState<'overview' | 'monthly'>('overview');
   const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
+  const [fetchedTrades, setFetchedTrades] = useState<Trade[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const loadAllTrades = async () => {
+      setLoading(true);
+      try {
+        const fetchAccIds: string[] = [];
+        if (accFilter === 'all') {
+          state.accounts.forEach(a => {
+            const apiId = (a as any)._apiId;
+            if (apiId) fetchAccIds.push(apiId);
+          });
+        } else {
+          const acc = state.accounts[parseInt(accFilter)];
+          const apiId = acc ? (acc as any)._apiId : null;
+          if (apiId) fetchAccIds.push(apiId);
+        }
+
+        let allT: Trade[] = [];
+        for (const id of fetchAccIds) {
+          const res = await tradeService.list(id, 0, 10000);
+          const rawItems = res.items || res;
+          allT = allT.concat(rawItems.map(apiTradeToLocal));
+        }
+
+        if (active) {
+          setFetchedTrades(allT);
+        }
+      } catch (err) {
+        console.error("Falha ao carregar trades para evolução", err);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    loadAllTrades();
+    return () => { active = false; };
+  }, [state.accounts, accFilter]);
 
   const data = useMemo(() => {
     const isAll = accFilter === 'all';
     const accounts = isAll ? state.accounts : [state.accounts[parseInt(accFilter)]];
-    let allTrades: Trade[] = [];
-    accounts.forEach(a => allTrades.push(...a.trades));
+    let allTrades = fetchedTrades;
     allTrades = filterTradesByRange(allTrades, dateRange);
     const baseBalance = accounts.reduce((s, a) => s + a.balance, 0);
 
@@ -137,8 +176,16 @@ export default function EvolucaoPage() {
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+      {loading && (
+        <div className="gpfx-card p-8 text-center" style={{ color: 'var(--gpfx-text-muted)' }}>
+          Carregando dados de evolução...
+        </div>
+      )}
+
+      {!loading && (
+        <>
+          {/* KPIs */}
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         <KpiCard label="P&L Total" value={(totalPnl >= 0 ? '+' : '') + '$' + fmtNum(totalPnl)} sub={(totalPnl >= 0 ? '+' : '') + ((data.baseBalance > 0 ? ((totalPnl / data.baseBalance) * 100).toFixed(2) : '0.00')) + '%'} color={totalPnl >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)'} />
         <KpiCard label="Crescimento" value={(parseFloat(growthPct) >= 0 ? '+' : '') + growthPct + '%'} sub={'$' + fmtNum(data.baseBalance) + ' → $' + fmtNum(finalBalance)} color={parseFloat(growthPct) >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)'} />
         <KpiCard label="Win Rate" value={overallWR + '%'} sub={totalWins + 'W / ' + totalLosses + 'L'} color="var(--gpfx-amber)" />
@@ -301,6 +348,8 @@ export default function EvolucaoPage() {
             })}
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );
