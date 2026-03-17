@@ -330,11 +330,11 @@ def get_holidays(
 
 @router.get("/export")
 def export_calendar(
+    db: DbSession,
+    current_user: User = Depends(get_current_user),
     year: Optional[int] = Query(default=None),
     format: str = Query(default="json"),
-    account_id: Optional[str] = Query(default=None),
-    db: DbSession,
-    current_user: User = Depends(get_current_user)
+    account_id: Optional[str] = Query(default=None)
 ):
     heatmap = get_calendar_heatmap(
         db=db,
