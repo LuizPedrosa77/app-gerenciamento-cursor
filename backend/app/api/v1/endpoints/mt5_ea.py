@@ -69,12 +69,23 @@ class CloseRequest(BaseModel):
     close_price: float
 
 def parse_dt(dt_str: str) -> datetime:
-    for fmt in ["%Y.%m.%d %H:%M:%S", "%Y-%m-%d %H:%M:%S"]:
+    if not dt_str:
+        return datetime.utcnow()
+    formats = [
+        "%Y.%m.%d %H:%M:%S", 
+        "%Y-%m-%d %H:%M:%S",
+        "%Y.%m.%d %H:%M:%S.%f",
+        "%Y-%m-%d %H:%M:%S.%f",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S.%f",
+        "%Y-%m-%dT%H:%M:%S.%fZ"
+    ]
+    for fmt in formats:
         try:
             return datetime.strptime(dt_str, fmt)
-        except:
+        except ValueError:
             continue
-    return datetime.utcnow()
+    raise ValueError(f"Formato de data inválido recebido do EA: {dt_str}")
 
 def get_or_create_workspace(db: Session, user: User) -> Workspace:
     workspace = db.query(Workspace).filter(
@@ -127,17 +138,36 @@ async def sync(req: SyncRequest, db: Session = Depends(get_db)):
     )
     imported = 0
     updated = 0
+    # Evitando N+1 Query buscando as notas existentes de uma vez
+    incoming_tickets = [t.ticket for t in req.trades if not t.is_open]
+    exact_notes = [f"EA Sync | Ticket:{t}" for t in incoming_tickets]
+    
+    existing_map = {}
+    if exact_notes:
+        existing_trades = db.query(Trade).filter(
+            Trade.account_id == account.id,
+            Trade.notes.in_(exact_notes)
+        ).all()
+        for et in existing_trades:
+            if et.notes:
+                import re
+                match = re.search(r"Ticket:(\d+)", et.notes)
+                if match:
+                    existing_map[int(match.group(1))] = et
+
     for t in req.trades:
         if t.is_open:
             continue
-        dt = parse_dt(t.close_time or t.open_time)
+        try:
+            dt = parse_dt(t.close_time or t.open_time)
+        except ValueError as e:
+            continue  # ignore trades with invalid dates
+            
         pnl = float(t.profit)
         result = "WIN" if pnl > 0 else "LOSS" if pnl < 0 else "BE"
         direction = "BUY" if t.type.upper() == "BUY" else "SELL"
-        existing = db.query(Trade).filter(
-            Trade.account_id == account.id,
-            Trade.notes.contains(f"Ticket:{t.ticket}")
-        ).first()
+        
+        existing = existing_map.get(t.ticket)
         if existing:
             existing.pnl = pnl
             existing.result = result
@@ -150,7 +180,7 @@ async def sync(req: SyncRequest, db: Session = Depends(get_db)):
                 year=dt.year,
                 month=dt.month,
                 pair=t.symbol,
-                direction=direction,  # mantém direction no banco
+                direction=direction,
                 lots=float(t.volume),
                 pnl=pnl,
                 result=result,
@@ -203,15 +233,21 @@ async def close_trade(req: CloseRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
     workspace = get_or_create_workspace(db, user)
-    account = db.query(Account).filter(
+    # Bloqueia a conta (Pessimistic Lock) para evitar Race Condition em múltiplos /close simultâneos do EA fast mode
+    account = db.query(Account).with_for_update().filter(
         Account.workspace_id == workspace.id,
         Account.broker_login == req.account_login,
         Account.broker_server == req.server
     ).first()
     if not account:
         raise HTTPException(status_code=404, detail="Conta não encontrada")
-    dt_close = parse_dt(req.close_time)
-    dt_open = parse_dt(req.open_time)
+    
+    try:
+        dt_close = parse_dt(req.close_time)
+        dt_open = parse_dt(req.open_time)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+        
     pnl = float(req.profit)
     result = "WIN" if pnl > 0 else "LOSS" if pnl < 0 else "BE"
     direction = "BUY" if req.type.upper() == "BUY" else "SELL"
@@ -239,9 +275,10 @@ async def close_trade(req: CloseRequest, db: Session = Depends(get_db)):
         )
         db.add(trade)
         updated_msg = "criado"
-    db.commit()
+    
+    db.flush() # flush para garantir que a transação esteja pronta
 
-    # Recalculate balance simply
+    # Recalculate balance com lock garantido e operações atômicas
     from sqlalchemy.sql import func
     total_pnl = db.query(func.sum(Trade.pnl)).filter(Trade.account_id == account.id).scalar() or 0.0
     total_vm = db.query(func.sum(Trade.vm_pnl)).filter(

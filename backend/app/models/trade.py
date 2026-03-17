@@ -11,13 +11,13 @@ class Trade(Base):
     __tablename__ = "trades"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    account_id = Column(UUID(as_uuid=True), ForeignKey("accounts.id"))
-    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id"))
-    date = Column(Date, nullable=False)
-    year = Column(Integer)
-    month = Column(Integer)
-    pair = Column(String(20))
-    direction = Column(String(10))  # BUY ou SELL
+    account_id = Column(UUID(as_uuid=True), ForeignKey("accounts.id"), index=True)
+    workspace_id = Column(UUID(as_uuid=True), ForeignKey("workspaces.id"), index=True)
+    date = Column(Date, nullable=False, index=True)
+    year = Column(Integer, index=True)
+    month = Column(Integer, index=True)
+    pair = Column(String(20), index=True)
+    direction = Column(String(10), index=True)  # BUY ou SELL
     lots = Column(Numeric(10, 2), nullable=True)
     result = Column(String(10))  # WIN ou LOSS
     pnl = Column(Numeric(15, 2), default=0)

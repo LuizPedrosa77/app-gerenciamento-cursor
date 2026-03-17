@@ -443,57 +443,74 @@ def get_dashboard_stats(
             Trade.date >= datetime(year, month, 1),
             Trade.date < datetime(year, month + 1, 1) if month < 12 else datetime(year + 1, 1, 1)
         )
-    trades = query.all()
-    total = len(trades)
-    wins = len([t for t in trades if (t.pnl or 0) > 0])
-    losses = total - wins
-    pnl = sum(t.pnl or 0 for t in trades)
-    win_rate = (wins / total * 100) if total > 0 else 0
-    best = max((t.pnl or 0 for t in trades), default=0)
-    worst = min((t.pnl or 0 for t in trades), default=0)
-    monthly = {}
-    for t in trades:
-        if t.date:
-            key = t.date.month
-            if key not in monthly:
-                monthly[key] = {"pnl": 0, "trades": 0, "wins": 0}
-            monthly[key]["pnl"] += t.pnl or 0
-            monthly[key]["trades"] += 1
-            if (t.pnl or 0) > 0:
-                monthly[key]["wins"] += 1
-    monthly_data = [
-        {
-            "month": m,
-            "pnl": round(d["pnl"], 2),
-            "trades": d["trades"],
-            "win_rate": round(d["wins"] / d["trades"] * 100, 2) if d["trades"] > 0 else 0
-        }
-        for m, d in sorted(monthly.items())
-    ]
-    pair_data = {}
-    for t in trades:
-        p = t.pair or "N/A"
-        if p not in pair_data:
-            pair_data[p] = {"pnl": 0, "trades": 0, "wins": 0}
-        pair_data[p]["pnl"] += t.pnl or 0
-        pair_data[p]["trades"] += 1
-        if (t.pnl or 0) > 0:
-            pair_data[p]["wins"] += 1
-    pair_list = [
-        {
-            "pair": k,
-            "pnl": round(v["pnl"], 2),
-            "trades": v["trades"],
-            "win_rate": round(v["wins"] / v["trades"] * 100, 2) if v["trades"] > 0 else 0
-        }
-        for k, v in pair_data.items()
-    ]
-    accounts = db.query(Account).filter(
-        Account.workspace_id == workspace.id
-    ).all()
-    total_balance = sum(a.balance or 0 for a in accounts)
+    
+    # 1. Totals
+    totals = query.with_entities(
+        func.count(Trade.id).label('total'),
+        func.sum(func.case([(Trade.pnl > 0, 1)], else_=0)).label('wins'),
+        func.sum(Trade.pnl).label('pnl'),
+        func.max(Trade.pnl).label('best'),
+        func.min(Trade.pnl).label('worst')
+    ).first()
+    
+    total_trades = totals.total or 0
+    wins = totals.wins or 0
+    losses = total_trades - wins
+    pnl = float(totals.pnl or 0)
+    best = float(totals.best or 0)
+    worst = float(totals.worst or 0)
+    win_rate = (wins / total_trades * 100) if total_trades > 0 else 0
+    
+    # 2. Monthly Data
+    m_stats = query.with_entities(
+        extract('month', Trade.date).label('month'),
+        func.count(Trade.id).label('trades'),
+        func.sum(func.case([(Trade.pnl > 0, 1)], else_=0)).label('wins'),
+        func.sum(Trade.pnl).label('pnl')
+    ).filter(Trade.date != None).group_by(extract('month', Trade.date)).all()
+    
+    monthly_data = []
+    for m in sorted(m_stats, key=lambda x: x.month):
+        m_trades = m.trades or 0
+        m_wins = m.wins or 0
+        monthly_data.append({
+            "month": int(m.month),
+            "pnl": round(float(m.pnl or 0), 2),
+            "trades": m_trades,
+            "win_rate": round(m_wins / m_trades * 100, 2) if m_trades > 0 else 0
+        })
+        
+    avg_monthly = round(pnl / len(monthly_data), 2) if monthly_data else 0
+    
+    # 3. Pair Data
+    p_stats = query.with_entities(
+        Trade.pair,
+        func.count(Trade.id).label('trades'),
+        func.sum(func.case([(Trade.pnl > 0, 1)], else_=0)).label('wins'),
+        func.sum(Trade.pnl).label('pnl')
+    ).group_by(Trade.pair).all()
+    
+    pair_list = []
+    for p in p_stats:
+        p_trades = p.trades or 0
+        p_wins = p.wins or 0
+        pair_list.append({
+            "pair": p.pair or "N/A",
+            "pnl": round(float(p.pnl or 0), 2),
+            "trades": p_trades,
+            "win_rate": round(p_wins / p_trades * 100, 2) if p_trades > 0 else 0
+        })
+    
+    # 4. Accounts Balance
+    accounts = db.query(Account).filter(Account.workspace_id == workspace.id).all()
+    total_balance = sum(float(a.balance or 0) for a in accounts)
+    
+    # 5. Top 5 Best & Worst
+    top_best = query.order_by(Trade.pnl.desc()).limit(5).all()
+    top_worst = query.order_by(Trade.pnl.asc()).limit(5).all()
+
     return {
-        "total_trades": total,
+        "total_trades": total_trades,
         "win_trades": wins,
         "loss_trades": losses,
         "win_rate": round(win_rate, 2),
@@ -503,15 +520,9 @@ def get_dashboard_stats(
         "total_balance": round(total_balance, 2),
         "monthly_data": monthly_data,
         "pair_data": pair_list,
-        "avg_monthly": round(pnl / len(monthly_data), 2) if monthly_data else 0,
-        "top5_best": sorted(
-            [{"pair": t.pair, "pnl": t.pnl, "date": str(t.date)} for t in trades],
-            key=lambda x: x["pnl"] or 0, reverse=True
-        )[:5],
-        "top5_worst": sorted(
-            [{"pair": t.pair, "pnl": t.pnl, "date": str(t.date)} for t in trades],
-            key=lambda x: x["pnl"] or 0
-        )[:5]
+        "avg_monthly": avg_monthly,
+        "top5_best": [{"pair": t.pair, "pnl": float(t.pnl or 0), "date": str(t.date)} for t in top_best],
+        "top5_worst": [{"pair": t.pair, "pnl": float(t.pnl or 0), "date": str(t.date)} for t in top_worst]
     }
 
 @router.get("/by-direction")
@@ -532,25 +543,25 @@ def get_by_direction(
     )
     if account_id:
         query = query.filter(Account.id == account_id)
-    trades = query.all()
-    direction_data = {}
-    for t in trades:
-        d = t.direction or "N/A"
-        if d not in direction_data:
-            direction_data[d] = {"pnl": 0, "trades": 0, "wins": 0}
-        direction_data[d]["pnl"] += t.pnl or 0
-        direction_data[d]["trades"] += 1
-        if (t.pnl or 0) > 0:
-            direction_data[d]["wins"] += 1
-    return [
-        {
-            "direction": k,
-            "pnl": round(v["pnl"], 2),
-            "trades": v["trades"],
-            "win_rate": round(v["wins"] / v["trades"] * 100, 2) if v["trades"] > 0 else 0
-        }
-        for k, v in direction_data.items()
-    ]
+        
+    d_stats = query.with_entities(
+        Trade.direction,
+        func.count(Trade.id).label('trades'),
+        func.sum(func.case([(Trade.pnl > 0, 1)], else_=0)).label('wins'),
+        func.sum(Trade.pnl).label('pnl')
+    ).group_by(Trade.direction).all()
+    
+    direction_data = []
+    for d in d_stats:
+        d_trades = d.trades or 0
+        d_wins = d.wins or 0
+        direction_data.append({
+            "direction": d.direction or "N/A",
+            "pnl": round(float(d.pnl or 0), 2),
+            "trades": d_trades,
+            "win_rate": round(d_wins / d_trades * 100, 2) if d_trades > 0 else 0
+        })
+    return direction_data
 
 @router.get("/account-evolution")
 def get_account_evolution(
@@ -571,17 +582,22 @@ def get_account_evolution(
         Account.workspace_id == workspace.id,
         Trade.date >= datetime(year, 1, 1),
         Trade.date <= datetime(year, 12, 31)
-    ).order_by(Trade.date.asc())
+    )
     if account_id:
         query = query.filter(Account.id == account_id)
-    trades = query.all()
+        
+    daily_stats = query.with_entities(
+        Trade.date,
+        func.sum(Trade.pnl).label('pnl')
+    ).group_by(Trade.date).order_by(Trade.date.asc()).all()
+    
     evolution = []
     cumulative = 0
-    for t in trades:
-        cumulative += t.pnl or 0
+    for stat in daily_stats:
+        cumulative += float(stat.pnl or 0)
         evolution.append({
-            "date": t.date.strftime("%Y-%m-%d") if t.date else None,
-            "pnl": round(t.pnl or 0, 2),
+            "date": stat.date.strftime("%Y-%m-%d") if stat.date else None,
+            "pnl": round(float(stat.pnl or 0), 2),
             "cumulative": round(cumulative, 2)
         })
     return evolution

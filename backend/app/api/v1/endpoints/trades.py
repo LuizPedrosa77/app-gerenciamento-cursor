@@ -40,23 +40,19 @@ def create_trade_response(trade: Trade) -> TradeResponse:
 
 
 def update_account_balance(db: Session, account_id: str):
-    """Recalculate account balance based on all trades."""
+    """Recalculate account balance based on all trades using DB SUM."""
+    from sqlalchemy.sql import func
     account = db.query(Account).filter(Account.id == account_id).first()
     if not account:
         return
     
-    # Calculate total PnL from all trades
-    trades = db.query(Trade).filter(Trade.account_id == account_id).all()
-    total_pnl = 0.0
-    
-    for trade in trades:
-        trade_pnl = float(trade.pnl)
-        if trade.has_vm and trade.vm_pnl:
-            trade_pnl += float(trade.vm_pnl)
-        total_pnl += trade_pnl
+    total_pnl = db.query(func.sum(Trade.pnl)).filter(Trade.account_id == account_id).scalar() or 0.0
+    total_vm_pnl = db.query(func.sum(Trade.vm_pnl)).filter(
+        Trade.account_id == account_id, Trade.has_vm == True
+    ).scalar() or 0.0
     
     # Update balance
-    account.balance = float(account.initial_balance) + total_pnl
+    account.balance = float(account.initial_balance) + float(total_pnl) + float(total_vm_pnl)
     account.updated_at = datetime.utcnow()
     db.commit()
 
