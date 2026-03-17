@@ -34,6 +34,19 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Gustavo Pedrosa FX API", redirect_slashes=False, lifespan=lifespan)
 
+# Allow MT5 EA to connect without sending an API key by injecting the
+# configured INTERNAL_API_KEY for the /api/v1/mt5-ea routes.
+@app.middleware("http")
+async def mt5_ea_api_key_bypass(request, call_next):
+    if request.url.path.startswith("/api/v1/mt5-ea"):
+        has_api_key = request.headers.get("x-api-key") or request.headers.get("authorization")
+        if not has_api_key and settings.INTERNAL_API_KEY:
+            # Starlette headers are stored as a list of (key, value) bytes in the scope.
+            headers = list(request.scope.get("headers", []))
+            headers.append((b"x-api-key", settings.INTERNAL_API_KEY.encode("utf-8")))
+            request.scope["headers"] = headers
+    return await call_next(request)
+
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
