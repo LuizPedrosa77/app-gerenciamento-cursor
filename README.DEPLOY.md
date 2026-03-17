@@ -203,13 +203,13 @@ docker-compose -f docker-compose.saas.yml logs postgres
 ### 2. Health Checks
 ```bash
 # Frontend
-curl -f https://fx.hubnexusai.com/health
+curl -f https://fx.painelzap.com/health
 
 # Backend
-curl -f https://api.hubnexusai.com/health
+curl -f https://api.painelzap.com/health
 
 # Database
-curl -f https://api.hubnexusai.com/health/db
+curl -f https://api.painelzap.com/health/db
 ```
 
 ### 3. Métricas de Recursos
@@ -344,9 +344,9 @@ docker-compose -f docker-compose.saas.yml exec frontend nginx -s reload
 
 ## 📚 Documentação Adicional
 
-- [API Documentation](https://api.hubnexusai.com/docs)
-- [MinIO Console](https://minio.hubnexusai.com)
-- [Traefik Dashboard](https://traefik.hubnexusai.com)
+- [API Documentation](https://api.painelzap.com/docs)
+- [MinIO Console](https://minio.painelzap.com)
+- [Traefik Dashboard](https://traefik.painelzap.com)
 - [Repository](https://github.com/hubnexusai/gpfx)
 
 ## 🆘 Suporte

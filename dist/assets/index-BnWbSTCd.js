@@ -879,7 +879,7 @@ URL: ${Ye}/replay/sessions/{{id}}/stop`,pythonExample:`res = requests.post(f"${Y
 
 async def replay():
   async with websockets.connect(
-    "wss://api.hubnexusai.com/ws/replay/{session_id}"
+    "wss://api.painelzap.com/ws/replay/{session_id}"
   ) as ws:
     async for msg in ws:
       print(msg)
