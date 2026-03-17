@@ -39,6 +39,7 @@ export interface Trade {
 }
 
 export interface Account {
+  _apiId?: string;
   name: string;
   balance: number;
   initialBalance?: number;
@@ -116,15 +117,15 @@ export function getWeekOfMonth(dateStr: string): number {
 
 export function loadState(): GPFXState {
   const now = new Date();
-  const defaultState: GPFXState = {
+  return {
     accounts: [createAccount(0)],
     activeAccount: 0,
     activeYear: now.getFullYear(),
     activeMonth: now.getMonth(),
   };
-  return defaultState;
 }
 
 export function saveState(state: GPFXState): void {
+  // No-op: state is persisted only on the backend.
   void state;
 }

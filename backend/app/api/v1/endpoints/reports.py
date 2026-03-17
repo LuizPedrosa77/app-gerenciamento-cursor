@@ -334,6 +334,41 @@ def get_risk_metrics(
         "gross_loss": round(gross_loss, 2)
     }
 
+@router.get("/annual-summary")
+def get_annual_summary(
+    db: DbSession,
+    current_user: User = Depends(get_current_user),
+    year: int = Query(default=None),
+    account_id: Optional[str] = Query(default=None)
+):
+    workspace = get_workspace(db, current_user)
+    if not workspace:
+        return {"year": year, "months": []}
+    now = datetime.now()
+    if not year:
+        year = now.year
+    query = db.query(Trade).join(Account).filter(
+        Account.workspace_id == workspace.id,
+        Trade.year == year
+    )
+    if account_id:
+        query = query.filter(Account.id == account_id)
+    trades = query.all()
+    summary = {m: {"pnl": 0.0, "trades": 0} for m in range(1, 13)}
+    for t in trades:
+        month = int(t.month) if t.month is not None else (t.date.month if t.date else None)
+        if month is not None and 0 <= month <= 11:
+            month += 1
+        if not month:
+            continue
+        summary[month]["pnl"] += float(t.pnl or 0)
+        summary[month]["trades"] += 1
+    months = [
+        {"month": m, "pnl": round(summary[m]["pnl"], 2), "trades": summary[m]["trades"]}
+        for m in range(1, 13)
+    ]
+    return {"year": year, "months": months}
+
 @router.get("/notifications/goals")
 def get_goal_notifications(
     db: DbSession,

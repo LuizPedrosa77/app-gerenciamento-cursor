@@ -14,7 +14,7 @@ interface GPFXContextType {
   addAccount: (name?: string) => Promise<APIAccount | null>;
   deleteAccount: (i: number) => void;
   renameAccount: (i: number, name: string) => void;
-  updateBalance: (val: number) => void;
+  updateInitialBalance: (val: number) => void;
   updateNotes: (val: string) => void;
   updateMeta: (val: number) => void;
   updateMonthlyGoal: (accIdx: number, val: number) => void;
@@ -198,10 +198,10 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.accounts, refreshAccounts]);
 
-  const updateBalance = useCallback((val: number) => {
+  const updateInitialBalance = useCallback((val: number) => {
     const apiId = getApiId(state.accounts[state.activeAccount]);
     if (isAuthenticated() && apiId) {
-      fireAndForget(accountService.update(apiId, { balance: val }).then(() => refreshAccounts()));
+      fireAndForget(accountService.update(apiId, { initial_balance: val }).then(() => refreshAccounts()));
     }
   }, [state.accounts, state.activeAccount, refreshAccounts]);
 
@@ -404,7 +404,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
       addAccount,
       deleteAccount,
       renameAccount,
-      updateBalance,
+      updateInitialBalance,
       updateNotes,
       updateMeta,
       updateMonthlyGoal,

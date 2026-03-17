@@ -12,6 +12,7 @@ import { ConnectBrokerModal } from '@/components/ConnectBrokerModal';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Lightbox } from '@/components/Lightbox';
 import { ScreenshotModal } from '@/components/ScreenshotModal';
+import reportService, { AnnualMonthSummary } from '@/services/reportService';
 
 /* ── Modal component ── */
 function Modal({ open, onClose, title, children, footer }: {
@@ -36,7 +37,7 @@ function Modal({ open, onClose, title, children, footer }: {
 export default function PlanilhaPage() {
   const {
     state, activeAcc, switchAccount, addAccount, deleteAccount, renameAccount,
-    updateBalance, updateNotes, updateMeta, addTrade, addNewDay, updateTrade,
+    updateInitialBalance, updateNotes, updateMeta, addTrade, addNewDay, updateTrade,
     deleteTrade, resetAccount, switchYear, switchMonth,
   } = useGPFX();
 
@@ -55,6 +56,7 @@ export default function PlanilhaPage() {
   const [filterDir, setFilterDir] = useState('');
   const [filterResult, setFilterResult] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [annualSummaries, setAnnualSummaries] = useState<Record<number, AnnualMonthSummary[]>>({});
 
   // Edit modal state
   const [editModal, setEditModal] = useState<{ open: boolean; trade: Trade | null }>({ open: false, trade: null });
@@ -91,20 +93,21 @@ export default function PlanilhaPage() {
        const trades = (resTrades.items || resTrades).map(apiTradeToLocal);
        setPaginatedTrades(trades);
 
-       // 2. Fetch monthly grid for the year
-       const resGrid = await dashboardService.getMonthly(year, { account_ids: [apiId] });
+       // 2. Fetch annual summary month-by-month from reports API
+       const annual = await reportService.getAnnualSummary({ year, account_id: apiId });
        const gridMap: Record<number, { pnl: number, count: number }> = {};
-       resGrid.forEach(item => {
-          gridMap[item.month - 1] = { pnl: item.pnl, count: item.trades_count };
+       (annual.months || []).forEach(item => {
+          gridMap[item.month - 1] = { pnl: item.pnl, count: item.trades };
        });
        setAnnualGrid(gridMap);
+       setAnnualSummaries(prev => ({ ...prev, [year]: annual.months || [] }));
 
-       // 3. Optional Summary for max accuracy
-       const summary = await dashboardService.getSummary({ account_ids: [apiId], start_date: `${year}-01-01`, end_date: `${year}-12-31` });
+       // 3. Account summary over full history (for balance based on initial balance)
+       const summary = await dashboardService.getSummary({ account_ids: [apiId] });
        setSummaryData(summary);
 
-       // 4. Withdrawals for the year
-       const wds = await withdrawalService.list(apiId, year);
+       // 4. Withdrawals for all history (for consistent balance calculation)
+       const wds = await withdrawalService.list(apiId);
        setWithdrawals(wds);
     } catch(err) {
        console.error("Failed to load spreadsheet data", err);
@@ -155,7 +158,9 @@ export default function PlanilhaPage() {
 
   const monthPnl = sumPnl(paginatedTrades);
   const totalPnl = summaryData?.total_pnl || 0; // Use backend aggregated total PnL
-  const balance = summaryData?.total_balance || acc.balance;
+  const baseBalance = (acc.initialBalance ?? acc.balance) || 0;
+  const allWithdrawals = withdrawals.reduce((s, w) => s + (w.amount || 0), 0);
+  const balance = baseBalance + totalPnl - allWithdrawals;
   
   const monthWins = paginatedTrades.filter(t => t.result === 'WIN').length;
   const monthLosses = paginatedTrades.filter(t => t.result === 'LOSS').length;
@@ -563,7 +568,13 @@ export default function PlanilhaPage() {
           <div className="flex items-start gap-4 flex-wrap">
             <div className="flex flex-col gap-1">
               <label className="text-[11px] font-semibold uppercase" style={{ color: '#8b949e' }}>Saldo Inicial (USD)</label>
-              <input type="number" className="gpfx-input" style={{ width: 140 }} value={acc.balance} onChange={e => updateBalance(parseFloat(e.target.value) || 0)} />
+              <input
+                type="number"
+                className="gpfx-input"
+                style={{ width: 140 }}
+                value={acc.initialBalance ?? acc.balance}
+                onChange={e => updateInitialBalance(parseFloat(e.target.value) || 0)}
+              />
             </div>
             <div className="flex-1 min-w-[200px]">
               <label className="text-[11px] font-semibold uppercase" style={{ color: '#8b949e' }}>Anotações da Conta</label>
@@ -585,6 +596,8 @@ export default function PlanilhaPage() {
               <div className="absolute right-0 top-full mt-2 rounded-xl overflow-hidden z-50" style={{ background: '#161b22', border: '1px solid #30363d', boxShadow: '0 12px 32px rgba(0,0,0,0.4)', minWidth: 200, maxHeight: 400, overflowY: 'auto' }}>
                 <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: '#6e7681', borderBottom: '1px solid #21262d' }}>Selecionar Ano</div>
                 {YEARS.map(y => {
+                  const ySummary = annualSummaries[y];
+                  const yPnl = ySummary ? ySummary.reduce((s, m) => s + (m.pnl || 0), 0) : null;
                   return (
                     <div key={y}
                       className={`flex items-center justify-between px-4 py-3 cursor-pointer text-sm font-semibold transition-colors ${y === year ? 'font-extrabold' : ''}`}
@@ -592,6 +605,9 @@ export default function PlanilhaPage() {
                       onClick={() => { switchYear(y); setYearPickerOpen(false); }}
                     >
                       <span>{y}</span>
+                      <span className="text-[11px] font-bold" style={{ color: yPnl && yPnl > 0 ? '#00d395' : yPnl && yPnl < 0 ? '#ff4d4d' : '#484f58' }}>
+                        {yPnl === null ? '-' : (yPnl !== 0 ? (yPnl > 0 ? '+' : '') + '$' + fmtNum(yPnl) : '-')}
+                      </span>
                     </div>
                   );
                 })}

@@ -14,6 +14,7 @@ class AccountCreate(BaseModel):
 class AccountUpdate(BaseModel):
     name: Optional[str] = None
     balance: Optional[float] = None
+    initial_balance: Optional[float] = None
     monthly_goal: Optional[float] = None
     meta: Optional[float] = None
     notes: Optional[str] = None
