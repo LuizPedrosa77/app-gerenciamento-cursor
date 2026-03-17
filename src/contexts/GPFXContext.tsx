@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useRef, useEff
 import { GPFXState, Account, Trade, loadState, saveState, createAccount, uid } from '@/lib/gpfx-utils';
 import accountService, { APIAccount } from '@/services/accountService';
 import tradeService, { APITrade } from '@/services/tradeService';
+import { api } from '@/services/api';
 
 interface GPFXContextType {
   state: GPFXState;
@@ -87,12 +88,29 @@ export function apiTradeToLocal(t: APITrade): Trade {
     vmLots: t.vm_lots || 0,
     vmResult: t.vm_result || 'WIN',
     vmPnl: t.vm_pnl || 0,
-    screenshot: t.screenshot,
+    screenshot: t.screenshot || ((t as any).screenshot_url ? { data: (t as any).screenshot_url, caption: '' } : undefined),
   };
 }
 
 function getApiId(acc: any): string | undefined {
   return acc?._apiId;
+}
+
+function dataUrlToFile(dataUrl: string, filename: string): File | null {
+  if (!dataUrl.startsWith('data:')) return null;
+  const parts = dataUrl.split(',');
+  if (parts.length < 2) return null;
+  const header = parts[0];
+  const base64 = parts[1];
+  const mimeMatch = header.match(/data:(.*?);base64/);
+  const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+  const binary = atob(base64);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new File([bytes], filename, { type: mime });
 }
 
 // Fire-and-forget helper – logs errors but never throws into the UI
@@ -440,6 +458,29 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
 
       accounts[s.activeAccount] = acc;
 
+      if (field === 'screenshot') {
+        const screenshotData = (trade as any).screenshot?.data;
+        if (isAuthenticated() && screenshotData && typeof screenshotData === 'string' && !screenshotData.startsWith('http')) {
+          const file = dataUrlToFile(screenshotData, `trade-${id}.png`);
+          if (file) {
+            fireAndForget(
+              api.upload(`/api/v1/screenshots/upload/${id}`, file).then(res => {
+                const url = res?.data?.url;
+                if (!url) return;
+                setState(prev => {
+                  const accs = [...prev.accounts];
+                  const a = { ...accs[prev.activeAccount], trades: accs[prev.activeAccount].trades.map(t =>
+                    t.id === id ? { ...t, screenshot: { ...t.screenshot, data: url } } : t
+                  )};
+                  accs[prev.activeAccount] = a;
+                  return { ...prev, accounts: accs };
+                });
+              })
+            );
+          }
+        }
+      }
+
       // Sync the relevant fields to backend
       if (isAuthenticated()) {
         const payload: Partial<APITrade> = {};
@@ -499,7 +540,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
         fireAndForget(
           Promise.all([
             tradeService.bulkDelete(apiId),
-            accountService.update(apiId, { withdrawals: {}, notes: '' }),
+            accountService.update(apiId, { notes: '' }),
           ])
         );
       }
@@ -524,11 +565,6 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
       const acc = { ...accounts[s.activeAccount], withdrawals: { ...accounts[s.activeAccount].withdrawals } };
       acc.withdrawals[`${year}-${month}`] = val;
       accounts[s.activeAccount] = acc;
-
-      const apiId = getApiId(accounts[s.activeAccount]);
-      if (isAuthenticated() && apiId) {
-        fireAndForget(accountService.update(apiId, { withdrawals: acc.withdrawals }));
-      }
 
       return { ...s, accounts };
     });

@@ -239,24 +239,6 @@ class AuthService {
     }
   }
 
-  /**
-   * Redefine a senha com o token recebido
-   */
-  async resetPassword(token: string, newPassword: string): Promise<void> {
-    try {
-      await api.post('/api/v1/auth/reset-password', {
-        token,
-        new_password: newPassword
-      });
-    } catch (error) {
-      console.error('Reset password error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Altera a senha do usuário logado
-   */
   async changePassword(currentPassword: string, newPassword: string): Promise<void> {
     try {
       await api.post('/api/v1/auth/change-password', {

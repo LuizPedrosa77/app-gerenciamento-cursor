@@ -35,12 +35,8 @@ export interface MonthData {
 }
 
 export interface StreakData {
-  current_win_streak: number;
-  current_loss_streak: number;
-  max_win_streak: number;
-  max_loss_streak: number;
-  longest_win_streak_this_month: number;
-  longest_loss_streak_this_month: number;
+  current_streak: number;
+  best_streak: number;
 }
 
 export interface BestWeekday {
@@ -53,13 +49,10 @@ export interface BestWeekday {
 }
 
 export interface Goal {
-  type: 'monthly' | 'biweekly';
-  amount: number;
+  goal: number;
   current_amount: number;
   percentage: number;
   achieved: boolean;
-  remaining_days?: number;
-  created_at: string;
 }
 
 class CalendarService {
@@ -139,7 +132,7 @@ class CalendarService {
         params.append('account_id', accountId);
       }
 
-      const response = await api.get<BestWeekday>(`/api/v1/calendar/best-day?${params}`);
+      const response = await api.get<BestWeekday>(`/api/v1/reports/best-day?${params}`);
       return response.data;
     } catch (error) {
       console.error('Get best weekday error:', error);
@@ -147,45 +140,6 @@ class CalendarService {
     }
   }
 
-  /**
-   * Define meta quinzenal
-   */
-  async setQuinzenalGoal(amount: number, accountId?: string): Promise<void> {
-    try {
-      const data: any = { amount, type: 'biweekly' };
-      
-      if (accountId) {
-        data.account_id = accountId;
-      }
-
-      await api.post('/api/v1/calendar/goals', data);
-    } catch (error) {
-      console.error('Set quinzenal goal error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Define meta mensal
-   */
-  async setMonthlyGoal(amount: number, accountId?: string): Promise<void> {
-    try {
-      const data: any = { amount, type: 'monthly' };
-      
-      if (accountId) {
-        data.account_id = accountId;
-      }
-
-      await api.post('/api/v1/calendar/goals', data);
-    } catch (error) {
-      console.error('Set monthly goal error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Obtém metas definidas
-   */
   async getGoals(accountId?: string): Promise<Goal[]> {
     try {
       const params = accountId ? `?account_id=${accountId}` : '';

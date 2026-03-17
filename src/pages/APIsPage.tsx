@@ -52,24 +52,38 @@ const sections: Section[] = [
       { method: 'DELETE', path: '/accounts/{id}', description: 'Remover conta', n8nExample: `Method: DELETE\nURL: ${BASE_URL}/accounts/{{account_id}}`, pythonExample: `res = requests.delete(f"${BASE_URL}/accounts/{account_id}", headers=headers)` },
     ],
   },
-  {
+    {
     icon: <BarChart3 size={16} />,
     title: 'Trades',
     endpoints: [
-      { method: 'GET', path: '/accounts/{id}/trades', description: 'Listar trades da conta', n8nExample: `Method: GET\nURL: ${BASE_URL}/accounts/{{id}}/trades`, pythonExample: `res = requests.get(f"${BASE_URL}/accounts/{id}/trades", headers=headers)` },
-      { method: 'POST', path: '/accounts/{id}/trades', description: 'Criar novo trade', n8nExample: `Method: POST\nURL: ${BASE_URL}/accounts/{{id}}/trades\nBody: { "pair": "EURUSD", "direction": "BUY", "result": 120.50 }`, pythonExample: `res = requests.post(f"${BASE_URL}/accounts/{id}/trades",\n  json={"pair": "EURUSD", "direction": "BUY", "result": 120.50},\n  headers=headers)` },
-      { method: 'PATCH', path: '/accounts/{id}/trades/{id}', description: 'Atualizar trade', n8nExample: `Method: PATCH\nURL: ${BASE_URL}/accounts/{{id}}/trades/{{trade_id}}`, pythonExample: `res = requests.patch(f"${BASE_URL}/accounts/{id}/trades/{trade_id}",\n  json={"result": 150.00}, headers=headers)` },
-      { method: 'DELETE', path: '/accounts/{id}/trades/{id}', description: 'Remover trade', n8nExample: `Method: DELETE\nURL: ${BASE_URL}/accounts/{{id}}/trades/{{trade_id}}`, pythonExample: `res = requests.delete(f"${BASE_URL}/accounts/{id}/trades/{trade_id}", headers=headers)` },
-      { method: 'POST', path: '/trades/{id}/screenshot', description: 'Upload de imagem do trade', n8nExample: `Method: POST\nURL: ${BASE_URL}/trades/{{id}}/screenshot\nContent-Type: multipart/form-data\nBody: file (binary)`, pythonExample: `with open("trade.png", "rb") as f:\n  res = requests.post(f"${BASE_URL}/trades/{id}/screenshot",\n    files={"file": f}, headers=headers)` },
+      { method: 'GET', path: '/trades', description: 'Listar trades (use account_id como query)', n8nExample: `Method: GET
+URL: ${BASE_URL}/trades?account_id={{account_id}}`, pythonExample: `res = requests.get(f"${BASE_URL}/trades?account_id={account_id}", headers=headers)` },
+      { method: 'POST', path: '/trades', description: 'Criar novo trade', n8nExample: `Method: POST
+URL: ${BASE_URL}/trades
+Body: { "account_id": "...", "pair": "EURUSD", "direction": "BUY", "result": "WIN", "pnl": 120.5, "date": "2025-01-15" }`, pythonExample: `res = requests.post(f"${BASE_URL}/trades", json={"account_id": account_id, "pair": "EURUSD", "direction": "BUY", "result": "WIN", "pnl": 120.5, "date": "2025-01-15"}, headers=headers)` },
+      { method: 'PATCH', path: '/trades/{id}', description: 'Atualizar trade', n8nExample: `Method: PATCH
+URL: ${BASE_URL}/trades/{{trade_id}}
+Body: { "result": "LOSS" }`, pythonExample: `res = requests.patch(f"${BASE_URL}/trades/{trade_id}", json={"result": "LOSS"}, headers=headers)` },
+      { method: 'DELETE', path: '/trades/{id}', description: 'Remover trade', n8nExample: `Method: DELETE
+URL: ${BASE_URL}/trades/{{trade_id}}`, pythonExample: `res = requests.delete(f"${BASE_URL}/trades/{trade_id}", headers=headers)` },
+      { method: 'POST', path: '/screenshots/upload/{trade_id}', description: 'Upload de screenshot do trade', n8nExample: `Method: POST
+URL: ${BASE_URL}/screenshots/upload/{{trade_id}}
+Content-Type: multipart/form-data
+Body: file (binary)`, pythonExample: `with open("trade.png", "rb") as f:
+  res = requests.post(f"${BASE_URL}/screenshots/upload/{trade_id}", files={"file": f}, headers=headers)` },
     ],
   },
-  {
+    {
     icon: <Wallet size={16} />,
-    title: 'Saques e Depósitos',
+    title: 'Saques',
     endpoints: [
-      { method: 'GET', path: '/accounts/{id}/withdrawals', description: 'Listar saques e depósitos', n8nExample: `Method: GET\nURL: ${BASE_URL}/accounts/{{id}}/withdrawals`, pythonExample: `res = requests.get(f"${BASE_URL}/accounts/{id}/withdrawals", headers=headers)` },
-      { method: 'POST', path: '/accounts/{id}/withdrawals', description: 'Criar saque ou depósito', n8nExample: `Method: POST\nURL: ${BASE_URL}/accounts/{{id}}/withdrawals\nBody: { "type": "withdrawal", "amount": 500 }`, pythonExample: `res = requests.post(f"${BASE_URL}/accounts/{id}/withdrawals",\n  json={"type": "withdrawal", "amount": 500}, headers=headers)` },
-      { method: 'DELETE', path: '/accounts/{id}/withdrawals/{id}', description: 'Remover registro', n8nExample: `Method: DELETE\nURL: ${BASE_URL}/accounts/{{id}}/withdrawals/{{wid}}`, pythonExample: `res = requests.delete(f"${BASE_URL}/accounts/{id}/withdrawals/{wid}", headers=headers)` },
+      { method: 'GET', path: '/withdrawals', description: 'Listar saques (use account_id como query)', n8nExample: `Method: GET
+URL: ${BASE_URL}/withdrawals?account_id={{account_id}}`, pythonExample: `res = requests.get(f"${BASE_URL}/withdrawals?account_id={account_id}", headers=headers)` },
+      { method: 'POST', path: '/withdrawals', description: 'Criar saque', n8nExample: `Method: POST
+URL: ${BASE_URL}/withdrawals
+Body: { "account_id": "...", "amount": 500, "date": "2025-01-15" }`, pythonExample: `res = requests.post(f"${BASE_URL}/withdrawals", json={"account_id": account_id, "amount": 500, "date": "2025-01-15"}, headers=headers)` },
+      { method: 'DELETE', path: '/withdrawals/{id}', description: 'Remover saque', n8nExample: `Method: DELETE
+URL: ${BASE_URL}/withdrawals/{{withdrawal_id}}`, pythonExample: `res = requests.delete(f"${BASE_URL}/withdrawals/{withdrawal_id}", headers=headers)` },
     ],
   },
   {
@@ -93,30 +107,52 @@ const sections: Section[] = [
       { method: 'GET', path: '/dashboard/by-direction', description: 'Comparação BUY vs SELL', n8nExample: `Method: GET\nURL: ${BASE_URL}/dashboard/by-direction`, pythonExample: `res = requests.get("${BASE_URL}/dashboard/by-direction", headers=headers)` },
       { method: 'GET', path: '/dashboard/top-trades', description: 'Melhores trades', n8nExample: `Method: GET\nURL: ${BASE_URL}/dashboard/top-trades`, pythonExample: `res = requests.get("${BASE_URL}/dashboard/top-trades", headers=headers)` },
       { method: 'GET', path: '/dashboard/account-evolution', description: 'Evolução do saldo da conta', n8nExample: `Method: GET\nURL: ${BASE_URL}/dashboard/account-evolution`, pythonExample: `res = requests.get("${BASE_URL}/dashboard/account-evolution", headers=headers)` },
-      { method: 'GET', path: '/dashboard/weekly-report', description: 'Relatório semanal', n8nExample: `Method: GET\nURL: ${BASE_URL}/dashboard/weekly-report`, pythonExample: `res = requests.get("${BASE_URL}/dashboard/weekly-report", headers=headers)` },
+      { method: 'GET', path: '/reports/weekly', description: 'Relatório semanal', n8nExample: `Method: GET\nURL: ${BASE_URL}/reports/weekly`, pythonExample: `res = requests.get("${BASE_URL}/reports/weekly", headers=headers)` },
     ],
   },
-  {
+    {
     icon: <Cable size={16} />,
     title: 'Corretoras',
     endpoints: [
-      { method: 'GET', path: '/brokers/connections', description: 'Listar conexões com corretoras', n8nExample: `Method: GET\nURL: ${BASE_URL}/brokers/connections`, pythonExample: `res = requests.get("${BASE_URL}/brokers/connections", headers=headers)` },
-      { method: 'POST', path: '/brokers/connections', description: 'Criar nova conexão', n8nExample: `Method: POST\nURL: ${BASE_URL}/brokers/connections\nBody: { "platform": "MT5", "server": "...", "login": "..." }`, pythonExample: `res = requests.post("${BASE_URL}/brokers/connections",\n  json={"platform": "MT5", "server": "...", "login": "..."},\n  headers=headers)` },
-      { method: 'POST', path: '/brokers/connections/{id}/test', description: 'Testar conexão', n8nExample: `Method: POST\nURL: ${BASE_URL}/brokers/connections/{{id}}/test`, pythonExample: `res = requests.post(f"${BASE_URL}/brokers/connections/{id}/test", headers=headers)` },
-      { method: 'POST', path: '/brokers/connections/{id}/sync', description: 'Sincronizar trades', n8nExample: `Method: POST\nURL: ${BASE_URL}/brokers/connections/{{id}}/sync`, pythonExample: `res = requests.post(f"${BASE_URL}/brokers/connections/{id}/sync", headers=headers)` },
-      { method: 'DELETE', path: '/brokers/connections/{id}', description: 'Remover conexão', n8nExample: `Method: DELETE\nURL: ${BASE_URL}/brokers/connections/{{id}}`, pythonExample: `res = requests.delete(f"${BASE_URL}/brokers/connections/{id}", headers=headers)` },
+      { method: 'GET', path: '/brokers', description: 'Listar conexoes com corretoras', n8nExample: `Method: GET
+URL: ${BASE_URL}/brokers`, pythonExample: `res = requests.get("${BASE_URL}/brokers", headers=headers)` },
+      { method: 'POST', path: '/brokers/connect', description: 'Criar nova conexao', n8nExample: `Method: POST
+URL: ${BASE_URL}/brokers/connect
+Body: { "broker_type": "MT5", "account_name": "Conta", "login": "...", "server": "..." }`, pythonExample: `res = requests.post("${BASE_URL}/brokers/connect", json={"broker_type": "MT5", "account_name": "Conta", "login": "...", "server": "..."}, headers=headers)` },
+      { method: 'GET', path: '/brokers/{id}', description: 'Detalhes da conexao', n8nExample: `Method: GET
+URL: ${BASE_URL}/brokers/{{id}}`, pythonExample: `res = requests.get(f"${BASE_URL}/brokers/{id}", headers=headers)` },
+      { method: 'PATCH', path: '/brokers/{id}', description: 'Atualizar conexao', n8nExample: `Method: PATCH
+URL: ${BASE_URL}/brokers/{{id}}
+Body: { "notes": "..." }`, pythonExample: `res = requests.patch(f"${BASE_URL}/brokers/{id}", json={"notes": "..."}, headers=headers)` },
+      { method: 'DELETE', path: '/brokers/{id}/disconnect', description: 'Desconectar corretora', n8nExample: `Method: DELETE
+URL: ${BASE_URL}/brokers/{{id}}/disconnect`, pythonExample: `res = requests.delete(f"${BASE_URL}/brokers/{id}/disconnect", headers=headers)` },
+      { method: 'GET', path: '/brokers/available', description: 'Corretoras disponiveis', n8nExample: `Method: GET
+URL: ${BASE_URL}/brokers/available`, pythonExample: `res = requests.get("${BASE_URL}/brokers/available", headers=headers)` },
     ],
   },
-  {
+    {
     icon: <Clapperboard size={16} />,
     title: 'Replay de Mercado',
     endpoints: [
-      { method: 'POST', path: '/replay/sessions', description: 'Criar sessão de replay', n8nExample: `Method: POST\nURL: ${BASE_URL}/replay/sessions\nBody: { "pair": "EURUSD", "date": "2025-01-15" }`, pythonExample: `res = requests.post("${BASE_URL}/replay/sessions",\n  json={"pair": "EURUSD", "date": "2025-01-15"}, headers=headers)` },
-      { method: 'GET', path: '/replay/sessions', description: 'Listar sessões de replay', n8nExample: `Method: GET\nURL: ${BASE_URL}/replay/sessions`, pythonExample: `res = requests.get("${BASE_URL}/replay/sessions", headers=headers)` },
-      { method: 'POST', path: '/replay/sessions/{id}/start', description: 'Iniciar replay', n8nExample: `Method: POST\nURL: ${BASE_URL}/replay/sessions/{{id}}/start`, pythonExample: `res = requests.post(f"${BASE_URL}/replay/sessions/{id}/start", headers=headers)` },
-      { method: 'POST', path: '/replay/sessions/{id}/pause', description: 'Pausar replay', n8nExample: `Method: POST\nURL: ${BASE_URL}/replay/sessions/{{id}}/pause`, pythonExample: `res = requests.post(f"${BASE_URL}/replay/sessions/{id}/pause", headers=headers)` },
-      { method: 'POST', path: '/replay/sessions/{id}/stop', description: 'Parar replay', n8nExample: `Method: POST\nURL: ${BASE_URL}/replay/sessions/{{id}}/stop`, pythonExample: `res = requests.post(f"${BASE_URL}/replay/sessions/{id}/stop", headers=headers)` },
-      { method: 'WS', path: '/ws/replay/{session_id}', description: 'WebSocket para streaming de dados', n8nExample: `// WebSocket não suportado diretamente no n8n.\n// Use um script Python ou Node.js para conectar.`, pythonExample: `import websockets, asyncio\n\nasync def replay():\n  async with websockets.connect(\n    "wss://api.painelzap.com/ws/replay/{session_id}"\n  ) as ws:\n    async for msg in ws:\n      print(msg)\n\nasyncio.run(replay())` },
+      { method: 'POST', path: '/replay/sessions', description: 'Criar sessao de replay', n8nExample: `Method: POST
+URL: ${BASE_URL}/replay/sessions?account_id={{account_id}}&pair=EURUSD&date=2025-01-15`, pythonExample: `res = requests.post(f"${BASE_URL}/replay/sessions?account_id={account_id}&pair=EURUSD&date=2025-01-15", headers=headers)` },
+      { method: 'GET', path: '/replay/sessions', description: 'Listar sessoes de replay', n8nExample: `Method: GET
+URL: ${BASE_URL}/replay/sessions`, pythonExample: `res = requests.get("${BASE_URL}/replay/sessions", headers=headers)` },
+      { method: 'GET', path: '/replay/sessions/{id}', description: 'Detalhar sessao', n8nExample: `Method: GET
+URL: ${BASE_URL}/replay/sessions/{{id}}`, pythonExample: `res = requests.get(f"${BASE_URL}/replay/sessions/{id}", headers=headers)` },
+      { method: 'DELETE', path: '/replay/sessions/{id}', description: 'Remover sessao', n8nExample: `Method: DELETE
+URL: ${BASE_URL}/replay/sessions/{{id}}`, pythonExample: `res = requests.delete(f"${BASE_URL}/replay/sessions/{id}", headers=headers)` },
+      { method: 'WS', path: '/replay/ws/{session_id}', description: 'WebSocket para streaming de dados', n8nExample: `// WebSocket nao suportado diretamente no n8n.
+// Use um script Python ou Node.js para conectar.`, pythonExample: `import websockets, asyncio
+
+async def replay():
+  async with websockets.connect(
+    "wss://api.painelzap.com/api/v1/replay/ws/{session_id}?token=SEU_TOKEN"
+  ) as ws:
+    async for msg in ws:
+      print(msg)
+
+asyncio.run(replay())` },
     ],
   },
   {

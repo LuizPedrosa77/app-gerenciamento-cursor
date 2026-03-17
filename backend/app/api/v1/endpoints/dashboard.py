@@ -200,7 +200,7 @@ def get_monthly_data(
                 Trade.month,
                 Trade.year,
                 func.count(Trade.id).label('total_trades'),
-                func.sum(case([(Trade.result == "WIN", 1)], else_=0)).label('win_trades'),
+                func.sum(case((Trade.result == "WIN", 1), else_=0)).label('win_trades'),
                 func.sum(Trade.pnl).label('total_pnl')
             )
             .filter(Trade.year == year)
@@ -268,7 +268,7 @@ def get_pair_performance(
             base_query.with_entities(
                 Trade.pair,
                 func.count(Trade.id).label('total_trades'),
-                func.sum(case([(Trade.result == "WIN", 1)], else_=0)).label('win_trades'),
+                func.sum(case((Trade.result == "WIN", 1), else_=0)).label('win_trades'),
                 func.sum(Trade.pnl).label('total_pnl')
             )
             .group_by(Trade.pair)
@@ -334,7 +334,7 @@ def get_weekday_performance(
             base_query.with_entities(
                 extract('dow', Trade.date).label('weekday'),
                 func.count(Trade.id).label('total_trades'),
-                func.sum(case([(Trade.result == "WIN", 1)], else_=0)).label('win_trades'),
+                func.sum(case((Trade.result == "WIN", 1), else_=0)).label('win_trades'),
                 func.sum(Trade.pnl).label('total_pnl')
             )
             .group_by(extract('dow', Trade.date))
@@ -447,7 +447,7 @@ def get_dashboard_stats(
     # 1. Totals
     totals = query.with_entities(
         func.count(Trade.id).label('total'),
-        func.sum(case([(Trade.pnl > 0, 1)], else_=0)).label('wins'),
+        func.sum(case((Trade.pnl > 0, 1), else_=0)).label('wins'),
         func.sum(Trade.pnl).label('pnl'),
         func.max(Trade.pnl).label('best'),
         func.min(Trade.pnl).label('worst')
@@ -465,7 +465,7 @@ def get_dashboard_stats(
     m_stats = query.with_entities(
         extract('month', Trade.date).label('month'),
         func.count(Trade.id).label('trades'),
-        func.sum(case([(Trade.pnl > 0, 1)], else_=0)).label('wins'),
+        func.sum(case((Trade.pnl > 0, 1), else_=0)).label('wins'),
         func.sum(Trade.pnl).label('pnl')
     ).filter(Trade.date != None).group_by(extract('month', Trade.date)).all()
     
@@ -486,7 +486,7 @@ def get_dashboard_stats(
     p_stats = query.with_entities(
         Trade.pair,
         func.count(Trade.id).label('trades'),
-        func.sum(case([(Trade.pnl > 0, 1)], else_=0)).label('wins'),
+        func.sum(case((Trade.pnl > 0, 1), else_=0)).label('wins'),
         func.sum(Trade.pnl).label('pnl')
     ).group_by(Trade.pair).all()
     

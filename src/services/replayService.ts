@@ -4,6 +4,8 @@
  */
 import { authService } from './authService';
 
+const API_BASE = import.meta.env.VITE_API_URL || window.location.origin;
+
 export interface ReplayConfig {
   account_id: string;
   symbol: string;
@@ -111,12 +113,13 @@ class ReplayService {
    */
   async createSession(config: ReplayConfig): Promise<string> {
     try {
+      this.token = this.token || authService.getAccessToken();
       const params = new URLSearchParams();
       params.append('account_id', config.account_id);
       params.append('pair', config.symbol);
       params.append('date', config.start_date);
 
-      const response = await fetch(`/api/v1/replay/sessions?${params.toString()}`, {
+      const response = await fetch(`${API_BASE}/api/v1/replay/sessions?${params.toString()}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.token}`,
@@ -284,7 +287,8 @@ class ReplayService {
    */
   async listSessions(): Promise<ReplaySession[]> {
     try {
-      const response = await fetch('/api/v1/replay/sessions', {
+      this.token = this.token || authService.getAccessToken();
+      const response = await fetch(`${API_BASE}/api/v1/replay/sessions`, {
         headers: {
           'Authorization': `Bearer ${this.token}`,
         },
@@ -307,7 +311,8 @@ class ReplayService {
    */
   async getSession(sessionId: string): Promise<ReplaySession> {
     try {
-      const response = await fetch(`/api/v1/replay/sessions/${sessionId}`, {
+      this.token = this.token || authService.getAccessToken();
+      const response = await fetch(`${API_BASE}/api/v1/replay/sessions/${sessionId}`, {
         headers: {
           'Authorization': `Bearer ${this.token}`,
         },
@@ -329,7 +334,8 @@ class ReplayService {
    */
   async deleteSession(sessionId: string): Promise<void> {
     try {
-      const response = await fetch(`/api/v1/replay/sessions/${sessionId}`, {
+      this.token = this.token || authService.getAccessToken();
+      const response = await fetch(`${API_BASE}/api/v1/replay/sessions/${sessionId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${this.token}`,
@@ -456,9 +462,8 @@ class ReplayService {
    * Obtém URL do WebSocket
    */
   private getWebSocketUrl(): string {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    return `${protocol}//${host}`;
+    const base = API_BASE;
+    return base.replace(/^http/, 'ws');
   }
 
   /**

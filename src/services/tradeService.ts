@@ -22,6 +22,7 @@ export interface APITrade {
   vm_result: string;
   vm_pnl: number;
   screenshot?: { data: string; caption: string };
+  screenshot_url?: string;
 }
 
 const tradeService = {

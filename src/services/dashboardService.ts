@@ -76,7 +76,13 @@ class DashboardService {
         Object.entries(filters).forEach(([key, value]) => {
           if (value !== undefined && value !== null) {
             if (Array.isArray(value)) {
-              value.forEach(v => params.append(key, v.toString()));
+              if (key === 'account_ids') {
+                if (value.length > 0) {
+                  params.append('account_id', value[0].toString());
+                }
+              } else {
+                value.forEach(v => params.append(key, v.toString()));
+              }
             } else {
               params.append(key, value.toString());
             }
@@ -99,9 +105,9 @@ class DashboardService {
     try {
       const params = new URLSearchParams();
       params.append('year', year.toString());
-      
-      if (filters?.account_ids) {
-        filters.account_ids.forEach(id => params.append('account_ids', id));
+      const accountId = filters?.account_ids?.[0];
+      if (accountId) {
+        params.append('account_id', accountId);
       }
 
       const response = await api.get<MonthlyData[]>(`/api/v1/dashboard/monthly?${params}`);
@@ -122,6 +128,10 @@ class DashboardService {
       if (filters) {
         Object.entries(filters).forEach(([key, value]) => {
           if (value !== undefined && value !== null) {
+            if (key === 'account_ids' && Array.isArray(value) && value.length > 0) {
+              params.append('account_id', value[0].toString());
+              return;
+            }
             params.append(key, value.toString());
           }
         });
@@ -145,6 +155,10 @@ class DashboardService {
       if (filters) {
         Object.entries(filters).forEach(([key, value]) => {
           if (value !== undefined && value !== null) {
+            if (key === 'account_ids' && Array.isArray(value) && value.length > 0) {
+              params.append('account_id', value[0].toString());
+              return;
+            }
             params.append(key, value.toString());
           }
         });
@@ -168,6 +182,10 @@ class DashboardService {
       if (filters) {
         Object.entries(filters).forEach(([key, value]) => {
           if (value !== undefined && value !== null) {
+            if (key === 'account_ids' && Array.isArray(value) && value.length > 0) {
+              params.append('account_id', value[0].toString());
+              return;
+            }
             params.append(key, value.toString());
           }
         });
@@ -192,6 +210,10 @@ class DashboardService {
       if (filters) {
         Object.entries(filters).forEach(([key, value]) => {
           if (value !== undefined && value !== null) {
+            if (key === 'account_ids' && Array.isArray(value) && value.length > 0) {
+              params.append('account_id', value[0].toString());
+              return;
+            }
             params.append(key, value.toString());
           }
         });
@@ -212,9 +234,9 @@ class DashboardService {
     try {
       const params = new URLSearchParams();
       params.append('year', year.toString());
-      
-      if (filters?.account_ids) {
-        filters.account_ids.forEach(id => params.append('account_ids', id));
+      const accountId = filters?.account_ids?.[0];
+      if (accountId) {
+        params.append('account_id', accountId);
       }
 
       const response = await api.get<AccountEvolution[]>(`/api/v1/dashboard/account-evolution?${params}`);
@@ -233,9 +255,9 @@ class DashboardService {
       const params = new URLSearchParams();
       params.append('year', year.toString());
       params.append('week', week.toString());
-      
-      if (filters?.account_ids) {
-        filters.account_ids.forEach(id => params.append('account_ids', id));
+      const accountId = filters?.account_ids?.[0];
+      if (accountId) {
+        params.append('account_id', accountId);
       }
 
       const response = await api.get<WeeklyReport>(`/api/v1/reports/weekly?${params}`);
@@ -252,12 +274,8 @@ class DashboardService {
   async getTotalBalance(filters?: DashboardFilters): Promise<any> {
     try {
       const params = new URLSearchParams();
-      
-      if (filters?.account_ids) {
-        filters.account_ids.forEach(id => params.append('account_ids', id));
-      }
 
-      const response = await api.get<any>(`/api/v1/dashboard/total-balance?${params}`);
+      const response = await api.get<any>(`/api/v1/accounts/total-balance?${params}`);
       return response.data;
     } catch (error) {
       console.error('Get total balance error:', error);
@@ -275,6 +293,10 @@ class DashboardService {
       if (filters) {
         Object.entries(filters).forEach(([key, value]) => {
           if (value !== undefined && value !== null) {
+            if (key === 'account_ids' && Array.isArray(value) && value.length > 0) {
+              params.append('account_id', value[0].toString());
+              return;
+            }
             params.append(key, value.toString());
           }
         });
@@ -296,9 +318,9 @@ class DashboardService {
       const params = new URLSearchParams();
       params.append('period', period);
       params.append('months', months.toString());
-      
-      if (filters?.account_ids) {
-        filters.account_ids.forEach(id => params.append('account_ids', id));
+      const accountId = filters?.account_ids?.[0];
+      if (accountId) {
+        params.append('account_id', accountId);
       }
 
       const response = await api.get<any[]>(`/api/v1/reports/gp-score/history?${params}`);
@@ -319,6 +341,10 @@ class DashboardService {
       if (filters) {
         Object.entries(filters).forEach(([key, value]) => {
           if (value !== undefined && value !== null) {
+            if (key === 'account_ids' && Array.isArray(value) && value.length > 0) {
+              params.append('account_id', value[0].toString());
+              return;
+            }
             params.append(key, value.toString());
           }
         });
@@ -342,6 +368,10 @@ class DashboardService {
       if (filters) {
         Object.entries(filters).forEach(([key, value]) => {
           if (value !== undefined && value !== null) {
+            if (key === 'account_ids' && Array.isArray(value) && value.length > 0) {
+              params.append('account_id', value[0].toString());
+              return;
+            }
             params.append(key, value.toString());
           }
         });
@@ -363,9 +393,9 @@ class DashboardService {
       const params = new URLSearchParams();
       params.append('year', year.toString());
       params.append('month', month.toString());
-      
-      if (filters?.account_ids) {
-        filters.account_ids.forEach(id => params.append('account_ids', id));
+      const accountId = filters?.account_ids?.[0];
+      if (accountId) {
+        params.append('account_id', accountId);
       }
 
       const response = await api.get<any>(`/api/v1/reports/monthly-summary?${params}`);
@@ -382,9 +412,9 @@ class DashboardService {
   async getGoalNotifications(filters?: DashboardFilters): Promise<any[]> {
     try {
       const params = new URLSearchParams();
-      
-      if (filters?.account_ids) {
-        filters.account_ids.forEach(id => params.append('account_ids', id));
+      const accountId = filters?.account_ids?.[0];
+      if (accountId) {
+        params.append('account_id', accountId);
       }
 
       const response = await api.get<any[]>(`/api/v1/reports/notifications/goals?${params}`);
@@ -414,51 +444,19 @@ class DashboardService {
     try {
       const params = new URLSearchParams();
       params.append('year', year.toString());
-      
-      if (filters?.account_ids) {
-        filters.account_ids.forEach(id => params.append('account_ids', id));
+      const accountId = filters?.account_ids?.[0];
+      if (accountId) {
+        params.append('account_id', accountId);
       }
 
-      const response = await api.get<any>(`/api/v1/reports/calendar/data?${params}`);
-      return response.data;
+      const response = await api.get<any>(`/api/v1/calendar/heatmap?${params}`);
+      return response.data?.heatmap || response.data;
     } catch (error) {
       console.error('Get calendar data error:', error);
       throw error;
     }
   }
 
-  /**
-   * Obtém comparação de performance entre períodos
-   */
-  async getPerformanceComparison(
-    period1Start: string,
-    period1End: string,
-    period2Start: string,
-    period2End: string,
-    filters?: DashboardFilters
-  ): Promise<any> {
-    try {
-      const params = new URLSearchParams();
-      params.append('period1_start', period1Start);
-      params.append('period1_end', period1End);
-      params.append('period2_start', period2Start);
-      params.append('period2_end', period2End);
-      
-      if (filters?.account_ids) {
-        filters.account_ids.forEach(id => params.append('account_ids', id));
-      }
-
-      const response = await api.get<any>(`/api/v1/reports/comparison?${params}`);
-      return response.data;
-    } catch (error) {
-      console.error('Get performance comparison error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Obtém métricas de risco
-   */
   async getRiskMetrics(filters?: DashboardFilters): Promise<any> {
     try {
       const params = new URLSearchParams();
@@ -466,6 +464,10 @@ class DashboardService {
       if (filters) {
         Object.entries(filters).forEach(([key, value]) => {
           if (value !== undefined && value !== null) {
+            if (key === 'account_ids' && Array.isArray(value) && value.length > 0) {
+              params.append('account_id', value[0].toString());
+              return;
+            }
             params.append(key, value.toString());
           }
         });
