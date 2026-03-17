@@ -15,6 +15,13 @@ class TradeCreate(BaseModel):
     vm_result: Optional[str] = Field(None, pattern="^(WIN|LOSS)$")
     vm_pnl: float = 0
     notes: Optional[str] = None
+    ticket: Optional[str] = None
+    symbol_raw: Optional[str] = None
+    symbol_normalized: Optional[str] = None
+    open_time: Optional[datetime] = None
+    close_time: Optional[datetime] = None
+    open_price: Optional[float] = None
+    close_price: Optional[float] = None
     account_id: str
 
 
@@ -30,6 +37,13 @@ class TradeUpdate(BaseModel):
     vm_result: Optional[str] = None
     vm_pnl: Optional[float] = None
     notes: Optional[str] = None
+    ticket: Optional[str] = None
+    symbol_raw: Optional[str] = None
+    symbol_normalized: Optional[str] = None
+    open_time: Optional[datetime] = None
+    close_time: Optional[datetime] = None
+    open_price: Optional[float] = None
+    close_price: Optional[float] = None
 
 
 class TradeResponse(BaseModel):
@@ -38,10 +52,17 @@ class TradeResponse(BaseModel):
     year: int
     month: int
     pair: str
+    symbol_raw: Optional[str]
+    symbol_normalized: Optional[str]
+    ticket: Optional[str]
     direction: str
     lots: Optional[float]
     result: str
     pnl: float
+    open_time: Optional[datetime]
+    close_time: Optional[datetime]
+    open_price: Optional[float]
+    close_price: Optional[float]
     has_vm: bool
     vm_lots: Optional[float]
     vm_result: Optional[str]

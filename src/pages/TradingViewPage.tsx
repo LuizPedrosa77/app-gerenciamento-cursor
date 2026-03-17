@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useGPFX, apiTradeToLocal } from '@/contexts/GPFXContext';
 import { Trade, getTradePnl, fmtNum, sumPnl, getWinRate } from '@/lib/gpfx-utils';
-import { ChevronDown, ChevronUp, MapPin, Camera } from 'lucide-react';
+import { ChevronDown, ChevronUp, MapPin, Camera, Play, Pause, SkipBack, SkipForward, RotateCcw } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Lightbox } from '@/components/Lightbox';
 import { ScreenshotModal } from '@/components/ScreenshotModal';
@@ -67,6 +67,19 @@ function getPairFromSymbol(symbol: string): string {
   return found?.pair || '';
 }
 
+function normalizePair(value?: string): string {
+  if (!value) return '';
+  const raw = value.toUpperCase().replace(/\s+/g, '').split(':').pop() || '';
+  if (raw.includes('/')) {
+    const [left, right] = raw.split('/');
+    return `${left}/${right}`;
+  }
+  if (/^[A-Z]{6}$/.test(raw)) return `${raw.slice(0, 3)}/${raw.slice(3)}`;
+  if (raw === 'XAUUSD') return 'XAU/USD';
+  if (raw === 'XAGUSD') return 'XAG/USD';
+  return raw;
+}
+
 function getHeaderPeriodCutoff(period: string): string | null {
   if (period === 'all') return null;
   const now = new Date();
@@ -103,6 +116,10 @@ export default function TradingViewPage() {
   const [accountFilter, setAccountFilter] = useState('all');
   const [headerPeriod, setHeaderPeriod] = useState('all');
   const [allTrades, setAllTrades] = useState<Trade[]>([]);
+  const [replayEnabled, setReplayEnabled] = useState(false);
+  const [replayIndex, setReplayIndex] = useState(0);
+  const [replayPlaying, setReplayPlaying] = useState(false);
+  const [replaySpeed, setReplaySpeed] = useState(1);
 
   // Track last real symbol for chart (when "all assets" is selected)
   const lastRealSymbol = useRef('FX:EURUSD');
@@ -112,30 +129,19 @@ export default function TradingViewPage() {
   useEffect(() => {
     const loadAllTrades = async () => {
       try {
-        const accountIds: string[] = [];
-        if (accountFilter === 'all') {
-          state.accounts.forEach(a => {
-            const apiId = (a as any)._apiId;
-            if (apiId) accountIds.push(apiId);
-          });
-        } else {
-          accountIds.push(accountFilter);
-        }
-
+        const accountId = accountFilter === 'all' ? undefined : accountFilter;
         const startDate = getHeaderPeriodCutoff(headerPeriod) || undefined;
-        let trades: Trade[] = [];
-        for (const id of accountIds) {
-          const res = await tradeService.list(id, 0, 10000, undefined, undefined, startDate);
-          const rawItems = res.items || res;
-          trades = trades.concat(rawItems.map(apiTradeToLocal));
-        }
+        const pair = isAllAssets ? undefined : getPairFromSymbol(symbol);
+        const res = await tradeService.chartData(accountId, pair, startDate, undefined, 20000);
+        const rawItems = res.items || [];
+        const trades = rawItems.map(apiTradeToLocal);
         setAllTrades(trades);
       } catch (err) {
         console.error('Failed to load trades for TradingView', err);
       }
     };
     loadAllTrades();
-  }, [accountFilter, headerPeriod, state.accounts]);
+  }, [accountFilter, headerPeriod, state.accounts, symbol, isAllAssets]);
 
   // Keep track of last real symbol
   useEffect(() => {
@@ -168,26 +174,56 @@ export default function TradingViewPage() {
 
   const allPairTrades = useMemo(() => {
     const trades = allTrades.filter(t => {
-      if (!isAllAssets && t.pair !== currentPair) return false;
+      if (!isAllAssets && normalizePair(t.pair) !== normalizePair(currentPair)) return false;
       return true;
     });
-    return trades.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    return trades.sort((a, b) => ((b.closeTime || b.date || '').localeCompare(a.closeTime || a.date || '')));
   }, [allTrades, currentPair, isAllAssets]);
 
+  const replayTimeline = useMemo(() => {
+    return [...allPairTrades].sort((a, b) => ((a.closeTime || a.date || '').localeCompare(b.closeTime || b.date || '')));
+  }, [allPairTrades]);
+
+  useEffect(() => {
+    if (!replayEnabled) return;
+    setReplayIndex(Math.max(0, Math.min(replayTimeline.length - 1, replayIndex)));
+  }, [replayTimeline.length, replayEnabled]);
+
+  useEffect(() => {
+    if (!replayEnabled || !replayPlaying || replayTimeline.length === 0) return;
+    const interval = window.setInterval(() => {
+      setReplayIndex(prev => {
+        const next = prev + 1;
+        if (next >= replayTimeline.length - 1) {
+          setReplayPlaying(false);
+          return replayTimeline.length - 1;
+        }
+        return next;
+      });
+    }, Math.max(120, 1000 / replaySpeed));
+    return () => window.clearInterval(interval);
+  }, [replayEnabled, replayPlaying, replayTimeline, replaySpeed]);
+
   const filteredPairTrades = useMemo(() => {
-    if (tradePeriod === 'all') return allPairTrades;
+    let base = allPairTrades;
+    if (replayEnabled && replayTimeline.length > 0) {
+      const replayLimit = replayTimeline[Math.max(0, replayIndex)];
+      const cutoff = replayLimit?.closeTime || replayLimit?.date;
+      base = base.filter(t => (t.closeTime || t.date || '') <= (cutoff || ''));
+    }
+    if (tradePeriod === 'all') return base;
     const now = new Date();
     let cutoff: Date;
     if (tradePeriod === '1m') { cutoff = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()); }
     else if (tradePeriod === '3m') { cutoff = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()); }
     else { cutoff = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()); }
     const cutoffStr = cutoff.toISOString().split('T')[0];
-    return allPairTrades.filter(t => t.date && t.date >= cutoffStr);
-  }, [allPairTrades, tradePeriod]);
+    return base.filter(t => t.date && t.date >= cutoffStr);
+  }, [allPairTrades, tradePeriod, replayEnabled, replayTimeline, replayIndex]);
 
   // Pair stats
   const pairStats = useMemo(() => {
-    const trades = allPairTrades;
+    const trades = filteredPairTrades;
     const total = trades.length;
     const winRate = getWinRate(trades);
     const pnl = sumPnl(trades);
@@ -198,7 +234,7 @@ export default function TradingViewPage() {
       if (!worst || p < getTradePnl(worst)) worst = t;
     });
     return { total, winRate, pnl, best, worst };
-  }, [allPairTrades]);
+  }, [filteredPairTrades]);
 
   // Chart widget
   useEffect(() => {
@@ -291,6 +327,66 @@ export default function TradingViewPage() {
         </label>
       </div>
 
+      <div className="flex items-center gap-2 flex-wrap text-xs" style={{ color: '#9da7b3' }}>
+        <label className="flex items-center gap-1.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={replayEnabled}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              setReplayEnabled(checked);
+              setReplayPlaying(false);
+              setReplayIndex(0);
+            }}
+            style={{ accentColor: '#00d395' }}
+          />
+          Replay Assistido
+        </label>
+        {replayEnabled && (
+          <>
+            <button className="inline-flex items-center gap-1 px-2 py-1 rounded border border-[#2a333f]" onClick={() => setReplayIndex(0)}>
+              <RotateCcw size={12} /> Reset
+            </button>
+            <button
+              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-[#2a333f]"
+              onClick={() => setReplayIndex(i => Math.max(0, i - 1))}
+              disabled={replayIndex <= 0}
+            >
+              <SkipBack size={12} />
+            </button>
+            <button
+              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-[#2a333f]"
+              onClick={() => setReplayPlaying(v => !v)}
+              disabled={replayTimeline.length === 0}
+            >
+              {replayPlaying ? <Pause size={12} /> : <Play size={12} />}
+            </button>
+            <button
+              className="inline-flex items-center gap-1 px-2 py-1 rounded border border-[#2a333f]"
+              onClick={() => setReplayIndex(i => Math.min(replayTimeline.length - 1, i + 1))}
+              disabled={replayTimeline.length === 0 || replayIndex >= replayTimeline.length - 1}
+            >
+              <SkipForward size={12} />
+            </button>
+            <select
+              value={replaySpeed}
+              onChange={e => setReplaySpeed(Number(e.target.value))}
+              style={{ ...selectStyle, padding: '4px 8px', fontSize: 12 }}
+            >
+              <option value={0.5}>0.5x</option>
+              <option value={1}>1x</option>
+              <option value={2}>2x</option>
+              <option value={4}>4x</option>
+            </select>
+            <span>
+              {replayTimeline.length === 0
+                ? 'Sem dados para replay'
+                : `${Math.min(replayIndex + 1, replayTimeline.length)}/${replayTimeline.length} · ${replayTimeline[Math.max(0, replayIndex)]?.date || '—'}`}
+            </span>
+          </>
+        )}
+      </div>
+
       {/* Stats Bar */}
       <div
         className="flex items-center gap-6 overflow-x-auto shrink-0"
@@ -346,9 +442,9 @@ export default function TradingViewPage() {
           }}
         />
         {/* Trade markers overlay */}
-        {showMarkers && allPairTrades.length > 0 && (
+        {showMarkers && filteredPairTrades.length > 0 && (
           <div className="absolute top-2 right-2 flex flex-col gap-1 z-10 max-h-[300px] overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-            {allPairTrades.slice(0, 20).map((t) => {
+            {filteredPairTrades.slice(0, 20).map((t) => {
               const pnl = getTradePnl(t);
               const isBuy = t.dir === 'BUY';
               return (

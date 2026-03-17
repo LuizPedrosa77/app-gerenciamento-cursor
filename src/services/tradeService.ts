@@ -24,6 +24,13 @@ export interface APITrade {
   screenshot?: { data: string; caption: string };
   screenshot_url?: string;
   screenshots?: Array<{ id?: string; url?: string; filename?: string; created_at?: string }>;
+  symbol_raw?: string;
+  symbol_normalized?: string;
+  ticket?: string;
+  open_time?: string;
+  close_time?: string;
+  open_price?: number;
+  close_price?: number;
 }
 
 const tradeService = {
@@ -43,6 +50,23 @@ const tradeService = {
     if (end_date) params.end_date = end_date;
     const { data } = await api.get('/api/v1/trades', { params });
     // Backward compatibility just in case
+    if (Array.isArray(data)) return { items: data, total: data.length };
+    return data;
+  },
+
+  chartData: async (
+    accountId?: string,
+    pair?: string,
+    start_date?: string,
+    end_date?: string,
+    limit: number = 3000
+  ): Promise<PaginatedTrades> => {
+    const params: any = { limit };
+    if (accountId && accountId !== 'all') params.account_id = accountId;
+    if (pair) params.pair = pair;
+    if (start_date) params.start_date = start_date;
+    if (end_date) params.end_date = end_date;
+    const { data } = await api.get('/api/v1/trades/chart-data', { params });
     if (Array.isArray(data)) return { items: data, total: data.length };
     return data;
   },

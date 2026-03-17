@@ -16,6 +16,23 @@ from app.schemas.trade import TradeCreate, TradeUpdate, TradeResponse
 router = APIRouter()
  
 
+def normalize_symbol_pair(value: Optional[str]) -> str:
+    if not value:
+        return ""
+    raw = value.upper().replace(" ", "")
+    raw = raw.split(":")[-1]
+    if "/" in raw:
+        left, right = raw.split("/", 1)
+        return f"{left}/{right}"
+    if len(raw) == 6 and raw[:3].isalpha() and raw[3:].isalpha():
+        return f"{raw[:3]}/{raw[3:]}"
+    if len(raw) == 7 and raw.startswith("XAU"):
+        return "XAU/USD"
+    if len(raw) == 7 and raw.startswith("XAG"):
+        return "XAG/USD"
+    return raw
+
+
 def create_trade_response(trade: Trade) -> TradeResponse:
     """Create TradeResponse from Trade model."""
     return TradeResponse(
@@ -24,10 +41,17 @@ def create_trade_response(trade: Trade) -> TradeResponse:
         year=trade.year,
         month=trade.month,
         pair=trade.pair,
+        symbol_raw=trade.symbol_raw,
+        symbol_normalized=trade.symbol_normalized,
+        ticket=trade.ticket,
         direction=trade.direction,
         lots=float(trade.lots) if trade.lots else None,
         result=trade.result,
         pnl=float(trade.pnl),
+        open_time=trade.open_time,
+        close_time=trade.close_time,
+        open_price=float(trade.open_price) if trade.open_price is not None else None,
+        close_price=float(trade.close_price) if trade.close_price is not None else None,
         has_vm=trade.has_vm,
         vm_lots=float(trade.vm_lots) if trade.vm_lots else None,
         vm_result=trade.vm_result,
@@ -152,10 +176,17 @@ def create_trade(
         year=trade_data.date.year,
         month=trade_data.date.month,
         pair=trade_data.pair,
+        symbol_raw=trade_data.symbol_raw or trade_data.pair,
+        symbol_normalized=trade_data.symbol_normalized or normalize_symbol_pair(trade_data.pair),
+        ticket=trade_data.ticket,
         direction=trade_data.direction,
         lots=trade_data.lots,
         result=trade_data.result,
         pnl=trade_data.pnl,
+        open_time=trade_data.open_time,
+        close_time=trade_data.close_time,
+        open_price=trade_data.open_price,
+        close_price=trade_data.close_price,
         has_vm=trade_data.has_vm,
         vm_lots=trade_data.vm_lots,
         vm_result=trade_data.vm_result,
@@ -170,6 +201,41 @@ def create_trade(
     update_account_balance(db, trade_data.account_id)
     
     return create_trade_response(trade)
+
+
+@router.get("/chart-data")
+def get_trades_chart_data(
+    current_user: CurrentUser,
+    db: DbSession,
+    account_id: Optional[str] = Query(None),
+    pair: Optional[str] = Query(None, description="Paridade (ex: XAU/USD ou XAUUSD)"),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    limit: int = Query(3000, ge=1, le=20000),
+):
+    workspace = db.query(Workspace).filter(Workspace.owner_id == current_user.id).first()
+    if not workspace:
+        return {"items": [], "total": 0}
+
+    query = db.query(Trade).filter(Trade.workspace_id == workspace.id)
+    if account_id:
+        query = query.filter(Trade.account_id == account_id)
+    if start_date:
+        query = query.filter(Trade.date >= start_date)
+    if end_date:
+        query = query.filter(Trade.date <= end_date)
+    if pair:
+        normalized = normalize_symbol_pair(pair)
+        query = query.filter(
+            (Trade.pair == pair)
+            | (Trade.symbol_raw == pair)
+            | (Trade.symbol_normalized == normalized)
+            | (Trade.pair == normalized)
+        )
+
+    total = query.count()
+    items = query.order_by(Trade.close_time.desc(), Trade.date.desc()).limit(limit).all()
+    return {"items": [create_trade_response(t) for t in items], "total": total}
 
 
 @router.delete("/bulk")

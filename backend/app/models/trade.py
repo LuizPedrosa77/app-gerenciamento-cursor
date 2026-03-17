@@ -17,10 +17,17 @@ class Trade(Base):
     year = Column(Integer, index=True)
     month = Column(Integer, index=True)
     pair = Column(String(20), index=True)
+    symbol_raw = Column(String(40), nullable=True, index=True)
+    symbol_normalized = Column(String(20), nullable=True, index=True)
+    ticket = Column(String(64), nullable=True, index=True)
     direction = Column(String(10), index=True)  # BUY ou SELL
     lots = Column(Numeric(10, 2), nullable=True)
     result = Column(String(10))  # WIN ou LOSS
     pnl = Column(Numeric(15, 2), default=0)
+    open_time = Column(DateTime, nullable=True, index=True)
+    close_time = Column(DateTime, nullable=True, index=True)
+    open_price = Column(Numeric(18, 8), nullable=True)
+    close_price = Column(Numeric(18, 8), nullable=True)
     has_vm = Column(Boolean, default=False)
     vm_lots = Column(Numeric(10, 2), nullable=True)
     vm_result = Column(String(10), nullable=True)

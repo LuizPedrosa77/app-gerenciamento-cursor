@@ -59,11 +59,30 @@ function apiAccToLocal(a: APIAccount, existingTrades: Trade[] = []): Account & {
   } as any;
 }
 
+function normalizePair(value?: string): string {
+  if (!value) return '';
+  const raw = value.toUpperCase().replace(/\s+/g, '').split(':').pop() || '';
+  if (raw.includes('/')) {
+    const [left, right] = raw.split('/');
+    return `${left}/${right}`;
+  }
+  if (/^[A-Z]{6}$/.test(raw)) {
+    return `${raw.slice(0, 3)}/${raw.slice(3)}`;
+  }
+  if (raw === 'XAUUSD') return 'XAU/USD';
+  if (raw === 'XAGUSD') return 'XAG/USD';
+  return raw;
+}
+
 export function apiTradeToLocal(t: APITrade): Trade {
   const rawDate = t.date ? t.date.toString() : '';
   const normalizedDate = rawDate.replace(/\./g, '-').substring(0, 10);
-  const timePart = rawDate.length > 10 ? rawDate.replace(/\./g, '-').substring(11, 16) : '';
+  const closeOrOpen = t.close_time || t.open_time || '';
+  const timePart = closeOrOpen
+    ? closeOrOpen.toString().replace('T', ' ').substring(11, 16)
+    : (rawDate.length > 10 ? rawDate.replace(/\./g, '-').substring(11, 16) : '');
   const firstScreenshot = (t as any).screenshots && (t as any).screenshots.length > 0 ? (t as any).screenshots[0] : null;
+  const normalizedPair = t.symbol_normalized || normalizePair(t.pair || t.symbol_raw);
 
   return {
     id: t.id,
@@ -71,7 +90,14 @@ export function apiTradeToLocal(t: APITrade): Trade {
     month: typeof t.month === 'number' ? Math.max(0, t.month - 1) : t.month,
     date: normalizedDate,
     time: timePart,
-    pair: t.pair,
+    openTime: t.open_time,
+    closeTime: t.close_time,
+    openPrice: t.open_price,
+    closePrice: t.close_price,
+    ticket: t.ticket,
+    symbolRaw: t.symbol_raw,
+    symbolNormalized: normalizedPair,
+    pair: normalizedPair || t.pair,
     dir: (t as any).direction || t.dir || 'BUY',
     lots: t.lots,
     result: t.result,

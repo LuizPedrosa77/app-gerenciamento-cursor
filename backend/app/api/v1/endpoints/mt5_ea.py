@@ -14,6 +14,23 @@ from app.websocket.trade_ws import manager as ws_manager
 
 router = APIRouter()
 
+
+def normalize_symbol_pair(value: Optional[str]) -> str:
+    if not value:
+        return ""
+    raw = value.upper().replace(" ", "")
+    raw = raw.split(":")[-1]
+    if "/" in raw:
+        left, right = raw.split("/", 1)
+        return f"{left}/{right}"
+    if len(raw) == 6 and raw[:3].isalpha() and raw[3:].isalpha():
+        return f"{raw[:3]}/{raw[3:]}"
+    if len(raw) == 7 and raw.startswith("XAU"):
+        return "XAU/USD"
+    if len(raw) == 7 and raw.startswith("XAG"):
+        return "XAG/USD"
+    return raw
+
 def verify_internal_api_key(x_api_key: str = Header(None)):
     if not x_api_key or x_api_key != settings.INTERNAL_API_KEY:
         raise HTTPException(status_code=401, detail="API key invÃ¡lida")
@@ -178,9 +195,21 @@ async def sync(
         direction = "BUY" if t.type.upper() == "BUY" else "SELL"
         
         existing = existing_map.get(t.ticket)
+        symbol_norm = normalize_symbol_pair(t.symbol)
+        try:
+            open_dt = parse_dt(t.open_time) if t.open_time else dt
+        except ValueError:
+            open_dt = dt
         if existing:
             existing.pnl = pnl
             existing.result = result
+            existing.ticket = existing.ticket or str(t.ticket)
+            existing.close_time = dt
+            existing.open_time = existing.open_time or open_dt
+            existing.open_price = t.open_price
+            existing.close_price = t.close_price
+            existing.symbol_raw = t.symbol
+            existing.symbol_normalized = symbol_norm
             updated += 1
         else:
             trade = Trade(
@@ -189,11 +218,18 @@ async def sync(
                 date=dt.date(),
                 year=dt.year,
                 month=dt.month,
-                pair=t.symbol,
+                pair=symbol_norm,
+                symbol_raw=t.symbol,
+                symbol_normalized=symbol_norm,
+                ticket=str(t.ticket),
                 direction=direction,
                 lots=float(t.volume),
                 pnl=pnl,
                 result=result,
+                open_time=open_dt,
+                close_time=dt,
+                open_price=t.open_price,
+                close_price=t.close_price,
                 notes=f"EA Sync | Ticket:{t.ticket}"
             )
             db.add(trade)
@@ -278,6 +314,7 @@ async def close_trade(
     pnl = float(req.profit)
     result = "WIN" if pnl > 0 else "LOSS" if pnl < 0 else "BE"
     direction = "BUY" if req.type.upper() == "BUY" else "SELL"
+    symbol_norm = normalize_symbol_pair(req.symbol)
     existing = db.query(Trade).filter(
         Trade.account_id == account.id,
         Trade.notes.contains(f"Ticket:{req.ticket}")
@@ -285,6 +322,14 @@ async def close_trade(
     if existing:
         existing.pnl = pnl
         existing.result = result
+        existing.close_time = dt_close
+        existing.open_time = existing.open_time or dt_open
+        existing.open_price = req.open_price
+        existing.close_price = req.close_price
+        existing.symbol_raw = req.symbol
+        existing.symbol_normalized = symbol_norm
+        existing.pair = symbol_norm
+        existing.ticket = existing.ticket or str(req.ticket)
         updated_msg = "atualizado"
     else:
         trade = Trade(
@@ -293,11 +338,18 @@ async def close_trade(
             date=dt_close.date(),
             year=dt_close.year,
             month=dt_close.month,
-            pair=req.symbol,
+            pair=symbol_norm,
+            symbol_raw=req.symbol,
+            symbol_normalized=symbol_norm,
+            ticket=str(req.ticket),
             direction=direction,
             lots=float(req.volume),
             pnl=pnl,
             result=result,
+            open_time=dt_open,
+            close_time=dt_close,
+            open_price=req.open_price,
+            close_price=req.close_price,
             notes=f"EA Sync | Ticket:{req.ticket}"
         )
         db.add(trade)

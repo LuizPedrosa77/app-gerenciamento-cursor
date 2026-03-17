@@ -26,6 +26,13 @@ export interface Trade {
   month: number;
   date: string;
   time?: string; // hora do trade ex: "10:30"
+  openTime?: string;
+  closeTime?: string;
+  openPrice?: number;
+  closePrice?: number;
+  ticket?: string;
+  symbolRaw?: string;
+  symbolNormalized?: string;
   pair: string;
   dir: string;
   lots?: number;
