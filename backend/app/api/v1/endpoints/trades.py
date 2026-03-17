@@ -87,11 +87,19 @@ def get_trades(
     if account_id:
         query = query.filter(Trade.account_id == account_id)
     
-    if year:
-        query = query.filter(Trade.year == year)
-    
-    if month:
-        query = query.filter(Trade.month == month)
+    if year and month:
+        start = date(year, month, 1)
+        if month == 12:
+            end = date(year + 1, 1, 1)
+        else:
+            end = date(year, month + 1, 1)
+        # Prefer date-based filtering to avoid legacy month field inconsistencies.
+        query = query.filter(Trade.date >= start, Trade.date < end)
+    else:
+        if year:
+            query = query.filter(Trade.year == year)
+        if month:
+            query = query.filter(Trade.month == month)
 
     if start_date:
         query = query.filter(Trade.date >= start_date)

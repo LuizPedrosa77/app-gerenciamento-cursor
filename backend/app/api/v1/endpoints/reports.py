@@ -356,8 +356,10 @@ def get_annual_summary(
     trades = query.all()
     summary = {m: {"pnl": 0.0, "trades": 0} for m in range(1, 13)}
     for t in trades:
-        month = int(t.month) if t.month is not None else (t.date.month if t.date else None)
-        if month is not None and 0 <= month <= 11:
+        # Prefer date-derived month to avoid legacy/corrupted month fields.
+        month = t.date.month if t.date else (int(t.month) if t.month is not None else None)
+        # Keep canonical months (1..12) untouched and only normalize legacy 0-based values.
+        if month is not None and not (1 <= month <= 12) and 0 <= month <= 11:
             month += 1
         if not month:
             continue

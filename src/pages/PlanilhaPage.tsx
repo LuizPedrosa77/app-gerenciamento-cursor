@@ -117,13 +117,13 @@ export default function PlanilhaPage() {
   }, [acc, year, month]);
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [loadData]);
 
   useEffect(() => {
      const handler = (e: any) => {
         if (e.detail?.account_id === (acc as any)._apiId) {
-           loadData();
+           void loadData();
         }
      };
      window.addEventListener('gpfx:trade_updated', handler);
