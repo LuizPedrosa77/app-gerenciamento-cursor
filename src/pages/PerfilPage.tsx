@@ -72,7 +72,8 @@ function TabPerfil() {
     const token = localStorage.getItem('gpfx_auth_token');
     if (!token) return;
 
-    fetch('https://api.painelzap.com/api/v1/auth/me', {
+    const apiBase = import.meta.env.VITE_API_URL || 'https://api.painelzap.com';
+    fetch(`${apiBase}/api/v1/auth/me`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(r => r.json())

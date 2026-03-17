@@ -180,6 +180,9 @@ def bulk_delete_trades(
 
     db.commit()
 
+    # Recalculate account balance after bulk delete
+    update_account_balance(db, account_id)
+
     return {"message": f"{deleted} trades removidos", "deleted": deleted}
 
 

@@ -9,6 +9,7 @@ from app.models.user import User
 from app.models.workspace import Workspace
 from app.schemas.broker import (
     BrokerConnectionCreate,
+    BrokerConnectionUpdate,
     BrokerConnectionResponse,
     BrokerInfo,
     BrokerType
@@ -97,10 +98,40 @@ def connect_broker(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.get("/{account_id}")
+def get_broker_connection(
+    account_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Retorna uma conexÃ£o especÃ­fica por ID"""
+    workspace = db.query(Workspace).filter(
+        Workspace.owner_id == current_user.id
+    ).first()
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace nÃ£o encontrado")
+    account = db.query(Account).filter(
+        Account.id == account_id,
+        Account.workspace_id == workspace.id
+    ).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Conta nÃ£o encontrada")
+    return BrokerConnectionResponse(
+        id=str(account.id),
+        broker_type=account.broker_type,
+        account_name=account.name,
+        login=account.broker_login,
+        server=account.broker_server,
+        notes=account.notes,
+        is_active=account.is_active,
+        created_at=account.created_at
+    )
+
+
 @router.patch("/{account_id}")
 def update_broker_connection(
     account_id: str,
-    broker_data: BrokerConnectionCreate,
+    broker_data: BrokerConnectionUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -121,11 +152,18 @@ def update_broker_connection(
         if not account:
             raise HTTPException(status_code=404, detail="Conta não encontrada")
         
-        account.name = broker_data.account_name
-        account.broker_type = broker_data.broker_type.value
-        account.broker_login = broker_data.login
-        account.broker_server = broker_data.server
-        account.notes = broker_data.notes
+        if broker_data.account_name is not None:
+            account.name = broker_data.account_name
+        if broker_data.broker_type is not None:
+            account.broker_type = broker_data.broker_type.value
+        if broker_data.login is not None:
+            account.broker_login = broker_data.login
+        if broker_data.server is not None:
+            account.broker_server = broker_data.server
+        if broker_data.notes is not None:
+            account.notes = broker_data.notes
+        if broker_data.is_active is not None:
+            account.is_active = broker_data.is_active
         
         db.commit()
         db.refresh(account)

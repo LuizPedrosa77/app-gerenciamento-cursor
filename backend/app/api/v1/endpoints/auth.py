@@ -15,7 +15,7 @@ from app.core.security import (
 )
 from app.dependencies import DbSession, CurrentUser
 from app.models.user import User
-from app.models.workspace import Workspace
+from app.models.workspace import Workspace, WorkspaceMember
 from app.schemas.auth import (
     UserRegister, UserLogin, GoogleLoginRequest,
     UserResponse, TokenResponse, RefreshTokenRequest,
@@ -118,6 +118,16 @@ def register(
         owner_id=user.id
     )
     db.add(workspace)
+    db.commit()
+    db.refresh(workspace)
+
+    # Add owner as workspace member for permission checks
+    member = WorkspaceMember(
+        workspace_id=workspace.id,
+        user_id=user.id,
+        role="owner"
+    )
+    db.add(member)
     db.commit()
     
     # Create tokens

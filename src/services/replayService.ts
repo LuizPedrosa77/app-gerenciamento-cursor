@@ -2,7 +2,7 @@
  * Serviço completo de Replay de Mercado
  * Gerencia WebSocket e comunicação com backend
  */
-import { getAuthToken } from './auth';
+import { authService } from './authService';
 
 export interface ReplayConfig {
   account_id: string;
@@ -103,7 +103,7 @@ class ReplayService {
   private onErrorCallback: ((message: string) => void) | null = null;
 
   constructor() {
-    this.token = getAuthToken();
+    this.token = authService.getAccessToken();
   }
 
   /**
@@ -111,22 +111,16 @@ class ReplayService {
    */
   async createSession(config: ReplayConfig): Promise<string> {
     try {
-      const response = await fetch('/api/v1/replay/sessions', {
+      const params = new URLSearchParams();
+      params.append('account_id', config.account_id);
+      params.append('pair', config.symbol);
+      params.append('date', config.start_date);
+
+      const response = await fetch(`/api/v1/replay/sessions?${params.toString()}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${this.token}`,
         },
-        body: JSON.stringify({
-          symbol_id: config.symbol, // Temporário - deverá buscar symbol_id real
-          timeframe: config.timeframe,
-          start_time: config.start_date,
-          end_time: config.end_date,
-          mode: config.mode === 'candle' ? 'CANDLE' : 'TICK',
-          speed: config.speed,
-          auto_step: true,
-          step_interval: 1000,
-        }),
       });
 
       if (!response.ok) {
@@ -134,9 +128,10 @@ class ReplayService {
         throw new Error(error.detail || 'Failed to create replay session');
       }
 
-      const session: ReplaySession = await response.json();
-      this.sessionId = session.id;
-      return session.id;
+      const session: any = await response.json();
+      const sessionId = session.id || session.session_id;
+      this.sessionId = sessionId;
+      return sessionId;
     } catch (error) {
       console.error('Error creating replay session:', error);
       throw error;
@@ -158,7 +153,7 @@ class ReplayService {
 
     this.sessionId = sessionId;
 
-    const wsUrl = `${this.getWebSocketUrl()}/ws/replay/${sessionId}?token=${this.token}`;
+    const wsUrl = `${this.getWebSocketUrl()}/api/v1/replay/ws/${sessionId}?token=${this.token}`;
     
     try {
       this.ws = new WebSocket(wsUrl);
@@ -194,7 +189,29 @@ class ReplayService {
     }
 
     try {
-      this.ws.send(JSON.stringify(command));
+      let payload: any = null;
+      switch (command.type) {
+        case 'play':
+          payload = { action: 'start', speed: 1.0 };
+          break;
+        case 'pause':
+          payload = { action: 'pause' };
+          break;
+        case 'stop':
+          payload = { action: 'stop' };
+          break;
+        case 'seek':
+          // Backend não suporta seek; envia next como fallback
+          payload = { action: 'next' };
+          break;
+        case 'set_speed':
+          payload = { action: 'resume', speed: command.speed };
+          break;
+        default:
+          payload = command;
+      }
+
+      this.ws.send(JSON.stringify(payload));
     } catch (error) {
       console.error('Error sending command:', error);
     }
@@ -277,7 +294,8 @@ class ReplayService {
         throw new Error('Failed to list replay sessions');
       }
 
-      return await response.json();
+      const data = await response.json();
+      return data.sessions || data;
     } catch (error) {
       console.error('Error listing replay sessions:', error);
       throw error;
@@ -375,9 +393,18 @@ class ReplayService {
         }
         break;
 
+      case 'candle':
       case 'replay_candle':
         if (this.onCandleCallback) {
-          this.onCandleCallback(data);
+          this.onCandleCallback(data.candle || data);
+        }
+        if (this.onProgressCallback && data.progress !== undefined) {
+          this.onProgressCallback({
+            progress: data.progress,
+            processed_ticks: data.current || 0,
+            total_ticks: data.total || 0,
+            current_time: data.candle?.time || '',
+          });
         }
         break;
 

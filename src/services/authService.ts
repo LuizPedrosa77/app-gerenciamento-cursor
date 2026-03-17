@@ -214,16 +214,17 @@ class AuthService {
    * Verifica se o token está expirado
    */
   isTokenExpired(): boolean {
-    const userData = this.getUserData();
-    
-    if (!userData || !userData.token_expires_at) {
+    const token = this.getAccessToken();
+    if (!token) return true;
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1] || ''));
+      const exp = payload?.exp ? payload.exp * 1000 : 0;
+      if (!exp) return true;
+      return Date.now() >= exp;
+    } catch {
       return true;
     }
-    
-    const expirationTime = new Date(userData.token_expires_at).getTime();
-    const currentTime = new Date().getTime();
-    
-    return currentTime >= expirationTime;
   }
 
   /**

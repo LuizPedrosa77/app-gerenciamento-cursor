@@ -30,22 +30,22 @@ export interface MTStatusResponse {
 
 const mtconnectService = {
   connect: async (data: MTConnectRequest): Promise<MTConnectResponse> => {
-    const response = await api.post('/metaapi/connect', data);
+    const response = await api.post('/api/v1/metaapi/connect', data);
     return response.data;
   },
 
   sync: async (accountId: string): Promise<MTSyncResponse> => {
-    const response = await api.post(`/metaapi/sync/${accountId}`);
+    const response = await api.post(`/api/v1/metaapi/sync/${accountId}`);
     return response.data;
   },
 
   status: async (accountId: string): Promise<MTStatusResponse> => {
-    const response = await api.get(`/metaapi/status/${accountId}`);
+    const response = await api.get(`/api/v1/metaapi/status/${accountId}`);
     return response.data;
   },
 
   disconnect: async (accountId: string): Promise<void> => {
-    await api.delete(`/metaapi/disconnect/${accountId}`);
+    await api.delete(`/api/v1/metaapi/disconnect/${accountId}`);
   },
 };
 

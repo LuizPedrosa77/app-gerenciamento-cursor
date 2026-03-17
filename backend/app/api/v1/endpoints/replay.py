@@ -127,6 +127,12 @@ async def websocket_replay(
                 
                 if session.current_candle >= len(candles):
                     session.status = "finished"
+                    try:
+                        await websocket.send_text(ReplayMessage(
+                            type="finished"
+                        ).model_dump_json())
+                    except Exception:
+                        pass
                     
             elif control.action == "pause":
                 session.status = "paused"
@@ -199,6 +205,20 @@ def get_replay_sessions(
     ]
     
     return {"sessions": user_sessions}
+
+
+@router.get("/sessions/{session_id}")
+def get_replay_session(
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    workspace = db.query(Workspace).filter(Workspace.owner_id == current_user.id).first()
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    if session_id not in replay_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return replay_sessions[session_id]
 
 
 @router.post("/sessions")

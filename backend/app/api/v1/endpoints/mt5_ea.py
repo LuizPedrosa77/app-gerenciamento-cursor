@@ -148,7 +148,7 @@ async def sync(req: SyncRequest, db: Session = Depends(get_db)):
                 workspace_id=workspace.id,
                 date=dt.date(),
                 year=dt.year,
-                month=dt.month - 1,  # JS usa 0-indexed (Jan=0, Dez=11)
+                month=dt.month,
                 pair=t.symbol,
                 direction=direction,  # mantém direction no banco
                 lots=float(t.volume),
@@ -229,7 +229,7 @@ async def close_trade(req: CloseRequest, db: Session = Depends(get_db)):
             workspace_id=workspace.id,
             date=dt_close.date(),
             year=dt_close.year,
-            month=dt_close.month - 1,  # JS usa 0-indexed
+            month=dt_close.month,
             pair=req.symbol,
             direction=direction,
             lots=float(req.volume),
