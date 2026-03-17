@@ -217,3 +217,94 @@ def get_calendar_goals(
                 "achieved": progress >= 100
             })
     return {"goals": goals}
+
+
+@router.get("/goals/check")
+def check_goals(
+    db: DbSession,
+    current_user: User = Depends(get_current_user),
+    year: int = Query(default=None),
+    month: int = Query(default=None),
+    account_id: Optional[str] = Query(default=None)
+):
+    workspace = get_workspace(db, current_user)
+    if not workspace:
+        return {"monthly": None, "biweekly": None}
+    now = datetime.now()
+    if not year:
+        year = now.year
+    if not month:
+        month = now.month
+
+    accounts_q = db.query(Account).filter(Account.workspace_id == workspace.id)
+    if account_id:
+        accounts_q = accounts_q.filter(Account.id == account_id)
+    accounts = accounts_q.all()
+    if not accounts:
+        return {"monthly": None, "biweekly": None}
+
+    # For now, use first matched account
+    acc = accounts[0]
+    monthly_goal = float(acc.monthly_goal or 0)
+    start_month = datetime(year, month, 1)
+    end_month = datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)
+    trades_month = db.query(Trade).filter(
+        Trade.account_id == acc.id,
+        Trade.date >= start_month,
+        Trade.date < end_month
+    ).all()
+    pnl_month = sum(t.pnl or 0 for t in trades_month)
+    pct_month = (pnl_month / monthly_goal * 100) if monthly_goal > 0 else 0
+
+    # Biweekly goal: half of monthly goal, current half of month
+    half_goal = monthly_goal / 2 if monthly_goal > 0 else 0
+    mid_month = datetime(year, month, 16)
+    if now < mid_month:
+        half_start = start_month
+        half_end = mid_month
+    else:
+        half_start = mid_month
+        half_end = end_month
+    trades_half = [t for t in trades_month if t.date >= half_start.date() and t.date < half_end.date()]
+    pnl_half = sum(t.pnl or 0 for t in trades_half)
+    pct_half = (pnl_half / half_goal * 100) if half_goal > 0 else 0
+
+    return {
+        "monthly": {
+            "goal": monthly_goal,
+            "current_amount": round(pnl_month, 2),
+            "percentage": round(pct_month, 2),
+            "achieved": pct_month >= 100 if monthly_goal > 0 else False
+        },
+        "biweekly": {
+            "goal": half_goal,
+            "current_amount": round(pnl_half, 2),
+            "percentage": round(pct_half, 2),
+            "achieved": pct_half >= 100 if half_goal > 0 else False
+        }
+    }
+
+
+@router.get("/events")
+def get_calendar_events():
+    return []
+
+
+@router.post("/events")
+def create_calendar_event(event: dict):
+    return event
+
+
+@router.delete("/events/{event_id}")
+def delete_calendar_event(event_id: str):
+    return {"message": "Evento removido"}
+
+
+@router.get("/holidays")
+def get_holidays():
+    return []
+
+
+@router.get("/export")
+def export_calendar():
+    return {"message": "Export nÃ£o implementado"}

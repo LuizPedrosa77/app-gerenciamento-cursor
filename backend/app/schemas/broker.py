@@ -20,6 +20,15 @@ class BrokerConnectionCreate(BaseModel):
     notes: Optional[str] = None
 
 
+class BrokerConnectionUpdate(BaseModel):
+    broker_type: Optional[BrokerType] = None
+    account_name: Optional[str] = None
+    login: Optional[str] = None
+    server: Optional[str] = None
+    notes: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
 class BrokerConnectionResponse(BaseModel):
     id: str
     broker_type: str

@@ -76,8 +76,8 @@ class CalendarService {
         params.append('account_id', accountId);
       }
 
-      const response = await api.get<MonthData>(`/api/v1/calendar/data?${params}`);
-      return response.data;
+      const response = await api.get<any>(`/api/v1/calendar/data?${params}`);
+      return (response.data?.data || response.data) as MonthData;
     } catch (error) {
       console.error('Get month data error:', error);
       throw error;
@@ -190,8 +190,8 @@ class CalendarService {
     try {
       const params = accountId ? `?account_id=${accountId}` : '';
       
-      const response = await api.get<Goal[]>(`/api/v1/calendar/goals${params}`);
-      return response.data;
+      const response = await api.get<any>(`/api/v1/calendar/goals${params}`);
+      return response.data?.goals || response.data || [];
     } catch (error) {
       console.error('Get goals error:', error);
       throw error;
@@ -299,8 +299,8 @@ class CalendarService {
         params.append('account_id', accountId);
       }
 
-      const response = await api.get<any[]>(`/api/v1/calendar/heatmap?${params}`);
-      return response.data;
+      const response = await api.get<any>(`/api/v1/calendar/heatmap?${params}`);
+      return response.data?.heatmap || response.data || [];
     } catch (error) {
       console.error('Get heatmap data error:', error);
       throw error;

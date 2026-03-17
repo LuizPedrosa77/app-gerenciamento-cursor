@@ -17,7 +17,7 @@ from app.core.mtconnect import (
     parse_deal_to_trade,
     get_last_ticket
 )
-from app.core.security import hash_password
+import re
 import uuid
 
 router = APIRouter()
@@ -72,7 +72,7 @@ def connect_mt_account(
         broker_type=request.platform.upper(),
         broker_login=request.login,
         broker_server=request.server,
-        investor_password=hash_password(request.investor_password),
+        investor_password=request.investor_password,
         is_active=True,
         balance=0,
         initial_balance=0
@@ -155,6 +155,11 @@ def sync_mt_history(
         raise HTTPException(
             status_code=400,
             detail="Investor password não configurada. Reconecte a conta."
+        )
+    if re.match(r"^\$2[aby]\$", str(account.investor_password)):
+        raise HTTPException(
+            status_code=400,
+            detail="Investor password criptografada. Reconecte a conta para sincronizar."
         )
 
     last_ticket = int(account.mt_last_ticket) if account.mt_last_ticket else 0

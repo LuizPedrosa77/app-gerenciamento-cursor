@@ -28,12 +28,22 @@ const tradeService = {
   },
 
   create: async (payload: Partial<APITrade>): Promise<APITrade> => {
-    const { data } = await api.post('/api/v1/trades', payload);
+    const body: any = { ...payload };
+    if (body.dir && !body.direction) {
+      body.direction = body.dir;
+      delete body.dir;
+    }
+    const { data } = await api.post('/api/v1/trades', body);
     return data;
   },
 
   update: async (id: string, payload: Partial<APITrade>): Promise<APITrade> => {
-    const { data } = await api.patch(`/api/v1/trades/${id}`, payload);
+    const body: any = { ...payload };
+    if (body.dir && !body.direction) {
+      body.direction = body.dir;
+      delete body.dir;
+    }
+    const { data } = await api.patch(`/api/v1/trades/${id}`, body);
     return data;
   },
 

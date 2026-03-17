@@ -75,7 +75,7 @@ function apiTradeToLocal(t: APITrade): Trade {
   return {
     id: t.id,
     year: t.year,
-    month: t.month,
+    month: typeof t.month === 'number' ? Math.max(0, t.month - 1) : t.month,
     date: normalizedDate,
     time: timePart, // hora preservada ex: "10:30"
     pair: t.pair,

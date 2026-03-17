@@ -107,7 +107,7 @@ class ProfileService {
    */
   async getProfile(): Promise<UserProfile> {
     try {
-      const response = await api.get<UserProfile>('/api/v1/profiles/me');
+      const response = await api.get<UserProfile>('/api/v1/profile');
       return response.data;
     } catch (error) {
       console.error('Get profile error:', error);
@@ -120,7 +120,7 @@ class ProfileService {
    */
   async updateProfile(data: UpdateProfileData): Promise<UserProfile> {
     try {
-      const response = await api.put<UserProfile>('/api/v1/profiles/me', data);
+      const response = await api.patch<UserProfile>('/api/v1/profile', data);
       return response.data;
     } catch (error) {
       console.error('Update profile error:', error);
@@ -177,7 +177,7 @@ class ProfileService {
    */
   async getPreferences(): Promise<UserPreferences> {
     try {
-      const response = await api.get<UserPreferences>('/api/v1/profiles/preferences');
+      const response = await api.get<UserPreferences>('/api/v1/profile/preferences');
       return response.data;
     } catch (error) {
       console.error('Get preferences error:', error);
@@ -190,7 +190,7 @@ class ProfileService {
    */
   async updatePreferences(data: Partial<UserPreferences>): Promise<UserPreferences> {
     try {
-      const response = await api.put<UserPreferences>('/api/v1/profiles/preferences', data);
+      const response = await api.patch<UserPreferences>('/api/v1/profile/preferences', data);
       return response.data;
     } catch (error) {
       console.error('Update preferences error:', error);
