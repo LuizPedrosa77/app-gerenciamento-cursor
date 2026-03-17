@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useGPFX, apiTradeToLocal } from '@/contexts/GPFXContext';
 import {
   MONTHS_FULL, WEEKDAYS, PAIRS, DIRECTIONS, RESULTS,
-  sumPnl, fmtNum, signedPnl, getWinRate, getTradePnl, uid, Trade, getAccountBalance,
+  sumPnl, fmtNum, getWinRate, getTradePnl, Trade,
 } from '@/lib/gpfx-utils';
 import {
   ChevronLeft, ChevronRight, Plus, Calendar, Camera,
@@ -17,6 +17,8 @@ import { ScreenshotModal } from '@/components/ScreenshotModal';
 import { AccountSelector } from '@/components/GPFXFilters';
 import tradeService from '@/services/tradeService';
 import dailyNoteService from '@/services/dailyNoteService';
+import calendarService from '@/services/calendarService';
+import { api } from '@/services/api';
 import { setChartGoto } from '@/lib/chart-goto';
 
 /* ── Modal ── */
@@ -170,6 +172,21 @@ function pairToSymbol(pair: string): string {
   return map[pair] || 'FX:' + pair.replace('/', '');
 }
 
+function dataUrlToFile(dataUrl: string, filename: string): File | null {
+  if (!dataUrl.startsWith('data:')) return null;
+  const parts = dataUrl.split(',');
+  if (parts.length < 2) return null;
+  const header = parts[0];
+  const base64 = parts[1];
+  const mimeMatch = header.match(/data:(.*?);base64/);
+  const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+  const binary = atob(base64);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+  return new File([bytes], filename, { type: mime });
+}
+
 interface CalendarioPageProps {
   onNavigateView: (view: string) => void;
 }
@@ -177,8 +194,8 @@ interface CalendarioPageProps {
 export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) {
   const { state, activeAcc, updateTrade } = useGPFX();
   const [accFilter, setAccFilter] = useState<string>(String(state.activeAccount));
-  const acc = accFilter === 'all' ? activeAcc : (state.accounts[parseInt(accFilter)] || activeAcc);
   const now = new Date();
+  const noteSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const [calYear, setCalYear] = useState(state.activeYear);
   const [calMonth, setCalMonth] = useState(state.activeMonth);
@@ -190,6 +207,22 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
   const [screenshotModal, setScreenshotModal] = useState<{ open: boolean; trade: Trade | null }>({ open: false, trade: null });
   const [monthTrades, setMonthTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(false);
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const [monthSummary, setMonthSummary] = useState<any | null>(null);
+  const [streaks, setStreaks] = useState<{ current_streak: number; best_streak: number } | null>(null);
+
+  const selectedAccounts = useMemo(() => {
+    if (accFilter === 'all') return state.accounts;
+    return [state.accounts[parseInt(accFilter)]].filter(Boolean);
+  }, [state.accounts, accFilter]);
+  const selectedApiIds = useMemo(
+    () => selectedAccounts.map(a => (a as any)._apiId).filter(Boolean) as string[],
+    [selectedAccounts]
+  );
+  const selectedAccount = accFilter === 'all' ? null : (selectedAccounts[0] || activeAcc);
+  const isAllAccounts = accFilter === 'all';
+  const aggregatedMonthlyGoal = selectedAccounts.reduce((sum, a) => sum + Number(a.monthlyGoal || 0), 0);
+  const aggregatedBalance = selectedAccounts.reduce((sum, a) => sum + Number(a.balance || 0), 0);
 
   // Review day: default to yesterday
   const [reviewDate, setReviewDate] = useState(() => {
@@ -198,56 +231,107 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
   });
 
   const saveNote = useCallback(async (date: string, text: string) => {
-    const accountId = (acc as any)._apiId;
+    const accountId = selectedAccount ? (selectedAccount as any)._apiId : null;
     if (!accountId) return;
     const res = await dailyNoteService.upsert({ date, note: text, account_id: accountId });
     setDailyNotes(prev => ({ ...prev, [date]: { id: res.id, note: res.note } }));
-  }, [acc]);
+  }, [selectedAccount]);
+
+  const queueNoteSave = useCallback((date: string, text: string) => {
+    setNoteDrafts(prev => ({ ...prev, [date]: text }));
+    if (noteSaveTimers.current[date]) {
+      clearTimeout(noteSaveTimers.current[date]);
+    }
+    noteSaveTimers.current[date] = setTimeout(() => {
+      saveNote(date, text).catch(err => console.error('Failed to save daily note', err));
+    }, 500);
+  }, [saveNote]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(noteSaveTimers.current).forEach(clearTimeout);
+    };
+  }, []);
+
+  useEffect(() => {
+    Object.values(noteSaveTimers.current).forEach(clearTimeout);
+    noteSaveTimers.current = {};
+  }, [selectedAccount]);
 
   // Month trades (from backend)
   const loadMonthData = useCallback(async () => {
     setLoading(true);
     try {
-      const accountIds: string[] = [];
-      if (accFilter === 'all') {
-        state.accounts.forEach(a => {
-          const apiId = (a as any)._apiId;
-          if (apiId) accountIds.push(apiId);
-        });
-      } else {
-        const accSel = state.accounts[parseInt(accFilter)];
-        const apiId = accSel ? (accSel as any)._apiId : null;
-        if (apiId) accountIds.push(apiId);
-      }
+      const accountIds = selectedApiIds;
+      const PAGE_SIZE = 1000;
 
-      let allTrades: Trade[] = [];
-      for (const id of accountIds) {
-        const res = await tradeService.list(id, 0, 10000, calYear, calMonth + 1);
-        const rawItems = res.items || res;
-        allTrades = allTrades.concat(rawItems.map(apiTradeToLocal));
-      }
+      const loadAccountMonthTrades = async (id: string): Promise<Trade[]> => {
+        let skip = 0;
+        let all: Trade[] = [];
+        while (true) {
+          const res = await tradeService.list(id, skip, PAGE_SIZE, calYear, calMonth + 1);
+          const rawItems = res.items || [];
+          const mapped = rawItems.map(apiTradeToLocal);
+          all = all.concat(mapped);
+          if (mapped.length < PAGE_SIZE) break;
+          skip += PAGE_SIZE;
+        }
+        return all;
+      };
+
+      const allByAccount = await Promise.all(accountIds.map(loadAccountMonthTrades));
+      const allTrades = allByAccount.flat();
       setMonthTrades(allTrades);
 
-      const noteAccountId = (acc as any)._apiId;
+      const summaryAccountId = selectedApiIds.length === 1 ? selectedApiIds[0] : undefined;
+      const [summaryRes, streakRes] = await Promise.all([
+        calendarService.getMonthSummary(calYear, calMonth + 1, summaryAccountId),
+        calendarService.getStreaks(calYear, calMonth + 1, summaryAccountId),
+      ]);
+      setMonthSummary(summaryRes || null);
+      setStreaks(streakRes || null);
+
+      const noteAccountId = selectedAccount ? (selectedAccount as any)._apiId : null;
       if (noteAccountId) {
         const notes = await dailyNoteService.list(noteAccountId, calYear, calMonth + 1);
         const noteMap: Record<string, { id?: string; note: string }> = {};
         notes.forEach(n => { noteMap[n.date] = { id: n.id, note: n.note }; });
         setDailyNotes(noteMap);
+        setNoteDrafts(Object.fromEntries(Object.entries(noteMap).map(([d, v]) => [d, v.note])));
+      } else {
+        setDailyNotes({});
+        setNoteDrafts({});
       }
     } catch (err) {
       console.error('Failed to load calendar data', err);
     } finally {
       setLoading(false);
     }
-  }, [accFilter, state.accounts, calYear, calMonth, acc]);
+  }, [selectedApiIds, calYear, calMonth, selectedAccount]);
 
   useEffect(() => {
     loadMonthData();
   }, [loadMonthData]);
 
+  useEffect(() => {
+    const today = new Date();
+    const isCurrentMonth = today.getFullYear() === calYear && today.getMonth() === calMonth;
+    if (isCurrentMonth) {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      setReviewDate(d.toISOString().split('T')[0]);
+      return;
+    }
+    const lastDay = new Date(calYear, calMonth + 1, 0);
+    setReviewDate(lastDay.toISOString().split('T')[0]);
+  }, [calYear, calMonth]);
+
   const monthPnl = sumPnl(monthTrades);
   const daysOperated = new Set(monthTrades.map(t => t.date)).size;
+  const summaryTrades = monthSummary?.total_trades ?? monthTrades.length;
+  const summaryWinRate = monthSummary?.win_rate ?? getWinRate(monthTrades);
+  const summaryPnl = monthSummary?.total_pnl ?? monthPnl;
+  const summaryDays = monthSummary?.trading_days ?? daysOperated;
 
   // Build calendar grid
   const calendarData = useMemo(() => {
@@ -329,7 +413,7 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
       const dd = peak - running;
       if (dd > maxDD) maxDD = dd;
     });
-    const ddScore = Math.max(0, Math.min(100, 100 - (maxDD / (acc.balance || 1)) * 200));
+    const ddScore = Math.max(0, Math.min(100, 100 - (maxDD / (aggregatedBalance || 1)) * 200));
 
     // Recovery factor
     const totalPnl = sumPnl(trades);
@@ -345,7 +429,7 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
     ];
     const score = Math.round(axes.reduce((s, a) => s + a.value, 0) / axes.length);
     return { axes, score };
-  }, [monthTrades, acc.balance]);
+  }, [monthTrades, aggregatedBalance]);
 
   // Cumulative P&L chart
   const cumPnlData = useMemo(() => {
@@ -428,10 +512,14 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
   };
 
   const handleAddTrade = async (data: Partial<Trade>) => {
-    const apiId = (acc as any)._apiId;
-    if (!apiId) return;
+    const apiId = selectedAccount ? (selectedAccount as any)._apiId : null;
+    if (!apiId) {
+      alert('Selecione uma conta específica para adicionar trade.');
+      return;
+    }
     const d = new Date((data.date || '') + 'T12:00:00');
-    await tradeService.create({
+    const normalizedPnl = Math.abs(Number(data.pnl || 0)) * ((data.result || 'WIN') === 'LOSS' ? -1 : 1);
+    const created = await tradeService.create({
       account_id: apiId,
       year: d.getFullYear(),
       month: d.getMonth() + 1,
@@ -440,12 +528,19 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
       dir: data.dir || 'BUY',
       lots: data.lots || 0.1,
       result: data.result || 'WIN',
-      pnl: data.pnl || 0,
+      pnl: normalizedPnl,
       has_vm: false,
       vm_lots: 0,
       vm_result: 'WIN',
       vm_pnl: 0,
-    } as any);
+    });
+    const screenshotData = data.screenshot?.data;
+    if (created?.id && screenshotData && typeof screenshotData === 'string') {
+      const file = dataUrlToFile(screenshotData, `trade-${created.id}.png`);
+      if (file) {
+        await api.upload(`/api/v1/screenshots/upload/${created.id}`, file);
+      }
+    }
     loadMonthData();
   };
 
@@ -463,7 +558,7 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
     <div className="page-fade-in flex flex-col gap-5 max-w-[1600px] mx-auto p-6">
       {/* Goal Achievement Banners */}
       {(() => {
-        const goal = acc.monthlyGoal || 0;
+        const goal = aggregatedMonthlyGoal || 0;
         if (goal <= 0) return null;
         const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
         const midMonth = 15;
@@ -515,11 +610,18 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
           <span className="text-xs" style={{ color: 'var(--gpfx-text-muted)' }}>{daysOperated} dias operados</span>
         </div>
         <button className="btn-gpfx btn-gpfx-primary text-xs" onClick={() => {
+          if (isAllAccounts) {
+            alert('Selecione uma conta específica para adicionar trade.');
+            return;
+          }
           const mm = String(calMonth + 1).padStart(2, '0');
           const dd = String(now.getDate()).padStart(2, '0');
           setAddTradeDate(`${calYear}-${mm}-${dd}`);
           setAddTradeModal(true);
-        }}>
+        }}
+          disabled={isAllAccounts}
+          style={isAllAccounts ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+        >
           <Plus size={14} /> Novo Trade
         </button>
       </div>
@@ -633,7 +735,7 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
 
       {/* Meta Quinzenal e Mensal */}
       {(() => {
-        const goal = acc.monthlyGoal || 0;
+        const goal = aggregatedMonthlyGoal || 0;
         if (goal <= 0) return null;
         const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
         const biweeklyGoal = goal / 2;
@@ -696,19 +798,19 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <div className="text-[10px] font-bold uppercase" style={{ color: 'var(--gpfx-text-muted)' }}>Total de Trades</div>
-              <div className="text-lg font-black" style={{ color: 'var(--gpfx-text-primary)' }}>{monthTrades.length}</div>
+              <div className="text-lg font-black" style={{ color: 'var(--gpfx-text-primary)' }}>{summaryTrades}</div>
             </div>
             <div>
               <div className="text-[10px] font-bold uppercase" style={{ color: 'var(--gpfx-text-muted)' }}>Win Rate</div>
-              <div className="text-lg font-black" style={{ color: '#f59e0b' }}>{getWinRate(monthTrades)}%</div>
+              <div className="text-lg font-black" style={{ color: '#f59e0b' }}>{summaryWinRate}%</div>
             </div>
             <div>
               <div className="text-[10px] font-bold uppercase" style={{ color: 'var(--gpfx-text-muted)' }}>P&L Total</div>
-              <div className="text-lg font-black" style={{ color: monthPnl >= 0 ? '#00d395' : '#ff4d4d' }}>{monthPnl >= 0 ? '+' : ''}${fmtNum(monthPnl)}</div>
+              <div className="text-lg font-black" style={{ color: summaryPnl >= 0 ? '#00d395' : '#ff4d4d' }}>{summaryPnl >= 0 ? '+' : ''}${fmtNum(summaryPnl)}</div>
             </div>
             <div>
               <div className="text-[10px] font-bold uppercase" style={{ color: 'var(--gpfx-text-muted)' }}>Dias Operados</div>
-              <div className="text-lg font-black" style={{ color: 'var(--gpfx-text-primary)' }}>{daysOperated}</div>
+              <div className="text-lg font-black" style={{ color: 'var(--gpfx-text-primary)' }}>{summaryDays}</div>
             </div>
           </div>
         </div>
@@ -741,7 +843,7 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs" style={{ color: 'var(--gpfx-text-muted)' }}>Maior seq. de wins</span>
-                  <span className="text-sm font-bold" style={{ color: '#00d395' }}>{maxWins} dias</span>
+                  <span className="text-sm font-bold" style={{ color: '#00d395' }}>{streaks?.best_streak ?? maxWins} dias</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs" style={{ color: 'var(--gpfx-text-muted)' }}>Maior seq. de losses</span>
@@ -753,7 +855,7 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{
                       color: currentType === 'WIN' ? '#00d395' : '#ff4d4d',
                       background: currentType === 'WIN' ? 'rgba(0,211,149,0.15)' : 'rgba(255,77,77,0.15)',
-                    }}>{currentCount} {currentType === 'WIN' ? 'wins' : 'losses'}</span>
+                    }}>{streaks?.current_streak ?? currentCount} {currentType === 'WIN' ? 'wins' : 'losses'}</span>
                   ) : (
                     <span className="text-xs" style={{ color: 'var(--gpfx-text-muted)' }}>—</span>
                   )}
@@ -918,9 +1020,10 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
             <textarea
               className="gpfx-input w-full text-xs"
               style={{ minHeight: 80, resize: 'vertical' }}
-              placeholder="O que você aprendeu hoje? Como foi sua disciplina e emocional?"
-              value={dailyNotes[reviewDate]?.note || ''}
-              onChange={e => saveNote(reviewDate, e.target.value)}
+              placeholder={isAllAccounts ? 'Selecione uma conta específica para anotações diárias.' : 'O que você aprendeu hoje? Como foi sua disciplina e emocional?'}
+              value={noteDrafts[reviewDate] ?? dailyNotes[reviewDate]?.note ?? ''}
+              onChange={e => queueNoteSave(reviewDate, e.target.value)}
+              disabled={isAllAccounts}
             />
           </div>
         </div>
@@ -936,8 +1039,15 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
             </span>
             <div className="flex gap-2">
               <button className="btn-gpfx btn-gpfx-primary text-xs" onClick={() => {
+                if (isAllAccounts) {
+                  alert('Selecione uma conta específica para adicionar trade.');
+                  return;
+                }
                 if (dayModal) { setAddTradeDate(dayModal); setAddTradeModal(true); setDayModal(null); }
-              }}>+ Adicionar trade neste dia</button>
+              }}
+                disabled={isAllAccounts}
+                style={isAllAccounts ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+              >+ Adicionar trade neste dia</button>
             </div>
           </div>
         }>
@@ -1009,7 +1119,10 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
         open={screenshotModal.open}
         onClose={() => setScreenshotModal({ open: false, trade: null })}
         trade={screenshotModal.trade}
-        onSave={(tradeId, screenshot) => updateTrade(tradeId, 'screenshot', screenshot)}
+        onSave={(tradeId, screenshot) => {
+          updateTrade(tradeId, 'screenshot', screenshot);
+          setTimeout(() => { loadMonthData(); }, 250);
+        }}
       />
     </div>
   );

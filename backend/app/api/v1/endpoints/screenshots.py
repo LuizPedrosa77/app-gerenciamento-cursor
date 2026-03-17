@@ -1,12 +1,14 @@
 import uuid
 import os
+import io
 from datetime import datetime
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.database import get_db
-from app.core.minio import get_minio_client
+from app.core.minio import get_minio_client, ensure_bucket_exists
 from app.models.trade import Trade
 from app.models.workspace import Workspace
 from app.models.user import User
@@ -61,6 +63,7 @@ async def upload_screenshot(
     object_name = f"screenshots/{trade.workspace_id}/{trade_id}/{unique_filename}"
     
     try:
+        ensure_bucket_exists(minio_client, bucket_name)
         # Ler conteúdo do arquivo
         file_content = await file.read()
         
@@ -68,7 +71,7 @@ async def upload_screenshot(
         minio_client.put_object(
             bucket_name=bucket_name,
             object_name=object_name,
-            data=file_content,
+            data=io.BytesIO(file_content),
             length=len(file_content),
             content_type=file.content_type
         )
@@ -86,7 +89,11 @@ async def upload_screenshot(
             "url": url,
             "created_at": datetime.utcnow().isoformat()
         }
-        trade.screenshots.append(screenshot_data)
+        updated_screenshots = list(trade.screenshots)
+        updated_screenshots.append(screenshot_data)
+        trade.screenshots = updated_screenshots
+        trade.screenshot_url = url
+        flag_modified(trade, "screenshots")
         db.commit()
         
         return ScreenshotResponse(
@@ -146,6 +153,9 @@ async def delete_screenshot(
                 s for s in trade.screenshots 
                 if s.get("filename") != filename
             ]
+            if trade.screenshot_url and filename in trade.screenshot_url:
+                trade.screenshot_url = trade.screenshots[-1].get("url") if trade.screenshots else None
+            flag_modified(trade, "screenshots")
             db.commit()
         
         return {"message": "Screenshot removido"}

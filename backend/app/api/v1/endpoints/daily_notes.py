@@ -47,18 +47,13 @@ def get_daily_notes(
         query = query.filter(DailyNote.account_id == account_id)
     
     if year and month:
-        query = query.filter(
-            DailyNote.date.between(
-                date(year, month, 1),
-                date(year, month + 1, 1) if month < 12 else date(year + 1, 1, 1)
-            )
-        )
+        start = date(year, month, 1)
+        end = date(year, month + 1, 1) if month < 12 else date(year + 1, 1, 1)
+        query = query.filter(DailyNote.date >= start, DailyNote.date < end)
     elif year:
         query = query.filter(
-            DailyNote.date.between(
-                date(year, 1, 1),
-                date(year + 1, 1, 1)
-            )
+            DailyNote.date >= date(year, 1, 1),
+            DailyNote.date < date(year + 1, 1, 1)
         )
     
     daily_notes = query.order_by(DailyNote.date.desc()).all()
