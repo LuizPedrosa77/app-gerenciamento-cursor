@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useGPFX, apiTradeToLocal } from '@/contexts/GPFXContext';
 import { MONTHS_FULL, WEEKDAYS, Trade, sumPnl, fmtNum, getWinRate, getTradePnl, getWeekOfMonth } from '@/lib/gpfx-utils';
 import tradeService from '@/services/tradeService';
-import { AccountSelector, DateRangeFilter, DateRange, filterTradesByRange } from '@/components/GPFXFilters';
+import { AccountSelector, DateRangeFilter, DateRange } from '@/components/GPFXFilters';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, LineChart, Line,
@@ -18,10 +18,21 @@ const tooltipStyle = { background: '#0f172a', border: '1px solid rgba(255,255,25
 function pnlColor(v: number) { return v >= 0 ? GREEN : RED; }
 function pnlSign(v: number) { return (v >= 0 ? '+$' : '-$') + fmtNum(Math.abs(v)); }
 
+function buildSafeRect(props: any, fill: string) {
+  const x = Number(props?.x ?? 0);
+  const y = Number(props?.y ?? 0);
+  const rawWidth = Number(props?.width ?? 0);
+  const rawHeight = Number(props?.height ?? 0);
+  const width = Number.isFinite(rawWidth) ? Math.max(0, Math.abs(rawWidth)) : 0;
+  const height = Number.isFinite(rawHeight) ? Math.max(0, Math.abs(rawHeight)) : 0;
+  const safeX = rawWidth < 0 ? x + rawWidth : x;
+  const safeY = rawHeight < 0 ? y + rawHeight : y;
+  return <rect x={safeX} y={safeY} width={width} height={height} fill={fill} rx={4} />;
+}
+
 // ── Reusable bar shape that colors by pnl ──
 function PnlBarShape(props: any) {
-  const { x, y, width, height, payload } = props;
-  return <rect x={x} y={y} width={width} height={Math.abs(height)} fill={pnlColor(payload.pnl)} rx={4} />;
+  return buildSafeRect(props, pnlColor(props.payload?.pnl || 0));
 }
 
 // ── Reusable Best/Worst card ──
@@ -54,6 +65,23 @@ export default function AnalisePage() {
 
   useEffect(() => {
     let active = true;
+    const PAGE_SIZE = 1000;
+
+    const loadAccountTrades = async (accountId: string, startDate?: string, endDate?: string): Promise<Trade[]> => {
+      let skip = 0;
+      let allItems: Trade[] = [];
+
+      while (true) {
+        const res = await tradeService.list(accountId, skip, PAGE_SIZE, undefined, undefined, startDate, endDate);
+        const items = (res.items || []).map(apiTradeToLocal);
+        allItems = allItems.concat(items);
+        if (items.length < PAGE_SIZE) break;
+        skip += PAGE_SIZE;
+      }
+
+      return allItems;
+    };
+
     const loadAllParams = async () => {
       setLoading(true);
       try {
@@ -69,32 +97,32 @@ export default function AnalisePage() {
           if (apiId) fetchAccIds.push(apiId);
         }
 
-        let allT: Trade[] = [];
+        if (fetchAccIds.length === 0) {
+          if (active) setFetchedTrades([]);
+          return;
+        }
+
         const startDate = dateRange.start || undefined;
         const endDate = dateRange.end || undefined;
-        for (const id of fetchAccIds) {
-          const res = await tradeService.list(id, 0, 10000, undefined, undefined, startDate, endDate);
-          const rawItems = res.items || res;
-          const portion = rawItems.map(apiTradeToLocal);
-          allT = allT.concat(portion);
-        }
+        const allByAccount = await Promise.all(
+          fetchAccIds.map((id) => loadAccountTrades(id, startDate, endDate))
+        );
+        const allT = allByAccount.flat();
 
         if (active) {
           setFetchedTrades(allT);
         }
       } catch (err) {
-        console.error("Failed to load trades for analysis", err);
+        console.error('Failed to load trades for analysis', err);
       } finally {
         if (active) setLoading(false);
       }
     };
     loadAllParams();
     return () => { active = false; };
-  }, [state.accounts, accFilter, dateRange]);
+  }, [state.accounts, accFilter, dateRange.start, dateRange.end]);
 
-  const filteredTrades = useMemo(() => {
-    return filterTradesByRange(fetchedTrades, dateRange);
-  }, [fetchedTrades, dateRange]);
+  const filteredTrades = fetchedTrades;
 
   const analytics = useMemo(() => {
     const trades = filteredTrades;
@@ -125,7 +153,8 @@ export default function AnalisePage() {
     // ─── 3. POR MÊS ───
     const monthMap: Record<string, number> = {};
     trades.forEach(t => {
-      const key = `${MONTHS_FULL[t.month]} ${t.year}`;
+      const monthName = MONTHS_FULL[t.month] || `M${t.month + 1}`;
+      const key = `${monthName} ${t.year}`;
       monthMap[key] = (monthMap[key] || 0) + getTradePnl(t);
     });
     const monthData = Object.entries(monthMap).map(([name, pnl]) => ({ name, pnl: parseFloat(pnl.toFixed(2)) })).sort((a, b) => b.pnl - a.pnl);
@@ -303,8 +332,7 @@ export default function AnalisePage() {
                   <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [pnlSign(v), 'P&L']} />
                   <Bar dataKey="pnl" radius={[0, 4, 4, 0]}
                     shape={(props: any) => {
-                      const { x, y, width, height, payload } = props;
-                      return <rect x={x} y={y} width={Math.abs(width)} height={height} fill={pnlColor(payload.pnl)} rx={4} />;
+                      return buildSafeRect(props, pnlColor(props.payload?.pnl || 0));
                     }}
                   />
                 </BarChart>
@@ -358,8 +386,7 @@ export default function AnalisePage() {
                       <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [pnlSign(v), 'P&L']} />
                       <Bar dataKey="pnl" radius={[0, 4, 4, 0]}
                         shape={(props: any) => {
-                          const { x, y, width, height, payload } = props;
-                          return <rect x={x} y={y} width={Math.abs(width)} height={height} fill={pnlColor(payload.pnl)} rx={4} />;
+                          return buildSafeRect(props, pnlColor(props.payload?.pnl || 0));
                         }}
                       />
                     </BarChart>
