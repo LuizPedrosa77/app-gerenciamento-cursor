@@ -3,10 +3,10 @@ import { useGPFX, apiTradeToLocal } from '@/contexts/GPFXContext';
 import { MONTHS, YEARS, sumPnl, fmtNum, Trade } from '@/lib/gpfx-utils';
 import tradeService from '@/services/tradeService';
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, Area, AreaChart, Legend,
 } from 'recharts';
-import { AccountSelector, DateRangeFilter, DateRange, filterTradesByRange } from '@/components/GPFXFilters';
+import { AccountSelector, DateRangeFilter, DateRange } from '@/components/GPFXFilters';
 
 function KpiCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
   return (
@@ -18,10 +18,27 @@ function KpiCard({ label, value, sub, color }: { label: string; value: string; s
   );
 }
 
+function normalizeRectSize(value: number) {
+  return Number.isFinite(value) ? Math.max(0, Math.abs(value)) : 0;
+}
+
+function buildSafeRect(props: any, fill: string) {
+  const x = Number(props?.x ?? 0);
+  const y = Number(props?.y ?? 0);
+  const rawWidth = Number(props?.width ?? 0);
+  const rawHeight = Number(props?.height ?? 0);
+  const width = normalizeRectSize(rawWidth);
+  const height = normalizeRectSize(rawHeight);
+  const safeX = rawWidth < 0 ? x + rawWidth : x;
+  const safeY = rawHeight < 0 ? y + rawHeight : y;
+
+  return <rect x={safeX} y={safeY} width={width} height={height} fill={fill} rx={4} />;
+}
+
 export default function EvolucaoPage() {
   const { state } = useGPFX();
-  const [accFilter, setAccFilter] = useState<string>(String(state.activeAccount));
-  const [yearFilter, setYearFilter] = useState<string>(String(state.activeYear));
+  const [accFilter, setAccFilter] = useState<string>('all');
+  const [yearFilter, setYearFilter] = useState<string>('all');
   const [tab, setTab] = useState<'overview' | 'monthly'>('overview');
   const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
   const [fetchedTrades, setFetchedTrades] = useState<Trade[]>([]);
@@ -29,6 +46,23 @@ export default function EvolucaoPage() {
 
   useEffect(() => {
     let active = true;
+    const PAGE_SIZE = 1000;
+
+    const loadAccountTrades = async (accountId: string, startDate?: string, endDate?: string): Promise<Trade[]> => {
+      let skip = 0;
+      let allItems: Trade[] = [];
+
+      while (true) {
+        const res = await tradeService.list(accountId, skip, PAGE_SIZE, undefined, undefined, startDate, endDate);
+        const items = (res.items || []).map(apiTradeToLocal);
+        allItems = allItems.concat(items);
+        if (items.length < PAGE_SIZE) break;
+        skip += PAGE_SIZE;
+      }
+
+      return allItems;
+    };
+
     const loadAllTrades = async () => {
       setLoading(true);
       try {
@@ -44,37 +78,39 @@ export default function EvolucaoPage() {
           if (apiId) fetchAccIds.push(apiId);
         }
 
-        let allT: Trade[] = [];
+        if (fetchAccIds.length === 0) {
+          if (active) setFetchedTrades([]);
+          return;
+        }
+
         const startDate = dateRange.start || undefined;
         const endDate = dateRange.end || undefined;
-        for (const id of fetchAccIds) {
-          const res = await tradeService.list(id, 0, 10000, undefined, undefined, startDate, endDate);
-          const rawItems = res.items || res;
-          allT = allT.concat(rawItems.map(apiTradeToLocal));
-        }
+        const tradesByAccount = await Promise.all(
+          fetchAccIds.map((id) => loadAccountTrades(id, startDate, endDate))
+        );
+        const allT = tradesByAccount.flat();
 
         if (active) {
           setFetchedTrades(allT);
         }
       } catch (err) {
-        console.error("Falha ao carregar trades para evolução", err);
+        console.error('Falha ao carregar trades para evolucao', err);
       } finally {
         if (active) setLoading(false);
       }
     };
     loadAllTrades();
     return () => { active = false; };
-  }, [state.accounts, accFilter, dateRange]);
+  }, [state.accounts, accFilter, dateRange.start, dateRange.end]);
 
   const data = useMemo(() => {
     const isAll = accFilter === 'all';
-    const accounts = isAll ? state.accounts : [state.accounts[parseInt(accFilter)]];
-    let allTrades = fetchedTrades;
-    allTrades = filterTradesByRange(allTrades, dateRange);
-    const baseBalance = accounts.reduce((s, a) => s + a.balance, 0);
+    const accounts = isAll ? state.accounts : [state.accounts[parseInt(accFilter)]].filter(Boolean);
+    const allTrades = fetchedTrades;
+    const baseBalance = accounts.reduce((s, a) => s + Number((a as any).initialBalance || 0), 0);
 
     const filterYear = yearFilter === 'all' ? null : parseInt(yearFilter);
-    const trades = allTrades;
+    const trades = filterYear ? allTrades.filter(t => t.year === filterYear) : allTrades;
 
     const years = filterYear
       ? [filterYear]
@@ -82,10 +118,16 @@ export default function EvolucaoPage() {
 
     if (years.length === 0 && filterYear) {
       return {
-        labels: MONTHS, monthPnls: MONTHS.map(() => 0), monthPcts: MONTHS.map(() => 0),
-        cumPcts: [], balanceEvo: [], winRates: MONTHS.map(() => 0),
-        monthWins: MONTHS.map(() => 0), monthLosses: MONTHS.map(() => 0),
-        monthCounts: MONTHS.map(() => 0), baseBalance,
+        labels: MONTHS,
+        monthPnls: MONTHS.map(() => 0),
+        monthPcts: MONTHS.map(() => 0),
+        cumPcts: MONTHS.map(() => 0),
+        balanceEvo: MONTHS.map(() => baseBalance),
+        winRates: MONTHS.map(() => 0),
+        monthWins: MONTHS.map(() => 0),
+        monthLosses: MONTHS.map(() => 0),
+        monthCounts: MONTHS.map(() => 0),
+        baseBalance,
       };
     }
 
@@ -100,7 +142,7 @@ export default function EvolucaoPage() {
     (years.length > 0 ? years : [state.activeYear]).forEach(y => {
       MONTHS.forEach((mName, mi) => {
         const mt = trades.filter(t => t.year === y && t.month === mi);
-        const show = filterYear || mt.length > 0;
+        const show = !!filterYear || mt.length > 0;
         if (show) {
           labels.push(filterYear ? mName : `${mName} '${String(y).slice(2)}`);
           const pnl = parseFloat(sumPnl(mt).toFixed(2));
@@ -127,10 +169,10 @@ export default function EvolucaoPage() {
       arr.push(parseFloat((last + v).toFixed(2)));
       return arr;
     }, []);
-    const winRates = monthCounts.map((cnt, i) => cnt > 0 ? parseFloat(((monthWins[i] / cnt) * 100).toFixed(1)) : 0);
+    const winRates = monthCounts.map((cnt, i) => (cnt > 0 ? parseFloat(((monthWins[i] / cnt) * 100).toFixed(1)) : 0));
 
     return { labels, monthPnls, monthPcts, cumPcts, balanceEvo, winRates, monthWins, monthLosses, monthCounts, baseBalance };
-  }, [state, accFilter, yearFilter, dateRange]);
+  }, [state.accounts, accFilter, yearFilter, fetchedTrades, state.activeYear]);
 
   const totalPnl = data.monthPnls.reduce((s, v) => s + v, 0);
   const totalTrades = data.monthCounts.reduce((s, v) => s + v, 0);
@@ -227,8 +269,8 @@ export default function EvolucaoPage() {
                   <Bar dataKey="pct" radius={[4, 4, 0, 0]}
                     // @ts-ignore
                     shape={(props: any) => {
-                      const { x, y, width, height, payload } = props;
-                      return <rect x={x} y={y} width={width} height={height} fill={payload.pct >= 0 ? 'rgba(0,211,149,0.75)' : 'rgba(255,77,77,0.75)'} rx={4} />;
+                      const fill = props.payload?.pct >= 0 ? 'rgba(0,211,149,0.75)' : 'rgba(255,77,77,0.75)';
+                      return buildSafeRect(props, fill);
                     }}
                   />
                 </BarChart>
@@ -312,8 +354,8 @@ export default function EvolucaoPage() {
                   <Bar dataKey="pnl" radius={[4, 4, 0, 0]}
                     // @ts-ignore
                     shape={(props: any) => {
-                      const { x, y, width, height, payload } = props;
-                      return <rect x={x} y={y} width={width} height={height} fill={payload.pnl >= 0 ? 'rgba(0,211,149,0.75)' : 'rgba(255,77,77,0.75)'} rx={4} />;
+                      const fill = props.payload?.pnl >= 0 ? 'rgba(0,211,149,0.75)' : 'rgba(255,77,77,0.75)';
+                      return buildSafeRect(props, fill);
                     }}
                   />
                 </BarChart>
