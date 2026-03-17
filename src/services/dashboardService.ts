@@ -238,6 +238,12 @@ class DashboardService {
       if (accountId) {
         params.append('account_id', accountId);
       }
+      if (filters?.start_date) {
+        params.append('start_date', filters.start_date);
+      }
+      if (filters?.end_date) {
+        params.append('end_date', filters.end_date);
+      }
 
       const response = await api.get<AccountEvolution[]>(`/api/v1/dashboard/account-evolution?${params}`);
       return response.data;

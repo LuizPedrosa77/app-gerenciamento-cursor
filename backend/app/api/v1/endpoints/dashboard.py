@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import datetime, date
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -19,6 +19,31 @@ from app.schemas.dashboard import (
 )
 
 router = APIRouter()
+
+MONTH_NAMES_PT = {
+    1: "Jan",
+    2: "Fev",
+    3: "Mar",
+    4: "Abr",
+    5: "Mai",
+    6: "Jun",
+    7: "Jul",
+    8: "Ago",
+    9: "Set",
+    10: "Out",
+    11: "Nov",
+    12: "Dez",
+}
+
+WEEKDAY_NAMES_PT = {
+    0: "Domingo",
+    1: "Segunda",
+    2: "Terça",
+    3: "Quarta",
+    4: "Quinta",
+    5: "Sexta",
+    6: "Sábado",
+}
 
 
 def get_account_ids_query(db: Session, workspace_id: str, account_id: Optional[str] = None):
@@ -438,12 +463,16 @@ def get_dashboard_stats(
     query = db.query(Trade).join(Account).filter(
         Account.workspace_id == workspace.id
     )
+    trade_total_expr = func.coalesce(Trade.pnl, 0) + case(
+        (Trade.has_vm == True, func.coalesce(Trade.vm_pnl, 0)),
+        else_=0
+    )
     if account_id:
         query = query.filter(Account.id == account_id)
     if month:
         query = query.filter(
-            Trade.date >= datetime(year, month, 1),
-            Trade.date < datetime(year, month + 1, 1) if month < 12 else datetime(year + 1, 1, 1)
+            Trade.date >= date(year, month, 1),
+            Trade.date < (date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1))
         )
     if start_date:
         query = query.filter(Trade.date >= start_date)
@@ -453,10 +482,10 @@ def get_dashboard_stats(
     # 1. Totals
     totals = query.with_entities(
         func.count(Trade.id).label('total'),
-        func.sum(case((Trade.pnl > 0, 1), else_=0)).label('wins'),
-        func.sum(Trade.pnl).label('pnl'),
-        func.max(Trade.pnl).label('best'),
-        func.min(Trade.pnl).label('worst')
+        func.sum(case((trade_total_expr > 0, 1), else_=0)).label('wins'),
+        func.sum(trade_total_expr).label('pnl'),
+        func.max(trade_total_expr).label('best'),
+        func.min(trade_total_expr).label('worst')
     ).first()
     
     total_trades = totals.total or 0
@@ -467,24 +496,36 @@ def get_dashboard_stats(
     worst = float(totals.worst or 0)
     win_rate = (wins / total_trades * 100) if total_trades > 0 else 0
     
-    # 2. Monthly Data
+    # 2. Monthly Data (always 12 months for a stable chart)
     m_stats = query.with_entities(
         extract('month', Trade.date).label('month'),
         func.count(Trade.id).label('trades'),
-        func.sum(case((Trade.pnl > 0, 1), else_=0)).label('wins'),
-        func.sum(Trade.pnl).label('pnl')
+        func.sum(case((trade_total_expr > 0, 1), else_=0)).label('wins'),
+        func.sum(trade_total_expr).label('pnl')
     ).filter(Trade.date != None).group_by(extract('month', Trade.date)).all()
-    
-    monthly_data = []
-    for m in sorted(m_stats, key=lambda x: x.month):
-        m_trades = m.trades or 0
-        m_wins = m.wins or 0
-        monthly_data.append({
-            "month": int(m.month),
+
+    monthly_data_by_month: Dict[int, dict] = {
+        i: {
+            "month": i,
+            "name": MONTH_NAMES_PT[i],
+            "pnl": 0.0,
+            "trades": 0,
+            "win_rate": 0.0,
+        }
+        for i in range(1, 13)
+    }
+    for m in m_stats:
+        month_num = int(m.month)
+        m_trades = int(m.trades or 0)
+        m_wins = int(m.wins or 0)
+        monthly_data_by_month[month_num] = {
+            "month": month_num,
+            "name": MONTH_NAMES_PT.get(month_num, str(month_num)),
             "pnl": round(float(m.pnl or 0), 2),
             "trades": m_trades,
-            "win_rate": round(m_wins / m_trades * 100, 2) if m_trades > 0 else 0
-        })
+            "win_rate": round(m_wins / m_trades * 100, 2) if m_trades > 0 else 0.0,
+        }
+    monthly_data = [monthly_data_by_month[i] for i in range(1, 13)]
         
     avg_monthly = round(pnl / len(monthly_data), 2) if monthly_data else 0
     
@@ -492,8 +533,8 @@ def get_dashboard_stats(
     p_stats = query.with_entities(
         Trade.pair,
         func.count(Trade.id).label('trades'),
-        func.sum(case((Trade.pnl > 0, 1), else_=0)).label('wins'),
-        func.sum(Trade.pnl).label('pnl')
+        func.sum(case((trade_total_expr > 0, 1), else_=0)).label('wins'),
+        func.sum(trade_total_expr).label('pnl')
     ).group_by(Trade.pair).all()
     
     pair_list = []
@@ -513,10 +554,92 @@ def get_dashboard_stats(
         accounts_query = accounts_query.filter(Account.id == account_id)
     accounts = accounts_query.all()
     total_balance = sum(float(a.balance or 0) for a in accounts)
-    
+
+    # 4.1 Account summary cards
+    account_summary = []
+    for a in accounts:
+        account_query = db.query(Trade).filter(Trade.account_id == a.id)
+        if month and year:
+            month_start = date(year, month, 1)
+            month_end = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+            account_query = account_query.filter(Trade.date >= month_start, Trade.date < month_end)
+        if start_date:
+            account_query = account_query.filter(Trade.date >= start_date)
+        if end_date:
+            account_query = account_query.filter(Trade.date <= end_date)
+
+        acc_totals = account_query.with_entities(
+            func.count(Trade.id).label("trades"),
+            func.sum(case((trade_total_expr > 0, 1), else_=0)).label("wins"),
+            func.sum(trade_total_expr).label("pnl"),
+        ).first()
+
+        acc_trades = int(acc_totals.trades or 0)
+        acc_wins = int(acc_totals.wins or 0)
+        acc_pnl = float(acc_totals.pnl or 0)
+        acc_wr = round((acc_wins / acc_trades) * 100, 2) if acc_trades > 0 else 0.0
+
+        account_summary.append({
+            "account_id": str(a.id),
+            "name": a.name,
+            "balance": round(float(a.balance or 0), 2),
+            "initial_balance": round(float(a.initial_balance or 0), 2),
+            "pnl": round(acc_pnl, 2),
+            "trades": acc_trades,
+            "win_rate": acc_wr,
+        })
+
+    # 4.2 Weekday data for dashboard heat/weekday charts
+    dow_stats = query.with_entities(
+        extract('dow', Trade.date).label('weekday'),
+        func.count(Trade.id).label('trades'),
+        func.sum(case((trade_total_expr > 0, 1), else_=0)).label('wins'),
+        func.sum(trade_total_expr).label('pnl')
+    ).filter(Trade.date != None).group_by(extract('dow', Trade.date)).order_by(extract('dow', Trade.date)).all()
+
+    dow_data = []
+    for d in dow_stats:
+        weekday = int(d.weekday)
+        d_trades = int(d.trades or 0)
+        d_wins = int(d.wins or 0)
+        dow_data.append({
+            "weekday": weekday,
+            "weekday_name": WEEKDAY_NAMES_PT.get(weekday, "Desconhecido"),
+            "pnl": round(float(d.pnl or 0), 2),
+            "trades": d_trades,
+            "win_rate": round(d_wins / d_trades * 100, 2) if d_trades > 0 else 0.0,
+        })
+
+    # 4.3 Week-of-month bars (S1..S5)
+    wom_stats = query.with_entities(
+        func.ceil(extract('day', Trade.date) / 7.0).label('week_of_month'),
+        func.count(Trade.id).label('trades'),
+        func.sum(case((trade_total_expr > 0, 1), else_=0)).label('wins'),
+        func.sum(trade_total_expr).label('pnl')
+    ).filter(Trade.date != None).group_by(func.ceil(extract('day', Trade.date) / 7.0)).order_by(func.ceil(extract('day', Trade.date) / 7.0)).all()
+
+    week_data_by_slot: Dict[int, dict] = {
+        i: {"name": f"S{i}", "week_of_month": i, "pnl": 0.0, "trades": 0, "win_rate": 0.0}
+        for i in range(1, 6)
+    }
+    for w in wom_stats:
+        wom = int(w.week_of_month or 0)
+        if wom < 1 or wom > 5:
+            continue
+        w_trades = int(w.trades or 0)
+        w_wins = int(w.wins or 0)
+        week_data_by_slot[wom] = {
+            "name": f"S{wom}",
+            "week_of_month": wom,
+            "pnl": round(float(w.pnl or 0), 2),
+            "trades": w_trades,
+            "win_rate": round(w_wins / w_trades * 100, 2) if w_trades > 0 else 0.0,
+        }
+    week_data = [week_data_by_slot[i] for i in range(1, 6)]
+
     # 5. Top 5 Best & Worst
-    top_best = query.order_by(Trade.pnl.desc()).limit(5).all()
-    top_worst = query.order_by(Trade.pnl.asc()).limit(5).all()
+    top_best = query.order_by(trade_total_expr.desc()).limit(5).all()
+    top_worst = query.order_by(trade_total_expr.asc()).limit(5).all()
 
     return {
         "total_trades": total_trades,
@@ -529,9 +652,13 @@ def get_dashboard_stats(
         "total_balance": round(total_balance, 2),
         "monthly_data": monthly_data,
         "pair_data": pair_list,
+        "dow_data": dow_data,
+        "week_data": week_data,
         "avg_monthly": avg_monthly,
-        "top5_best": [{"pair": t.pair, "pnl": float(t.pnl or 0), "date": str(t.date)} for t in top_best],
-        "top5_worst": [{"pair": t.pair, "pnl": float(t.pnl or 0), "date": str(t.date)} for t in top_worst]
+        "distribution": [{"name": "WIN", "value": wins}, {"name": "LOSS", "value": losses}],
+        "account_summary": account_summary,
+        "top5_best": [{"pair": t.pair, "pnl": float(t.pnl or 0) + (float(t.vm_pnl or 0) if t.has_vm else 0.0), "date": t.date.isoformat() if t.date else None} for t in top_best],
+        "top5_worst": [{"pair": t.pair, "pnl": float(t.pnl or 0) + (float(t.vm_pnl or 0) if t.has_vm else 0.0), "date": t.date.isoformat() if t.date else None} for t in top_worst]
     }
 
 @router.get("/by-direction")
@@ -577,7 +704,9 @@ def get_account_evolution(
     db: DbSession,
     current_user: User = Depends(get_current_user),
     account_id: Optional[str] = Query(default=None),
-    year: Optional[int] = Query(default=None)
+    year: Optional[int] = Query(default=None),
+    start_date: Optional[date] = Query(default=None),
+    end_date: Optional[date] = Query(default=None)
 ):
     workspace = db.query(Workspace).filter(
         Workspace.owner_id == current_user.id
@@ -587,21 +716,36 @@ def get_account_evolution(
     now = datetime.now()
     if not year:
         year = now.year
-    query = db.query(Trade).join(Account).filter(
-        Account.workspace_id == workspace.id,
-        Trade.date >= datetime(year, 1, 1),
-        Trade.date <= datetime(year, 12, 31)
-    )
+    query = db.query(Trade).join(Account).filter(Account.workspace_id == workspace.id)
     if account_id:
         query = query.filter(Account.id == account_id)
-        
+    if start_date:
+        query = query.filter(Trade.date >= start_date)
+    else:
+        query = query.filter(Trade.date >= date(year, 1, 1))
+    if end_date:
+        query = query.filter(Trade.date <= end_date)
+    else:
+        query = query.filter(Trade.date <= date(year, 12, 31))
+
+    trade_total_expr = func.coalesce(Trade.pnl, 0) + case(
+        (Trade.has_vm == True, func.coalesce(Trade.vm_pnl, 0)),
+        else_=0
+    )
+
     daily_stats = query.with_entities(
         Trade.date,
-        func.sum(Trade.pnl).label('pnl')
+        func.sum(trade_total_expr).label('pnl')
     ).group_by(Trade.date).order_by(Trade.date.asc()).all()
     
     evolution = []
-    cumulative = 0
+    # Build true balance evolution: initial balance + cumulative PnL
+    accounts_q = db.query(Account).filter(Account.workspace_id == workspace.id)
+    if account_id:
+        accounts_q = accounts_q.filter(Account.id == account_id)
+    base_balance = sum(float(a.initial_balance or 0) for a in accounts_q.all())
+
+    cumulative = base_balance
     for stat in daily_stats:
         cumulative += float(stat.pnl or 0)
         evolution.append({

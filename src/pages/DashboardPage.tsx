@@ -259,10 +259,8 @@ export default function DashboardPage() {
 
       const year = new Date().getFullYear();
 
-      // For backwards compatibility with the UI, let's fetch summary, weekday, and evolution and map them
-      const [sum, dowDataRaw, evoRaw] = await Promise.all([
+      const [sum, evoRaw] = await Promise.all([
         dashboardService.getSummary(filters),
-        dashboardService.getByWeekday(filters),
         dashboardService.getAccountEvolution(year, filters)
       ]);
 
@@ -272,46 +270,52 @@ export default function DashboardPage() {
       ];
 
       const pairData = (sum.pair_data || []).sort((a: any, b: any) => b.pnl - a.pnl);
-      
-      const dowMap = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-      const dowDataParsed = dowDataRaw.map(d => ({ name: dowMap[d.weekday] || d.weekday_name, pnl: d.total_pnl }))
-                                      .filter(d => d.name !== 'Domingo' && d.name !== 'Sábado');
-      const bestDowObj = dowDataParsed.length > 0 ? dowDataParsed.reduce((best, d) => d.pnl > best.pnl ? d : best, dowDataParsed[0]) : {name:'', pnl:0};
+      const dowDataSource = (sum.dow_data && sum.dow_data.length > 0) ? sum.dow_data : [];
+      const dowDataParsed = dowDataSource
+        .map((d: any) => ({
+          weekday: Number(d.weekday),
+          name: d.weekday_name || d.name || '',
+          pnl: d.total_pnl ?? d.pnl ?? 0,
+        }))
+        .filter((d: any) => d.weekday !== 0 && d.weekday !== 6)
+        .map((d: any) => ({ name: d.name, pnl: d.pnl }));
+      const bestDowObj = dowDataParsed.length > 0
+        ? dowDataParsed.reduce((best: any, d: any) => d.pnl > best.pnl ? d : best, dowDataParsed[0])
+        : { name: '', pnl: 0 };
 
       const heatmapData = [{
-        year: year,
+        year,
         months: MONTHS.map((_, mi) => {
           const mData = (sum.monthly_data || []).find((m: any) => m.month === mi + 1);
-          return mData ? mData.pnl : 0;
+          return mData ? Number(mData.pnl || 0) : 0;
         })
       }];
 
       const evolutionMapped = evoRaw.map(e => ({ date: e.date, balance: e.cumulative }));
       const monthlyPnls = heatmapData[0].months;
+      const wrSpark = (sum.monthly_data || []).map((m: any) => Number(m.win_rate || 0));
+      const monthlyWithTrades = (sum.monthly_data || []).filter((m: any) => Number(m.trades || 0) > 0);
+      const pnlVariation = monthlyWithTrades.length >= 2
+        ? (() => {
+            const current = Number(monthlyWithTrades[monthlyWithTrades.length - 1]?.pnl || 0);
+            const previous = Number(monthlyWithTrades[monthlyWithTrades.length - 2]?.pnl || 0);
+            if (previous === 0) return current === 0 ? 0 : 100;
+            return ((current - previous) / Math.abs(previous)) * 100;
+          })()
+        : 0;
 
       const allAccountIds = state.accounts.map(a => (a as any)._apiId).filter(Boolean) as string[];
       const filteredAccountIds = (filters.account_ids && filters.account_ids.length > 0)
         ? filters.account_ids
         : allAccountIds;
 
-      const accountSummary = await Promise.all(state.accounts.map(async a => {
-        const apiId = (a as any)._apiId;
-        if (!apiId) {
-          return { apiId: null, name: a.name, balance: a.balance || 0, pnl: 0, winRate: 0, trades: 0 };
-        }
-        const sumAcc = await dashboardService.getSummary({
-          account_ids: [apiId],
-          start_date: filters.start_date,
-          end_date: filters.end_date,
-        });
-        return {
-          apiId,
-          name: a.name,
-          balance: sumAcc.total_balance ?? a.balance ?? 0,
-          pnl: sumAcc.total_pnl ?? 0,
-          winRate: sumAcc.win_rate ?? 0,
-          trades: sumAcc.total_trades ?? 0,
-        };
+      const accountSummary = (sum.account_summary || []).map((a: any) => ({
+        apiId: a.account_id,
+        name: a.name,
+        balance: Number(a.balance || 0),
+        pnl: Number(a.pnl || 0),
+        winRate: Number(a.win_rate || 0),
+        trades: Number(a.trades || 0),
       }));
 
       // Weekly trades for report (last 90 days)
@@ -334,28 +338,28 @@ export default function DashboardPage() {
         totalPnl: sum.total_pnl || 0,
         totalTrades: sum.total_trades || 0,
         winRate: sum.win_rate || 0,
-        monthlyData: (sum.monthly_data || []).map((m: any) => ({ name: MONTHS[m.month - 1] || 'Mes', pnl: m.pnl })),
+        monthlyData: (sum.monthly_data || []).map((m: any) => ({ name: m.name || MONTHS[m.month - 1] || 'Mes', pnl: Number(m.pnl || 0) })),
         avgMonthly: sum.avg_monthly || 0,
-        pnlVariation: 0,
-        balCum: [], // optional
-        pairData: pairData,
+        pnlVariation: Number.isFinite(pnlVariation) ? pnlVariation : 0,
+        balCum: [],
+        pairData,
         dowData: dowDataParsed,
         bestDow: bestDowObj,
-        weekData: (sum.week_data || []).map((w: any) => ({ name: w.name, pnl: w.pnl })),
-        distribution: dist,
+        weekData: (sum.week_data || []).map((w: any) => ({ name: w.name, pnl: Number(w.pnl || 0) })),
+        distribution: (sum.distribution && sum.distribution.length > 0) ? sum.distribution : dist,
         balanceEvoSampled: evolutionMapped,
-        heatmapData: heatmapData,
+        heatmapData,
         top5Best: sum.top5_best || [],
         top5Worst: sum.top5_worst || [],
-        accountSummary: accountSummary,
-        weekTrades: [], // Optional visual
-        weekPnlTotal: 0, // Optional visual
-        wrSpark: [], // Optional
-        monthlyPnls: monthlyPnls,
+        accountSummary,
+        weekTrades: [],
+        weekPnlTotal: 0,
+        wrSpark,
+        monthlyPnls,
       });
 
     } catch(err) {
-      console.error("Dashboard fetch falhou", err);
+      console.error('Dashboard fetch falhou', err);
     } finally {
       setLoading(false);
     }
