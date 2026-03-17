@@ -70,10 +70,10 @@ export default function AnalisePage() {
         }
 
         let allT: Trade[] = [];
-        // Optional: filter by date Range specifically via API if start/end exist
-        // Note: Currently tradeService.list takes year, month. So we get all and filter locally for advanced ranges.
+        const startDate = dateRange.start || undefined;
+        const endDate = dateRange.end || undefined;
         for (const id of fetchAccIds) {
-          const res = await tradeService.list(id, 0, 10000);
+          const res = await tradeService.list(id, 0, 10000, undefined, undefined, startDate, endDate);
           const rawItems = res.items || res;
           const portion = rawItems.map(apiTradeToLocal);
           allT = allT.concat(portion);
@@ -90,7 +90,7 @@ export default function AnalisePage() {
     };
     loadAllParams();
     return () => { active = false; };
-  }, [state.accounts, accFilter]);
+  }, [state.accounts, accFilter, dateRange]);
 
   const filteredTrades = useMemo(() => {
     return filterTradesByRange(fetchedTrades, dateRange);

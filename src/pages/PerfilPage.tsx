@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/hooks/use-toast';
+import { authService } from '@/services/authService';
 import {
   UserCircle, Camera, Mail, Lock, Phone, MapPin, Globe, Calendar,
   Copy, Eye, EyeOff, QrCode, Monitor, Smartphone, Trash2,
@@ -69,7 +70,7 @@ function TabPerfil() {
 
   // Fetch user data from backend on component mount
   useEffect(() => {
-    const token = localStorage.getItem('gpfx_auth_token');
+    const token = authService.getAccessToken();
     if (!token) return;
 
     const apiBase = import.meta.env.VITE_API_URL || 'https://api.painelzap.com';

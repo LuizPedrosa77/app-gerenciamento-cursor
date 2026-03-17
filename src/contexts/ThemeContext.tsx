@@ -11,13 +11,12 @@ const ThemeContext = createContext<ThemeContextType | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
-    const saved = localStorage.getItem('gpfx_theme');
-    return (saved === 'light' || saved === 'dark') ? saved : 'dark';
+    const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+    return prefersLight ? 'light' : 'dark';
   });
 
   useEffect(() => {
     document.documentElement.className = `theme-${theme}`;
-    localStorage.setItem('gpfx_theme', theme);
   }, [theme]);
 
   const toggleTheme = useCallback(() => {

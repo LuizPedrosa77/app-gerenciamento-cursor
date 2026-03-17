@@ -1,5 +1,7 @@
-import { useGPFX } from '@/contexts/GPFXContext';
-import { getAccountBalance, getMonthPnl, sumPnl, fmtNum, Trade, getTradePnl } from '@/lib/gpfx-utils';
+import { useEffect, useState } from 'react';
+import { useGPFX, apiTradeToLocal } from '@/contexts/GPFXContext';
+import tradeService from '@/services/tradeService';
+import { sumPnl, fmtNum, Trade, getTradePnl } from '@/lib/gpfx-utils';
 
 interface SparklineProps {
   trades: Trade[];
@@ -29,12 +31,31 @@ function Sparkline({ trades }: SparklineProps) {
 
 export function ActiveAccountCard() {
   const { state, activeAcc } = useGPFX();
-  const balance = getAccountBalance(activeAcc);
-  const monthPnl = getMonthPnl(activeAcc, state.activeYear, state.activeMonth);
+  const [monthTrades, setMonthTrades] = useState<Trade[]>([]);
+  const balance = activeAcc.balance || 0;
+  const monthPnl = sumPnl(monthTrades);
   const goal = activeAcc.monthlyGoal || 0;
   const hasGoal = goal > 0;
   const goalPct = hasGoal ? Math.min(100, Math.max(0, (monthPnl / goal) * 100)) : 0;
   const goalBarColor = goalPct >= 100 ? '#00d395' : goalPct >= 71 ? '#3b82f6' : goalPct >= 41 ? '#f59e0b' : '#ff4d4d';
+
+  useEffect(() => {
+    const load = async () => {
+      const apiId = (activeAcc as any)._apiId;
+      if (!apiId) {
+        setMonthTrades([]);
+        return;
+      }
+      try {
+        const res = await tradeService.list(apiId, 0, 2000, state.activeYear, state.activeMonth + 1);
+        const trades = (res.items || res).map(apiTradeToLocal);
+        setMonthTrades(trades);
+      } catch (err) {
+        console.error('Failed to load account trades for card', err);
+      }
+    };
+    load();
+  }, [activeAcc, state.activeYear, state.activeMonth]);
 
   return (
     <div className="mx-3 p-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -68,7 +89,7 @@ export function ActiveAccountCard() {
         </div>
       )}
 
-      <Sparkline trades={activeAcc.trades.filter(t => t.year === state.activeYear && t.month === state.activeMonth)} />
+      <Sparkline trades={monthTrades} />
     </div>
   );
 }

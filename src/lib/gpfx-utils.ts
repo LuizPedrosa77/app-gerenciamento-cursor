@@ -122,26 +122,9 @@ export function loadState(): GPFXState {
     activeYear: now.getFullYear(),
     activeMonth: now.getMonth(),
   };
-
-  const saved = localStorage.getItem('gustavoPedrosaFX_v1');
-  if (saved) {
-    try {
-      const state = JSON.parse(saved);
-      if (!state.accounts || state.accounts.length === 0) {
-        return defaultState;
-      }
-      if (state.activeAccount >= state.accounts.length) {
-        state.activeAccount = 0;
-      }
-      return state;
-    } catch (e) {
-      return defaultState;
-    }
-  }
-
   return defaultState;
 }
 
 export function saveState(state: GPFXState): void {
-  localStorage.setItem('gustavoPedrosaFX_v1', JSON.stringify(state));
+  void state;
 }

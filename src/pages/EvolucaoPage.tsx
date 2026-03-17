@@ -45,8 +45,10 @@ export default function EvolucaoPage() {
         }
 
         let allT: Trade[] = [];
+        const startDate = dateRange.start || undefined;
+        const endDate = dateRange.end || undefined;
         for (const id of fetchAccIds) {
-          const res = await tradeService.list(id, 0, 10000);
+          const res = await tradeService.list(id, 0, 10000, undefined, undefined, startDate, endDate);
           const rawItems = res.items || res;
           allT = allT.concat(rawItems.map(apiTradeToLocal));
         }
@@ -62,7 +64,7 @@ export default function EvolucaoPage() {
     };
     loadAllTrades();
     return () => { active = false; };
-  }, [state.accounts, accFilter]);
+  }, [state.accounts, accFilter, dateRange]);
 
   const data = useMemo(() => {
     const isAll = accFilter === 'all';

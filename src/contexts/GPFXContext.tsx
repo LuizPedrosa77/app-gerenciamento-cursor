@@ -1,16 +1,17 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
-import { GPFXState, Account, Trade, loadState, saveState, createAccount, uid } from '@/lib/gpfx-utils';
+import { GPFXState, Account, Trade, createAccount, uid } from '@/lib/gpfx-utils';
 import accountService, { APIAccount } from '@/services/accountService';
 import tradeService, { APITrade } from '@/services/tradeService';
 import { api } from '@/services/api';
+import { authService } from '@/services/authService';
 
 interface GPFXContextType {
   state: GPFXState;
-  activeAcc: Account;
+  activeAcc: Account & { _apiId?: string };
   setState: React.Dispatch<React.SetStateAction<GPFXState>>;
-  save: (newState?: GPFXState) => void;
+  save: () => void;
   switchAccount: (i: number) => void;
-  addAccount: () => void;
+  addAccount: (name?: string) => Promise<APIAccount | null>;
   deleteAccount: (i: number) => void;
   renameAccount: (i: number, name: string) => void;
   updateBalance: (val: number) => void;
@@ -24,21 +25,18 @@ interface GPFXContextType {
   resetAccount: () => void;
   switchYear: (y: number) => void;
   switchMonth: (m: number) => void;
-  updateWithdrawal: (year: number, month: number, val: number) => void;
   showSaved: boolean;
   wsConnected: boolean;
 }
 
 const GPFXContext = createContext<GPFXContextType | null>(null);
 
-// ---------- helpers ----------
-
 function isAuthenticated(): boolean {
-  return !!localStorage.getItem('gpfx_auth_token');
+  return authService.isAuthenticated();
 }
 
 function getAuthToken(): string | null {
-  return localStorage.getItem('gpfx_auth_token');
+  return authService.getAccessToken();
 }
 
 function getWsUrl(): string {
@@ -63,22 +61,16 @@ function apiAccToLocal(a: APIAccount, existingTrades: Trade[] = []): Account & {
 
 export function apiTradeToLocal(t: APITrade): Trade {
   const rawDate = t.date ? t.date.toString() : '';
-  // Normaliza formato: "2026.03.15 10:30:00" → "2026-03-15"
-  const normalizedDate = rawDate
-    .replace(/\./g, '-')
-    .substring(0, 10);
-
-  // Preserva hora: "2026.03.15 10:30:00" → "10:30"
-  const timePart = rawDate.length > 10
-    ? rawDate.replace(/\./g, '-').substring(11, 16)
-    : '';
+  const normalizedDate = rawDate.replace(/\./g, '-').substring(0, 10);
+  const timePart = rawDate.length > 10 ? rawDate.replace(/\./g, '-').substring(11, 16) : '';
+  const firstScreenshot = (t as any).screenshots && (t as any).screenshots.length > 0 ? (t as any).screenshots[0] : null;
 
   return {
     id: t.id,
     year: t.year,
     month: typeof t.month === 'number' ? Math.max(0, t.month - 1) : t.month,
     date: normalizedDate,
-    time: timePart, // hora preservada ex: "10:30"
+    time: timePart,
     pair: t.pair,
     dir: (t as any).direction || t.dir || 'BUY',
     lots: t.lots,
@@ -88,7 +80,9 @@ export function apiTradeToLocal(t: APITrade): Trade {
     vmLots: t.vm_lots || 0,
     vmResult: t.vm_result || 'WIN',
     vmPnl: t.vm_pnl || 0,
-    screenshot: t.screenshot || ((t as any).screenshot_url ? { data: (t as any).screenshot_url, caption: '' } : undefined),
+    screenshot: t.screenshot
+      || (firstScreenshot?.url ? { data: firstScreenshot.url, caption: '' } : undefined)
+      || ((t as any).screenshot_url ? { data: (t as any).screenshot_url, caption: '' } : undefined),
   };
 }
 
@@ -113,15 +107,18 @@ function dataUrlToFile(dataUrl: string, filename: string): File | null {
   return new File([bytes], filename, { type: mime });
 }
 
-// Fire-and-forget helper – logs errors but never throws into the UI
 function fireAndForget(promise: Promise<any>) {
   promise.catch(err => console.warn('[GPFX API]', err?.message || err));
 }
 
-// ---------- Provider ----------
-
 export function GPFXProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<GPFXState>(loadState);
+  const now = new Date();
+  const [state, setState] = useState<GPFXState>({
+    accounts: [createAccount(0)],
+    activeAccount: 0,
+    activeYear: now.getFullYear(),
+    activeMonth: now.getMonth(),
+  });
   const [showSaved, setShowSaved] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -130,485 +127,188 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
   const savedTimer = useRef<ReturnType<typeof setTimeout>>();
   const initialLoadDone = useRef(false);
 
-  // ---- persist to localStorage + show toast ----
   const flash = useCallback(() => {
     setShowSaved(true);
     clearTimeout(savedTimer.current);
     savedTimer.current = setTimeout(() => setShowSaved(false), 2000);
   }, []);
 
-  const save = useCallback((newState?: GPFXState) => {
-    const s = newState || state;
-    saveState(s);
+  const save = useCallback(() => {
     flash();
-  }, [state, flash]);
-
-  const doSave = useCallback((updater: (prev: GPFXState) => GPFXState) => {
-    setState(prev => {
-      const next = updater(prev);
-      saveState(next);
-      flash();
-      return next;
-    });
   }, [flash]);
 
-  // ---- initial load from backend ----
+  const refreshAccounts = useCallback(async () => {
+    if (!isAuthenticated()) return;
+    try {
+      const apiAccounts = await accountService.list();
+      if (!apiAccounts || apiAccounts.length === 0) return;
+      const accounts: Account[] = [];
+      for (const apiAcc of apiAccounts) {
+        accounts.push(apiAccToLocal(apiAcc, []));
+      }
+      setState(prev => ({
+        ...prev,
+        accounts,
+        activeAccount: Math.min(prev.activeAccount, accounts.length - 1),
+      }));
+    } catch (err) {
+      console.warn('[GPFX] Backend load failed', err);
+    }
+  }, []);
+
   useEffect(() => {
     if (initialLoadDone.current || !isAuthenticated()) return;
     initialLoadDone.current = true;
-
-    (async () => {
-      try {
-        const apiAccounts = await accountService.list();
-        if (!apiAccounts || apiAccounts.length === 0) return;
-
-        const accounts: Account[] = [];
-        for (const apiAcc of apiAccounts) {
-          // STARTUP RÁPIDO: Não carregamos os trades aqui. 
-          // O DashboardPage.tsx e PlanilhaPage.tsx buscarão os dados mastigados e paginados sob demanda.
-          accounts.push(apiAccToLocal(apiAcc, []));
-        }
-
-        setState(prev => {
-          const next: GPFXState = {
-            ...prev,
-            accounts,
-            activeAccount: Math.min(prev.activeAccount, accounts.length - 1),
-          };
-          saveState(next);
-          return next;
-        });
-      } catch (err) {
-        console.warn('[GPFX] Backend load failed, using localStorage fallback', err);
-        // Nunca relança — tela nunca quebra por falha na API
-      }
-    })();
-  }, []);
+    refreshAccounts();
+  }, [refreshAccounts]);
 
   const activeAcc = state.accounts[state.activeAccount] || state.accounts[0] || createAccount(0);
 
-  // ---- account operations ----
-
   const switchAccount = useCallback((i: number) => {
-    doSave(s => ({ ...s, activeAccount: i }));
-  }, [doSave]);
+    setState(s => ({ ...s, activeAccount: i }));
+  }, []);
 
-  const addAccount = useCallback(() => {
-    doSave(s => {
-      const newAcc = createAccount(s.accounts.length);
-      const next = {
-        ...s,
-        accounts: [...s.accounts, newAcc],
-        activeAccount: s.accounts.length,
-      };
-
-      if (isAuthenticated()) {
-        fireAndForget(
-          accountService.create({ name: newAcc.name, balance: newAcc.balance }).then(apiAcc => {
-            // Patch the _apiId into state so future ops can reference it
-            setState(prev => {
-              const accounts = [...prev.accounts];
-              const idx = accounts.length - 1;
-              if (accounts[idx] && accounts[idx].name === newAcc.name) {
-                (accounts[idx] as any)._apiId = apiAcc.id;
-              }
-              return { ...prev, accounts };
-            });
-          })
-        );
-      }
-
-      return next;
-    });
-  }, [doSave]);
+  const addAccount = useCallback(async (name?: string) => {
+    const newAcc = createAccount(state.accounts.length);
+    if (!isAuthenticated()) return null;
+    const payload = { name: (name && name.trim()) ? name.trim() : newAcc.name, balance: newAcc.balance };
+    try {
+      const created = await accountService.create(payload);
+      await refreshAccounts();
+      return created;
+    } catch (err) {
+      console.warn('[GPFX] Failed to create account', err);
+      return null;
+    }
+  }, [state.accounts.length, refreshAccounts]);
 
   const deleteAccount = useCallback((i: number) => {
-    doSave(s => {
-      if (s.accounts.length <= 1) return s;
-      const target = s.accounts[i];
-      const apiId = getApiId(target);
-
-      if (isAuthenticated() && apiId) {
-        fireAndForget(accountService.remove(apiId));
-      }
-
-      const accounts = s.accounts.filter((_, idx) => idx !== i);
-      return {
-        ...s,
-        accounts,
-        activeAccount: Math.min(s.activeAccount, accounts.length - 1),
-      };
-    });
-  }, [doSave]);
+    if (state.accounts.length <= 1) return;
+    const target = state.accounts[i];
+    const apiId = getApiId(target);
+    if (isAuthenticated() && apiId) {
+      fireAndForget(accountService.remove(apiId).then(() => refreshAccounts()));
+    }
+  }, [state.accounts, refreshAccounts]);
 
   const renameAccount = useCallback((i: number, name: string) => {
-    doSave(s => {
-      const accounts = [...s.accounts];
-      accounts[i] = { ...accounts[i], name };
-
-      const apiId = getApiId(accounts[i]);
-      if (isAuthenticated() && apiId) {
-        fireAndForget(accountService.update(apiId, { name }));
-      }
-
-      return { ...s, accounts };
-    });
-  }, [doSave]);
+    const apiId = getApiId(state.accounts[i]);
+    if (isAuthenticated() && apiId) {
+      fireAndForget(accountService.update(apiId, { name }).then(() => refreshAccounts()));
+    }
+  }, [state.accounts, refreshAccounts]);
 
   const updateBalance = useCallback((val: number) => {
-    doSave(s => {
-      const accounts = [...s.accounts];
-      accounts[s.activeAccount] = { ...accounts[s.activeAccount], balance: val };
-
-      const apiId = getApiId(accounts[s.activeAccount]);
-      if (isAuthenticated() && apiId) {
-        fireAndForget(accountService.update(apiId, { balance: val }));
-      }
-
-      return { ...s, accounts };
-    });
-  }, [doSave]);
+    const apiId = getApiId(state.accounts[state.activeAccount]);
+    if (isAuthenticated() && apiId) {
+      fireAndForget(accountService.update(apiId, { balance: val }).then(() => refreshAccounts()));
+    }
+  }, [state.accounts, state.activeAccount, refreshAccounts]);
 
   const updateNotes = useCallback((val: string) => {
-    doSave(s => {
-      const accounts = [...s.accounts];
-      accounts[s.activeAccount] = { ...accounts[s.activeAccount], notes: val };
-
-      const apiId = getApiId(accounts[s.activeAccount]);
-      if (isAuthenticated() && apiId) {
-        fireAndForget(accountService.update(apiId, { notes: val }));
-      }
-
-      return { ...s, accounts };
-    });
-  }, [doSave]);
+    const apiId = getApiId(state.accounts[state.activeAccount]);
+    if (isAuthenticated() && apiId) {
+      fireAndForget(accountService.update(apiId, { notes: val }).then(() => refreshAccounts()));
+    }
+  }, [state.accounts, state.activeAccount, refreshAccounts]);
 
   const updateMeta = useCallback((val: number) => {
-    doSave(s => {
-      const accounts = [...s.accounts];
-      accounts[s.activeAccount] = { ...accounts[s.activeAccount], meta: val };
-
-      const apiId = getApiId(accounts[s.activeAccount]);
-      if (isAuthenticated() && apiId) {
-        fireAndForget(accountService.update(apiId, { meta: val }));
-      }
-
-      return { ...s, accounts };
-    });
-  }, [doSave]);
+    const apiId = getApiId(state.accounts[state.activeAccount]);
+    if (isAuthenticated() && apiId) {
+      fireAndForget(accountService.update(apiId, { meta: val }).then(() => refreshAccounts()));
+    }
+  }, [state.accounts, state.activeAccount, refreshAccounts]);
 
   const updateMonthlyGoal = useCallback((accIdx: number, val: number) => {
-    doSave(s => {
-      const accounts = [...s.accounts];
-      accounts[accIdx] = { ...accounts[accIdx], monthlyGoal: val };
-
-      const apiId = getApiId(accounts[accIdx]);
-      if (isAuthenticated() && apiId) {
-        fireAndForget(accountService.update(apiId, { monthly_goal: val }));
-      }
-
-      return { ...s, accounts };
-    });
-  }, [doSave]);
-
-  // ---- trade operations ----
+    const apiId = getApiId(state.accounts[accIdx]);
+    if (isAuthenticated() && apiId) {
+      fireAndForget(accountService.update(apiId, { monthly_goal: val }).then(() => refreshAccounts()));
+    }
+  }, [state.accounts, refreshAccounts]);
 
   const addTrade = useCallback((date?: string) => {
-    doSave(s => {
-      const accounts = [...s.accounts];
-      const acc = { ...accounts[s.activeAccount], trades: [...accounts[s.activeAccount].trades] };
-      const today = date || new Date().toISOString().split('T')[0];
-      const newTrade: Trade = {
-        id: uid(), year: s.activeYear, month: s.activeMonth,
-        date: today, pair: 'EUR/USD', dir: 'BUY', lots: 0.1,
-        result: 'WIN', pnl: 0, hasVM: false, vmLots: 0, vmResult: 'WIN', vmPnl: 0,
-      };
-      acc.trades.push(newTrade);
-      accounts[s.activeAccount] = acc;
-
-      const apiId = getApiId(accounts[s.activeAccount]);
-      if (isAuthenticated() && apiId) {
-        fireAndForget(
-          tradeService.create({
-            account_id: apiId,
-            year: newTrade.year, month: newTrade.month, date: newTrade.date,
-            pair: newTrade.pair, dir: newTrade.dir, lots: newTrade.lots,
-            result: newTrade.result, pnl: newTrade.pnl,
-            has_vm: newTrade.hasVM, vm_lots: newTrade.vmLots,
-            vm_result: newTrade.vmResult, vm_pnl: newTrade.vmPnl,
-          }).then(apiTrade => {
-            // Replace temp id with API id
-            setState(prev => {
-              const accs = [...prev.accounts];
-              const a = { ...accs[prev.activeAccount], trades: accs[prev.activeAccount].trades.map(t =>
-                t.id === newTrade.id ? { ...t, id: apiTrade.id } : t
-              )};
-              accs[prev.activeAccount] = a;
-              return { ...prev, accounts: accs };
-            });
-          })
-        );
-      }
-
-      return { ...s, accounts };
-    });
-  }, [doSave]);
+    const acc = state.accounts[state.activeAccount];
+    const apiId = getApiId(acc);
+    if (!apiId || !isAuthenticated()) return;
+    const today = date || new Date().toISOString().split('T')[0];
+    const newTrade: Trade = {
+      id: uid(), year: state.activeYear, month: state.activeMonth,
+      date: today, pair: 'EUR/USD', dir: 'BUY', lots: 0.1,
+      result: 'WIN', pnl: 0, hasVM: false, vmLots: 0, vmResult: 'WIN', vmPnl: 0,
+    };
+    fireAndForget(
+      tradeService.create({
+        account_id: apiId,
+        year: newTrade.year,
+        month: newTrade.month + 1,
+        date: newTrade.date,
+        pair: newTrade.pair,
+        dir: newTrade.dir,
+        lots: newTrade.lots,
+        result: newTrade.result,
+        pnl: newTrade.pnl,
+        has_vm: newTrade.hasVM,
+        vm_lots: newTrade.vmLots,
+        vm_result: newTrade.vmResult,
+        vm_pnl: newTrade.vmPnl,
+      }).then(() => {
+        window.dispatchEvent(new CustomEvent('gpfx:trade_updated', { detail: { account_id: apiId } }));
+      })
+    );
+  }, [state]);
 
   const addNewDay = useCallback(() => {
-    doSave(s => {
-      const accounts = [...s.accounts];
-      const acc = { ...accounts[s.activeAccount], trades: [...accounts[s.activeAccount].trades] };
-      const { activeYear: year, activeMonth: month } = s;
-      const monthTrades = acc.trades.filter(t => t.year === year && t.month === month);
-      const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
-      let nextDay: number;
-      if (monthTrades.length > 0) {
-        const dates = monthTrades.map(t => t.date).filter(Boolean).sort();
-        const lastDate = dates[dates.length - 1];
-        nextDay = new Date(lastDate + 'T12:00:00').getDate() + 1;
-      } else {
-        nextDay = 1;
-      }
-      const usedDays = new Set(
-        acc.trades
-          .filter(t => t.year === year && t.month === month && t.date)
-          .map(t => new Date(t.date + 'T12:00:00').getDate())
-      );
-      while (usedDays.has(nextDay) && nextDay <= lastDayOfMonth) nextDay++;
-      if (nextDay > lastDayOfMonth) {
-        for (let d = 1; d <= lastDayOfMonth; d++) {
-          if (!usedDays.has(d)) { nextDay = d; break; }
-        }
-        if (nextDay > lastDayOfMonth) nextDay = 1;
-      }
-      const mm = String(month + 1).padStart(2, '0');
-      const dd = String(nextDay).padStart(2, '0');
-      const newTrade: Trade = {
-        id: uid(), year, month, date: `${year}-${mm}-${dd}`,
-        pair: 'EUR/USD', dir: 'BUY', result: 'WIN', pnl: 0,
-        hasVM: false, vmLots: 0, vmResult: 'WIN', vmPnl: 0,
-      };
-      acc.trades.push(newTrade);
-      accounts[s.activeAccount] = acc;
-
-      const apiId = getApiId(accounts[s.activeAccount]);
-      if (isAuthenticated() && apiId) {
-        fireAndForget(
-          tradeService.create({
-            account_id: apiId,
-            year: newTrade.year, month: newTrade.month, date: newTrade.date,
-            pair: newTrade.pair, dir: newTrade.dir,
-            result: newTrade.result, pnl: newTrade.pnl,
-            has_vm: newTrade.hasVM, vm_lots: newTrade.vmLots,
-            vm_result: newTrade.vmResult, vm_pnl: newTrade.vmPnl,
-          }).then(apiTrade => {
-            setState(prev => {
-              const accs = [...prev.accounts];
-              const a = { ...accs[prev.activeAccount], trades: accs[prev.activeAccount].trades.map(t =>
-                t.id === newTrade.id ? { ...t, id: apiTrade.id } : t
-              )};
-              accs[prev.activeAccount] = a;
-              return { ...prev, accounts: accs };
-            });
-          })
-        );
-      }
-
-      return { ...s, accounts };
-    });
-  }, [doSave]);
+    addTrade();
+  }, [addTrade]);
 
   const updateTrade = useCallback((id: string, field: string, val: any) => {
-    doSave(s => {
-      const accounts = [...s.accounts];
-      const acc = { ...accounts[s.activeAccount], trades: accounts[s.activeAccount].trades.map(t => ({ ...t })) };
-      const trade = acc.trades.find(t => t.id === id);
-      if (!trade) return s;
-
-      (trade as any)[field] = val;
-
-      if (field === 'date' && val) {
-        const d = new Date(val + 'T12:00:00');
-        trade.year = d.getFullYear();
-        trade.month = d.getMonth();
-        accounts[s.activeAccount] = acc;
-
-        if (isAuthenticated()) {
-          fireAndForget(tradeService.update(id, { date: val, year: trade.year, month: trade.month }));
-        }
-
-        return { ...s, accounts, activeYear: trade.year, activeMonth: trade.month };
-      }
-      if (field === 'result') {
-        if (val === 'LOSS' && trade.pnl > 0) trade.pnl = -trade.pnl;
-        if (val === 'WIN' && trade.pnl < 0) trade.pnl = -trade.pnl;
-      }
-      if (field === 'vmResult') {
-        if (val === 'LOSS' && trade.vmPnl > 0) trade.vmPnl = -trade.vmPnl;
-        if (val === 'WIN' && trade.vmPnl < 0) trade.vmPnl = -trade.vmPnl;
-      }
-      if (field === 'pnl') {
-        if (trade.result === 'LOSS' && val > 0) trade.pnl = -val;
-        if (trade.result === 'WIN' && val < 0) trade.pnl = -val;
-      }
-      if (field === 'vmPnl') {
-        if (trade.vmResult === 'LOSS' && val > 0) trade.vmPnl = -val;
-        if (trade.vmResult === 'WIN' && val < 0) trade.vmPnl = -val;
-      }
-
-      accounts[s.activeAccount] = acc;
-
-      if (field === 'screenshot') {
-        const screenshotData = (trade as any).screenshot?.data;
-        if (isAuthenticated() && screenshotData && typeof screenshotData === 'string' && !screenshotData.startsWith('http')) {
-          const file = dataUrlToFile(screenshotData, `trade-${id}.png`);
-          if (file) {
-            fireAndForget(
-              api.upload(`/api/v1/screenshots/upload/${id}`, file).then(res => {
-                const url = res?.data?.url;
-                if (!url) return;
-                setState(prev => {
-                  const accs = [...prev.accounts];
-                  const a = { ...accs[prev.activeAccount], trades: accs[prev.activeAccount].trades.map(t =>
-                    t.id === id ? { ...t, screenshot: { ...t.screenshot, data: url } } : t
-                  )};
-                  accs[prev.activeAccount] = a;
-                  return { ...prev, accounts: accs };
-                });
-              })
-            );
-          }
+    if (!isAuthenticated()) return;
+    const payload: Partial<APITrade> = {};
+    const fieldMap: Record<string, string> = {
+      pair: 'pair', dir: 'dir', lots: 'lots', result: 'result', pnl: 'pnl',
+      hasVM: 'has_vm', vmLots: 'vm_lots', vmResult: 'vm_result', vmPnl: 'vm_pnl',
+      date: 'date', year: 'year', month: 'month',
+    };
+    if (fieldMap[field]) {
+      (payload as any)[fieldMap[field]] = val;
+    }
+    if (field === 'screenshot') {
+      const screenshotData = val?.data;
+      if (screenshotData && typeof screenshotData === 'string' && !screenshotData.startsWith('http')) {
+        const file = dataUrlToFile(screenshotData, `trade-${id}.png`);
+        if (file) {
+          fireAndForget(api.upload(`/api/v1/screenshots/upload/${id}`, file));
         }
       }
-
-      // Sync the relevant fields to backend
-      if (isAuthenticated()) {
-        const payload: Partial<APITrade> = {};
-        const fieldMap: Record<string, string> = {
-          pair: 'pair', dir: 'dir', lots: 'lots', result: 'result', pnl: 'pnl',
-          hasVM: 'has_vm', vmLots: 'vm_lots', vmResult: 'vm_result', vmPnl: 'vm_pnl',
-          date: 'date', year: 'year', month: 'month',
-        };
-        // Send the current trade state for the changed field
-        if (fieldMap[field]) {
-          (payload as any)[fieldMap[field]] = (trade as any)[field];
-        }
-        // Also sync derived changes (result ↔ pnl sign correction)
-        if (field === 'result' || field === 'pnl') {
-          payload.result = trade.result;
-          payload.pnl = trade.pnl;
-        }
-        if (field === 'vmResult' || field === 'vmPnl') {
-          payload.vm_result = trade.vmResult;
-          payload.vm_pnl = trade.vmPnl;
-        }
-        fireAndForget(tradeService.update(id, payload));
-      }
-
-      return { ...s, accounts };
-    });
-  }, [doSave]);
+    }
+    fireAndForget(tradeService.update(id, payload).then(() => {
+      window.dispatchEvent(new CustomEvent('gpfx:trade_updated', { detail: { trade_id: id } }));
+    }));
+  }, []);
 
   const deleteTrade = useCallback((id: string) => {
-    doSave(s => {
-      const accounts = [...s.accounts];
-      const acc = { ...accounts[s.activeAccount] };
-      acc.trades = acc.trades.filter(t => t.id !== id);
-      accounts[s.activeAccount] = acc;
-
-      if (isAuthenticated()) {
-        fireAndForget(tradeService.remove(id));
-      }
-
-      return { ...s, accounts };
-    });
-  }, [doSave]);
+    if (!isAuthenticated()) return;
+    fireAndForget(tradeService.remove(id).then(() => {
+      window.dispatchEvent(new CustomEvent('gpfx:trade_updated', { detail: { trade_id: id } }));
+    }));
+  }, []);
 
   const resetAccount = useCallback(() => {
-    doSave(s => {
-      const accounts = [...s.accounts];
-      const apiId = getApiId(accounts[s.activeAccount]);
-
-      accounts[s.activeAccount] = {
-        ...accounts[s.activeAccount],
-        trades: [],
-        withdrawals: {},
-        notes: '',
-      };
-
-      if (isAuthenticated() && apiId) {
-        fireAndForget(
-          Promise.all([
-            tradeService.bulkDelete(apiId),
-            accountService.update(apiId, { notes: '' }),
-          ])
-        );
-      }
-
-      return { ...s, accounts };
-    });
-  }, [doSave]);
-
-  // ---- navigation (no API calls) ----
+    const acc = state.accounts[state.activeAccount];
+    const apiId = getApiId(acc);
+    if (isAuthenticated() && apiId) {
+      fireAndForget(tradeService.bulkDelete(apiId).then(() => {
+        window.dispatchEvent(new CustomEvent('gpfx:trade_updated', { detail: { account_id: apiId } }));
+      }));
+    }
+  }, [state.accounts, state.activeAccount]);
 
   const switchYear = useCallback((y: number) => {
-    doSave(s => ({ ...s, activeYear: y }));
-  }, [doSave]);
+    setState(s => ({ ...s, activeYear: y }));
+  }, []);
 
   const switchMonth = useCallback((m: number) => {
-    doSave(s => ({ ...s, activeMonth: m }));
-  }, [doSave]);
-
-  const updateWithdrawal = useCallback((year: number, month: number, val: number) => {
-    doSave(s => {
-      const accounts = [...s.accounts];
-      const acc = { ...accounts[s.activeAccount], withdrawals: { ...accounts[s.activeAccount].withdrawals } };
-      acc.withdrawals[`${year}-${month}`] = val;
-      accounts[s.activeAccount] = acc;
-
-      return { ...s, accounts };
-    });
-  }, [doSave]);
-
-  // ---- keyboard navigation ----
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        const tag = (document.activeElement as HTMLElement)?.tagName;
-        if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
-        e.preventDefault();
-        doSave(s => {
-          let { activeMonth, activeYear } = s;
-          if (e.key === 'ArrowLeft') {
-            if (activeMonth > 0) activeMonth--;
-            else { activeMonth = 11; activeYear--; }
-          } else {
-            if (activeMonth < 11) activeMonth++;
-            else { activeMonth = 0; activeYear++; }
-          }
-          return { ...s, activeMonth, activeYear };
-        });
-      }
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [doSave]);
-
-  const reloadAccount = useCallback(async (accountId: string, newBalance?: number) => {
-    // Agora apenas atualizamos o balanço, delegando o Fetching de lista via CustomEvent
-    if (newBalance !== undefined) {
-      setState(prev => {
-        const accounts = prev.accounts.map(acc => {
-          if ((acc as any)._apiId === accountId) {
-            return { ...acc, balance: newBalance };
-          }
-          return acc;
-        });
-        const next = { ...prev, accounts };
-        saveState(next);
-        return next;
-      });
-    }
+    setState(s => ({ ...s, activeMonth: m }));
   }, []);
 
   const connectWebSocket = useCallback(() => {
@@ -643,16 +343,16 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
         if (type === 'pong') return;
 
         if (type === 'trade_synced') {
-          console.log(`[GPFX WS] trade_synced: ${imported} novos, ${updated} atualizados — ${account_name}`);
-          if (balance !== undefined) await reloadAccount(account_id, Number(balance));
+          console.log(`[GPFX WS] trade_synced: ${imported} novos, ${updated} atualizados ? ${account_name}`);
           window.dispatchEvent(new CustomEvent('gpfx:trade_updated', { detail: { account_id } }));
+          if (balance !== undefined) await refreshAccounts();
           return;
         }
 
         if (type === 'trade_closed') {
           console.log(`[GPFX WS] trade_closed: ticket=${ticket} ${symbol} ${result} PnL=${pnl}`);
-          if (new_balance !== undefined) await reloadAccount(account_id, Number(new_balance));
           window.dispatchEvent(new CustomEvent('gpfx:trade_updated', { detail: { account_id, trade } }));
+          if (new_balance !== undefined) await refreshAccounts();
           return;
         }
       } catch (err) {
@@ -661,7 +361,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     };
 
     ws.onerror = () => {
-      console.warn('[GPFX WS] Erro de conexão');
+      console.warn('[GPFX WS] Erro de conex?o');
     };
 
     ws.onclose = () => {
@@ -672,7 +372,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
         connectWebSocket();
       }, wsReconnectDelay.current);
     };
-  }, [reloadAccount]);
+  }, [refreshAccounts]);
 
   useEffect(() => {
     if (!isAuthenticated()) return;
@@ -696,11 +396,25 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <GPFXContext.Provider value={{
-      state, activeAcc, setState, save,
-      switchAccount, addAccount, deleteAccount, renameAccount,
-      updateBalance, updateNotes, updateMeta, updateMonthlyGoal,
-      addTrade, addNewDay, updateTrade, deleteTrade, resetAccount,
-      switchYear, switchMonth, updateWithdrawal,
+      state,
+      activeAcc: activeAcc as any,
+      setState,
+      save,
+      switchAccount,
+      addAccount,
+      deleteAccount,
+      renameAccount,
+      updateBalance,
+      updateNotes,
+      updateMeta,
+      updateMonthlyGoal,
+      addTrade,
+      addNewDay,
+      updateTrade,
+      deleteTrade,
+      resetAccount,
+      switchYear,
+      switchMonth,
       showSaved,
       wsConnected,
     }}>

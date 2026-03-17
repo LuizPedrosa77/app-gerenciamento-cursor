@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useGPFX, apiTradeToLocal } from '@/contexts/GPFXContext';
 import tradeService from '@/services/tradeService';
 import dashboardService from '@/services/dashboardService';
+import withdrawalService, { Withdrawal } from '@/services/withdrawalService';
 import {
   MONTHS, YEARS, PAIRS, DIRECTIONS, RESULTS,
   sumPnl, fmtNum, signedPnl, uid, Trade,
@@ -34,9 +35,9 @@ function Modal({ open, onClose, title, children, footer }: {
 
 export default function PlanilhaPage() {
   const {
-    state, activeAcc, setState, save, switchAccount, addAccount, deleteAccount, renameAccount,
+    state, activeAcc, switchAccount, addAccount, deleteAccount, renameAccount,
     updateBalance, updateNotes, updateMeta, addTrade, addNewDay, updateTrade,
-    deleteTrade, resetAccount, switchYear, switchMonth, updateWithdrawal,
+    deleteTrade, resetAccount, switchYear, switchMonth,
   } = useGPFX();
 
   const [renameModal, setRenameModal] = useState<{ open: boolean; idx: number; name: string }>({ open: false, idx: 0, name: '' });
@@ -47,7 +48,8 @@ export default function PlanilhaPage() {
   const [brokerModal, setBrokerModal] = useState(false);
   const [exportAccMode, setExportAccMode] = useState('active');
   const [exportPeriod, setExportPeriod] = useState('all');
-  const [mt5AccIdx, setMt5AccIdx] = useState(String(state.activeAccount));
+  const [mt5AccId, setMt5AccId] = useState<string>('');
+  const mt5TargetRef = useRef<string | null>(null);
   const [yearPickerOpen, setYearPickerOpen] = useState(false);
   const [filterPair, setFilterPair] = useState('');
   const [filterDir, setFilterDir] = useState('');
@@ -70,6 +72,8 @@ export default function PlanilhaPage() {
   const [paginatedTrades, setPaginatedTrades] = useState<Trade[]>([]);
   const [annualGrid, setAnnualGrid] = useState<Record<number, { pnl: number, count: number }>>({});
   const [summaryData, setSummaryData] = useState<any>(null); // from getSummary for totalPnl etc
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [withdrawalInput, setWithdrawalInput] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
   const year = state.activeYear;
@@ -83,7 +87,7 @@ export default function PlanilhaPage() {
     setLoading(true);
     try {
        // 1. Fetch trades for current month (limit to 1000 for visual spreadsheet)
-       const resTrades = await tradeService.list(apiId, 0, 1000, year, month);
+       const resTrades = await tradeService.list(apiId, 0, 1000, year, month + 1);
        const trades = (resTrades.items || resTrades).map(apiTradeToLocal);
        setPaginatedTrades(trades);
 
@@ -91,13 +95,17 @@ export default function PlanilhaPage() {
        const resGrid = await dashboardService.getMonthly(year, { account_ids: [apiId] });
        const gridMap: Record<number, { pnl: number, count: number }> = {};
        resGrid.forEach(item => {
-          gridMap[item.month] = { pnl: item.pnl, count: item.trades_count };
+          gridMap[item.month - 1] = { pnl: item.pnl, count: item.trades_count };
        });
        setAnnualGrid(gridMap);
 
        // 3. Optional Summary for max accuracy
        const summary = await dashboardService.getSummary({ account_ids: [apiId], start_date: `${year}-01-01`, end_date: `${year}-12-31` });
        setSummaryData(summary);
+
+       // 4. Withdrawals for the year
+       const wds = await withdrawalService.list(apiId, year);
+       setWithdrawals(wds);
     } catch(err) {
        console.error("Failed to load spreadsheet data", err);
     } finally {
@@ -126,14 +134,28 @@ export default function PlanilhaPage() {
   if (filterDir) monthTrades = monthTrades.filter(t => t.dir === filterDir);
   if (filterResult) monthTrades = monthTrades.filter(t => t.result === filterResult);
 
+  const withdrawalsByMonth = useMemo(() => {
+    const map: Record<number, Withdrawal[]> = {};
+    withdrawals.forEach(w => {
+      const d = new Date(w.date);
+      if (Number.isNaN(d.getTime())) return;
+      const m = d.getMonth();
+      if (!map[m]) map[m] = [];
+      map[m].push(w);
+    });
+    return map;
+  }, [withdrawals]);
+
+  const monthWithdrawals = withdrawalsByMonth[month] || [];
+  const monthWithdrawal = monthWithdrawals.reduce((s, w) => s + (w.amount || 0), 0);
+
+  useEffect(() => {
+    setWithdrawalInput(monthWithdrawal ? String(monthWithdrawal) : '');
+  }, [monthWithdrawal, month]);
+
   const monthPnl = sumPnl(paginatedTrades);
   const totalPnl = summaryData?.total_pnl || 0; // Use backend aggregated total PnL
-  const monthWithdrawal = (acc.withdrawals || {})[year + '-' + month] || 0;
-  
-  // Note: acc.balance dynamically calculated in backend includes initial_balance + sum_pnl.
-  // We can just rely on acc.balance direct from API, minus withdrawals done locally.
-  const allWithdrawals = Object.values(acc.withdrawals || {}).reduce((s, v) => s + v, 0);
-  const balance = (summaryData?.total_balance || acc.balance) - allWithdrawals;
+  const balance = summaryData?.total_balance || acc.balance;
   
   const monthWins = paginatedTrades.filter(t => t.result === 'WIN').length;
   const monthLosses = paginatedTrades.filter(t => t.result === 'LOSS').length;
@@ -197,6 +219,36 @@ export default function PlanilhaPage() {
     setBulkDeleteModal(false);
   };
 
+  const saveMonthWithdrawal = useCallback(async () => {
+    const apiId = (acc as any)._apiId;
+    if (!apiId) return;
+    const raw = parseFloat(withdrawalInput);
+    const value = Number.isFinite(raw) ? raw : 0;
+
+    try {
+      setLoading(true);
+      if (value <= 0) {
+        await Promise.all(monthWithdrawals.map(w => withdrawalService.remove(w.id)));
+      } else {
+        if (monthWithdrawals.length === 1 && Math.abs(monthWithdrawals[0].amount - value) < 0.01) {
+          return;
+        }
+        await Promise.all(monthWithdrawals.map(w => withdrawalService.remove(w.id)));
+        const date = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+        await withdrawalService.create({
+          account_id: apiId,
+          amount: value,
+          date,
+        });
+      }
+      await loadData();
+    } catch (err) {
+      console.error('Failed to save withdrawal', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [acc, loadData, month, monthWithdrawals, withdrawalInput, year]);
+
   // Screenshot helpers
   const openScreenshotModal = (trade: Trade) => {
     setScreenshotModal({ open: true, trade });
@@ -257,7 +309,7 @@ export default function PlanilhaPage() {
         let targetMonth: number | undefined = undefined;
         
         if (exportPeriod === 'year') { targetYear = year; }
-        else if (exportPeriod === 'month') { targetYear = year; targetMonth = month; }
+        else if (exportPeriod === 'month') { targetYear = year; targetMonth = month + 1; }
 
         const resTrades = await tradeService.list(apiId, 0, 10000, targetYear, targetMonth);
         const trades = (resTrades.items || resTrades).map(apiTradeToLocal);
@@ -336,14 +388,21 @@ export default function PlanilhaPage() {
     setExportModal(false);
   };
 
-  const handleMT5ConfirmAndOpen = () => {
-    if (mt5AccIdx === 'new') {
+  const handleMT5ConfirmAndOpen = async () => {
+    let targetId = mt5AccId;
+    if (mt5AccId === 'new') {
       const name = prompt('Nome da nova conta:');
       if (!name) return;
-      addAccount();
-    } else {
-      switchAccount(parseInt(mt5AccIdx));
+      const created = await addAccount(name.trim());
+      targetId = created?.id || '';
     }
+    if (!targetId) {
+      alert('Selecione uma conta valida.');
+      return;
+    }
+    mt5TargetRef.current = targetId;
+    const idx = state.accounts.findIndex(a => (a as any)._apiId === targetId);
+    if (idx >= 0) switchAccount(idx);
     setMt5Modal(false);
     fileInputRef.current?.click();
   };
@@ -352,7 +411,7 @@ export default function PlanilhaPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       try {
         const buffer = ev.target?.result as ArrayBuffer;
         const bytes = new Uint8Array(buffer);
@@ -365,9 +424,10 @@ export default function PlanilhaPage() {
         const parser = new DOMParser();
         const doc = parser.parseFromString(text, 'text/html');
         const allText = doc.body ? doc.body.innerText : text;
-        const posStart = allText.indexOf('Posições');
-        if (posStart === -1) { alert('Seção "Posições" não encontrada.'); return; }
-        const posEnd = allText.indexOf('Ordens', posStart);
+        const normalizedText = allText.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const posStart = normalizedText.indexOf('Posicoes');
+        if (posStart === -1) { alert('Secao \"Posicoes\" nao encontrada.'); return; }
+        const posEnd = normalizedText.indexOf('Ordens', posStart);
         const posText = allText.substring(posStart, posEnd > -1 ? posEnd : undefined);
         const datePattern = /(\d{4}\.\d{2}\.\d{2} \d{2}:\d{2}:\d{2})\s+(\d+)\s+([\w.]+)\s+(buy|sell)\s+(?:[\w_]+\s+)?(\d+\.?\d*)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+(\d{4}\.\d{2}\.\d{2} \d{2}:\d{2}:\d{2})\s+([\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)/gi;
         const newTrades: Trade[] = [];
@@ -391,27 +451,63 @@ export default function PlanilhaPage() {
         }
         if (newTrades.length === 0) { alert('Nenhum trade encontrado.'); return; }
 
-        setState(prev => {
-          const accounts = [...prev.accounts];
-          const accCopy = { ...accounts[prev.activeAccount], trades: [...accounts[prev.activeAccount].trades] };
-          let added = 0;
-          newTrades.forEach(t => {
-            const isDup = accCopy.trades.some(ex => ex.date === t.date && ex.pair === t.pair && Math.abs(ex.pnl) === Math.abs(t.pnl));
-            if (!isDup) { accCopy.trades.push(t); added++; }
-          });
-          accounts[prev.activeAccount] = accCopy;
-          const next = { ...prev, accounts };
-          if (newTrades.length > 0) {
-            const sorted = newTrades.slice().sort((a, b) => a.date > b.date ? 1 : -1);
-            next.activeYear = sorted[0].year;
-            next.activeMonth = sorted[0].month;
-          }
-          return next;
+        const targetApiId = mt5TargetRef.current || (acc as any)._apiId;
+        if (!targetApiId) { alert('Conta de destino invalida.'); return; }
+
+        setLoading(true);
+        const groupMap = new Map<string, Trade[]>();
+        newTrades.forEach(t => {
+          const key = `${t.year}-${t.month}`;
+          if (!groupMap.has(key)) groupMap.set(key, []);
+          groupMap.get(key)!.push(t);
         });
-        save();
-        alert(`✅ Trades importados com sucesso!`);
+
+        const existingKeys = new Set<string>();
+        for (const [key] of groupMap) {
+          const [yrStr, moStr] = key.split('-');
+          const yr = parseInt(yrStr);
+          const mo = parseInt(moStr);
+          const res = await tradeService.list(targetApiId, 0, 10000, yr, mo + 1);
+          const existing = (res.items || res).map(apiTradeToLocal);
+          existing.forEach(ex => {
+            const k = `${ex.date}|${ex.pair}|${Math.abs(ex.pnl)}`;
+            existingKeys.add(k);
+          });
+        }
+
+        let added = 0;
+        for (const t of newTrades) {
+          const k = `${t.date}|${t.pair}|${Math.abs(t.pnl)}`;
+          if (existingKeys.has(k)) continue;
+          await tradeService.create({
+            account_id: targetApiId,
+            year: t.year,
+            month: t.month + 1,
+            date: t.date,
+            pair: t.pair,
+            dir: t.dir,
+            lots: t.lots,
+            result: t.result,
+            pnl: t.pnl,
+            has_vm: t.hasVM,
+            vm_lots: t.vmLots,
+            vm_result: t.vmResult,
+            vm_pnl: t.vmPnl,
+          });
+          added++;
+        }
+
+        if (newTrades.length > 0) {
+          const sorted = newTrades.slice().sort((a, b) => a.date > b.date ? 1 : -1);
+          switchYear(sorted[0].year);
+          switchMonth(sorted[0].month);
+        }
+        await loadData();
+        alert(`Trades importados com sucesso! (${added} novos)`);
       } catch (err: any) {
         alert('Erro ao importar: ' + err.message);
+      } finally {
+        setLoading(false);
       }
     };
     reader.readAsArrayBuffer(file);
@@ -437,18 +533,18 @@ export default function PlanilhaPage() {
             <span className="ml-1 text-[11px] cursor-pointer opacity-50 hover:opacity-100" onClick={e => { e.stopPropagation(); setRenameModal({ open: true, idx: i, name: a.name }); }}>✎</span>
             {state.accounts.length > 1 && (
               <span className="ml-0.5 text-[11px] cursor-pointer hover:opacity-100" style={{ color: '#ff4d4d', opacity: 0.5 }}
-                onClick={e => { e.stopPropagation(); if (a.trades.length > 0 && !confirm(`A conta "${a.name}" tem ${a.trades.length} trades. Excluir?`)) return; deleteAccount(i); }}>✕</span>
+                onClick={e => { e.stopPropagation(); if (!confirm(`Excluir a conta "${a.name}"?`)) return; deleteAccount(i); }}>✕</span>
             )}
           </button>
         ))}
         <button className="px-3 py-2 border-2 border-dashed rounded-md text-base font-bold transition-all" style={{ borderColor: '#484f58', color: '#6e7681' }}
-          onClick={addAccount}>＋</button>
+          onClick={() => addAccount()}>＋</button>
 
         <div className="ml-auto flex items-center gap-2">
           <button className="btn-gpfx btn-gpfx-ghost text-xs" onClick={() => setExportModal(true)}>
             <Download size={14} /> Exportar CSV
           </button>
-          <button className="btn-gpfx btn-gpfx-primary text-xs" onClick={() => { setMt5AccIdx(String(state.activeAccount)); setMt5Modal(true); }}>
+          <button className="btn-gpfx btn-gpfx-primary text-xs" onClick={() => { setMt5AccId((activeAcc as any)._apiId || ''); setMt5Modal(true); }}>
             <Upload size={14} /> Importar MT5
           </button>
           <button className="btn-gpfx btn-gpfx-primary text-xs" onClick={() => setBrokerModal(true)}>
@@ -507,7 +603,7 @@ export default function PlanilhaPage() {
           <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
             {MONTHS.map((m, mi) => {
               const d = annualGrid[mi] || { pnl: 0, count: 0 };
-              const w = (acc.withdrawals || {})[year + '-' + mi] || 0;
+              const w = (withdrawalsByMonth[mi] || []).reduce((s, wd) => s + (wd.amount || 0), 0);
               return (
                 <div
                   key={mi}
@@ -557,8 +653,10 @@ export default function PlanilhaPage() {
             <div className="flex items-center gap-1">
               <span className="text-xs" style={{ color: '#6e7681' }}>$</span>
               <input type="number" step="0.01" min="0" className="gpfx-input text-xs font-bold" style={{ width: 90, color: '#ff4d4d' }}
-                value={monthWithdrawal || ''} placeholder="0.00"
-                onChange={e => updateWithdrawal(year, month, parseFloat(e.target.value) || 0)} />
+                value={withdrawalInput} placeholder="0.00"
+                onChange={e => setWithdrawalInput(e.target.value)}
+                onBlur={saveMonthWithdrawal}
+                onKeyDown={e => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); } }} />
             </div>
           </div>
           <MsItem label="Líquido Mês" value={(monthNet >= 0 ? '+' : '') + '$' + fmtNum(monthNet)} cls={monthNet >= 0 ? 'text-gpfx-green' : 'text-gpfx-red'} />
@@ -643,16 +741,20 @@ export default function PlanilhaPage() {
                         const newDate = e.target.value;
                         if (!newDate || date === newDate) return;
                         const d = new Date(newDate + 'T12:00:00');
-                        setState(prev => {
-                          const accounts = [...prev.accounts];
-                          const accCopy = { ...accounts[prev.activeAccount], trades: accounts[prev.activeAccount].trades.map(t => ({ ...t })) };
-                          accCopy.trades.forEach(t => {
-                            if (t.date === date) { t.date = newDate; t.year = d.getFullYear(); t.month = d.getMonth(); }
-                          });
-                          accounts[prev.activeAccount] = accCopy;
-                          return { ...prev, accounts, activeYear: d.getFullYear(), activeMonth: d.getMonth() };
-                        });
-                        save();
+                        (async () => {
+                          try {
+                            await Promise.all(dayTrades.map(t => tradeService.update(t.id, {
+                              date: newDate,
+                              year: d.getFullYear(),
+                              month: d.getMonth() + 1,
+                            })));
+                            switchYear(d.getFullYear());
+                            switchMonth(d.getMonth());
+                            await loadData();
+                          } catch (err) {
+                            console.error('Falha ao atualizar data dos trades', err);
+                          }
+                        })();
                       }} />
                     <span className="text-sm font-bold capitalize" style={{ color: '#e6edf3' }}>{fmtDate}</span>
                     <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ color: '#8b949e', background: '#21262d' }}>{dayTrades.length} trade{dayTrades.length !== 1 ? 's' : ''}</span>
@@ -958,8 +1060,8 @@ export default function PlanilhaPage() {
           <button className="btn-gpfx btn-gpfx-primary" onClick={handleMT5ConfirmAndOpen}>📂 Selecionar arquivo</button>
         </>}>
         <label className="text-[11px] font-semibold uppercase" style={{ color: '#8b949e' }}>Conta de destino</label>
-        <select className="gpfx-select w-full" value={mt5AccIdx} onChange={e => setMt5AccIdx(e.target.value)}>
-          {state.accounts.map((a, i) => <option key={i} value={i}>{a.name} ({a.trades.length} trades)</option>)}
+        <select className="gpfx-select w-full" value={mt5AccId} onChange={e => setMt5AccId(e.target.value)}>
+          {state.accounts.map((a, i) => <option key={i} value={(a as any)._apiId || ''}>{a.name}</option>)}
           <option value="new">➕ Nova conta...</option>
         </select>
         <div className="p-3 rounded-lg text-xs" style={{ background: '#21262d', color: '#8b949e', lineHeight: 1.6 }}>

@@ -1,5 +1,5 @@
 from datetime import datetime, date
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 
 
@@ -47,6 +47,7 @@ class TradeResponse(BaseModel):
     vm_result: Optional[str]
     vm_pnl: float
     screenshot_url: Optional[str]
+    screenshots: Optional[List[Dict[str, Any]]] = None
     notes: Optional[str]
     account_id: str
     created_at: datetime

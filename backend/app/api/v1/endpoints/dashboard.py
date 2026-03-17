@@ -423,7 +423,9 @@ def get_dashboard_stats(
     current_user: User = Depends(get_current_user),
     account_id: Optional[str] = Query(default=None),
     year: Optional[int] = Query(default=None),
-    month: Optional[int] = Query(default=None)
+    month: Optional[int] = Query(default=None),
+    start_date: Optional[date] = Query(default=None),
+    end_date: Optional[date] = Query(default=None)
 ):
     workspace = db.query(Workspace).filter(
         Workspace.owner_id == current_user.id
@@ -443,6 +445,10 @@ def get_dashboard_stats(
             Trade.date >= datetime(year, month, 1),
             Trade.date < datetime(year, month + 1, 1) if month < 12 else datetime(year + 1, 1, 1)
         )
+    if start_date:
+        query = query.filter(Trade.date >= start_date)
+    if end_date:
+        query = query.filter(Trade.date <= end_date)
     
     # 1. Totals
     totals = query.with_entities(
@@ -502,7 +508,10 @@ def get_dashboard_stats(
         })
     
     # 4. Accounts Balance
-    accounts = db.query(Account).filter(Account.workspace_id == workspace.id).all()
+    accounts_query = db.query(Account).filter(Account.workspace_id == workspace.id)
+    if account_id:
+        accounts_query = accounts_query.filter(Account.id == account_id)
+    accounts = accounts_query.all()
     total_balance = sum(float(a.balance or 0) for a in accounts)
     
     # 5. Top 5 Best & Worst

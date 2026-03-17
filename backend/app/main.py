@@ -13,20 +13,27 @@ from app.core.config import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Initialize Redis client
-    trade_ws.redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
-    
-    # Start the Redis listener background task
-    listener_task = asyncio.create_task(trade_ws.redis_listener())
+    # Startup: Initialize Redis client (optional)
+    listener_task = None
+    try:
+        trade_ws.redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+        await trade_ws.redis_client.ping()
+        # Start the Redis listener background task
+        listener_task = asyncio.create_task(trade_ws.redis_listener())
+    except Exception as exc:
+        trade_ws.redis_client = None
+        listener_task = None
+        print(f"[WS] Redis unavailable, running without PubSub: {exc}")
     
     yield
     
     # Shutdown: Clean up background task and Redis connection
-    listener_task.cancel()
-    try:
-        await listener_task
-    except asyncio.CancelledError:
-        pass
+    if listener_task:
+        listener_task.cancel()
+        try:
+            await listener_task
+        except asyncio.CancelledError:
+            pass
         
     if trade_ws.redis_client:
         await trade_ws.redis_client.aclose()

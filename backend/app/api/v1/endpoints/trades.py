@@ -33,6 +33,7 @@ def create_trade_response(trade: Trade) -> TradeResponse:
         vm_result=trade.vm_result,
         vm_pnl=float(trade.vm_pnl),
         screenshot_url=trade.screenshot_url,
+        screenshots=trade.screenshots,
         notes=trade.notes,
         account_id=str(trade.account_id),
         created_at=trade.created_at
@@ -68,6 +69,8 @@ def get_trades(
     account_id: Optional[str] = Query(None),
     year: Optional[int] = Query(None),
     month: Optional[int] = Query(None),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
     skip: int = Query(0),
     limit: int = Query(50)
 ):
@@ -89,6 +92,11 @@ def get_trades(
     
     if month:
         query = query.filter(Trade.month == month)
+
+    if start_date:
+        query = query.filter(Trade.date >= start_date)
+    if end_date:
+        query = query.filter(Trade.date <= end_date)
         
     total = query.count()
     

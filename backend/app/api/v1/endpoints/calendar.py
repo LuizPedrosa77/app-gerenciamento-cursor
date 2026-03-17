@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from app.dependencies import DbSession, get_current_user
 from app.models.user import User
 from app.models.trade import Trade
@@ -9,6 +9,9 @@ from app.models.account import Account
 from app.models.workspace import Workspace
 
 router = APIRouter()
+
+# In-memory calendar events (minimal functional implementation)
+_calendar_events = []
 
 def get_workspace(db: Session, user: User) -> Workspace:
     return db.query(Workspace).filter(Workspace.owner_id == user.id).first()
@@ -29,11 +32,11 @@ def get_calendar_data(
         year = now.year
     if not month:
         month = now.month
-    start = datetime(year, month, 1)
+    start = date(year, month, 1)
     if month == 12:
-        end = datetime(year + 1, 1, 1)
+        end = date(year + 1, 1, 1)
     else:
-        end = datetime(year, month + 1, 1)
+        end = date(year, month + 1, 1)
     query = db.query(Trade).join(Account).filter(
         Account.workspace_id == workspace.id,
         Trade.date >= start,
@@ -81,11 +84,11 @@ def get_calendar_summary(
         year = now.year
     if not month:
         month = now.month
-    start = datetime(year, month, 1)
+    start = date(year, month, 1)
     if month == 12:
-        end = datetime(year + 1, 1, 1)
+        end = date(year + 1, 1, 1)
     else:
-        end = datetime(year, month + 1, 1)
+        end = date(year, month + 1, 1)
     query = db.query(Trade).join(Account).filter(
         Account.workspace_id == workspace.id,
         Trade.date >= start,
@@ -160,8 +163,8 @@ def get_calendar_heatmap(
     now = datetime.now()
     if not year:
         year = now.year
-    start = datetime(year, 1, 1)
-    end = datetime(year, 12, 31)
+    start = date(year, 1, 1)
+    end = date(year, 12, 31)
     query = db.query(Trade).join(Account).filter(
         Account.workspace_id == workspace.id,
         Trade.date >= start,
@@ -201,7 +204,7 @@ def get_calendar_goals(
     now = datetime.now()
     for acc in accounts:
         if acc.monthly_goal:
-            start = now.replace(day=1, hour=0, minute=0, second=0)
+            start = date(now.year, now.month, 1)
             trades = db.query(Trade).filter(
                 Trade.account_id == acc.id,
                 Trade.date >= start
@@ -246,8 +249,8 @@ def check_goals(
     # For now, use first matched account
     acc = accounts[0]
     monthly_goal = float(acc.monthly_goal or 0)
-    start_month = datetime(year, month, 1)
-    end_month = datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)
+    start_month = date(year, month, 1)
+    end_month = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
     trades_month = db.query(Trade).filter(
         Trade.account_id == acc.id,
         Trade.date >= start_month,
@@ -258,14 +261,15 @@ def check_goals(
 
     # Biweekly goal: half of monthly goal, current half of month
     half_goal = monthly_goal / 2 if monthly_goal > 0 else 0
-    mid_month = datetime(year, month, 16)
-    if now < mid_month:
+    mid_month = date(year, month, 16)
+    now_date = now.date()
+    if now_date < mid_month:
         half_start = start_month
         half_end = mid_month
     else:
         half_start = mid_month
         half_end = end_month
-    trades_half = [t for t in trades_month if t.date >= half_start.date() and t.date < half_end.date()]
+    trades_half = [t for t in trades_month if t.date >= half_start and t.date < half_end]
     pnl_half = sum(t.pnl or 0 for t in trades_half)
     pct_half = (pnl_half / half_goal * 100) if half_goal > 0 else 0
 
@@ -286,25 +290,62 @@ def check_goals(
 
 
 @router.get("/events")
-def get_calendar_events():
-    return []
+def get_calendar_events(
+    year: Optional[int] = Query(default=None),
+    month: Optional[int] = Query(default=None),
+    account_id: Optional[str] = Query(default=None)
+):
+    events = _calendar_events
+    if account_id:
+        events = [e for e in events if e.get("account_id") == account_id]
+    if year:
+        events = [e for e in events if e.get("date", "").startswith(f"{year:04d}-")]
+    if month and year:
+        events = [e for e in events if e.get("date", "").startswith(f"{year:04d}-{month:02d}")]
+    return events
 
 
 @router.post("/events")
 def create_calendar_event(event: dict):
-    return event
+    event_id = str(event.get("id") or f"evt_{len(_calendar_events) + 1}")
+    payload = {**event, "id": event_id}
+    _calendar_events.append(payload)
+    return payload
 
 
 @router.delete("/events/{event_id}")
 def delete_calendar_event(event_id: str):
+    global _calendar_events
+    _calendar_events = [e for e in _calendar_events if e.get("id") != event_id]
     return {"message": "Evento removido"}
 
 
 @router.get("/holidays")
-def get_holidays():
+def get_holidays(
+    year: Optional[int] = Query(default=None),
+    country: Optional[str] = Query(default=None)
+):
     return []
 
 
 @router.get("/export")
-def export_calendar():
-    return {"message": "Export nÃ£o implementado"}
+def export_calendar(
+    year: Optional[int] = Query(default=None),
+    format: str = Query(default="json"),
+    account_id: Optional[str] = Query(default=None),
+    db: DbSession,
+    current_user: User = Depends(get_current_user)
+):
+    heatmap = get_calendar_heatmap(
+        db=db,
+        current_user=current_user,
+        year=year,
+        account_id=account_id
+    ).get("heatmap", [])
+    if format == "csv":
+        lines = ["date,pnl"]
+        for item in heatmap:
+            lines.append(f"{item.get('date')},{item.get('pnl')}")
+        csv_data = "\n".join(lines)
+        return Response(content=csv_data, media_type="text/csv")
+    return {"heatmap": heatmap}

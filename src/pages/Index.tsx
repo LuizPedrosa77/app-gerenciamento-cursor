@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { GPFXProvider, useGPFX } from '@/contexts/GPFXContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import OnboardingWizard, { shouldShowOnboarding } from '@/components/OnboardingWizard';
@@ -15,6 +15,7 @@ import APIsPage from '@/pages/APIsPage';
 import PerfilPage from '@/pages/PerfilPage';
 import AuthPage from '@/pages/AuthPage';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { authService } from '@/services/authService';
 
 function AppLayout({ onLogout }: { onLogout: () => void }) {
   const { state } = useGPFX();
@@ -24,15 +25,8 @@ function AppLayout({ onLogout }: { onLogout: () => void }) {
   const isMobile = useIsMobile();
 
   const [collapsed, setCollapsed] = useState(() => {
-    const saved = localStorage.getItem('gpfx_sidebar_state');
-    if (saved === 'collapsed') return true;
-    if (saved === 'expanded') return false;
     return window.innerWidth < 1024;
   });
-
-  useEffect(() => {
-    localStorage.setItem('gpfx_sidebar_state', collapsed ? 'collapsed' : 'expanded');
-  }, [collapsed]);
 
   const sidebarWidth = isMobile ? 0 : (collapsed ? 68 : 260);
 
@@ -115,10 +109,7 @@ class ErrorBoundary extends React.Component<
             </button>
             <button
               onClick={() => {
-                localStorage.removeItem('gustavoPedrosaFX_v1');
-                localStorage.removeItem('gpfx_authenticated');
-                localStorage.removeItem('gpfx_auth_token');
-                window.location.href = '/';
+                authService.logout();
               }}
               className="px-4 py-2 rounded-lg text-sm font-bold mt-4 ml-2"
               style={{ background: 'rgba(255,77,77,0.2)', color: '#ff4d4d' }}
@@ -135,22 +126,15 @@ class ErrorBoundary extends React.Component<
 
 export default function Index() {
   const [authenticated, setAuthenticated] = useState(() => {
-    return (
-      localStorage.getItem('gpfx_authenticated') === 'true' &&
-      !!localStorage.getItem('gpfx_auth_token')
-    );
+    return authService.isAuthenticated();
   });
 
   const handleLogin = () => {
-    localStorage.setItem('gpfx_authenticated', 'true');
     setAuthenticated(true);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('gpfx_authenticated');
-    localStorage.removeItem('gpfx_auth_token');
-    localStorage.removeItem('gpfx_refresh_token');
-    localStorage.removeItem('user_data');
+    authService.logout();
     setAuthenticated(false);
   };
 

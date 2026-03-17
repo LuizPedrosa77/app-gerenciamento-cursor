@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { useGPFX } from '@/contexts/GPFXContext';
+import { useGPFX, apiTradeToLocal } from '@/contexts/GPFXContext';
 import {
   MONTHS_FULL, WEEKDAYS, PAIRS, DIRECTIONS, RESULTS,
   sumPnl, fmtNum, signedPnl, getWinRate, getTradePnl, uid, Trade, getAccountBalance,
@@ -15,6 +15,9 @@ import {
 import { Lightbox } from '@/components/Lightbox';
 import { ScreenshotModal } from '@/components/ScreenshotModal';
 import { AccountSelector } from '@/components/GPFXFilters';
+import tradeService from '@/services/tradeService';
+import dailyNoteService from '@/services/dailyNoteService';
+import { setChartGoto } from '@/lib/chart-goto';
 
 /* ── Modal ── */
 function Modal({ open, onClose, title, children, footer }: {
@@ -172,10 +175,9 @@ interface CalendarioPageProps {
 }
 
 export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) {
-  const { state, activeAcc, addTrade, setState, save, updateTrade } = useGPFX();
+  const { state, activeAcc, updateTrade } = useGPFX();
   const [accFilter, setAccFilter] = useState<string>(String(state.activeAccount));
   const acc = accFilter === 'all' ? activeAcc : (state.accounts[parseInt(accFilter)] || activeAcc);
-  const filteredAccounts = accFilter === 'all' ? state.accounts : [acc];
   const now = new Date();
 
   const [calYear, setCalYear] = useState(state.activeYear);
@@ -183,12 +185,11 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
   const [dayModal, setDayModal] = useState<string | null>(null);
   const [addTradeModal, setAddTradeModal] = useState(false);
   const [addTradeDate, setAddTradeDate] = useState('');
-  const [dailyNotes, setDailyNotes] = useState<Record<string, string>>(() => {
-    try { return JSON.parse(localStorage.getItem('gpfx_daily_notes') || '{}'); } catch { return {}; }
-  });
-  const [noteTimer, setNoteTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [dailyNotes, setDailyNotes] = useState<Record<string, { id?: string; note: string }>>({});
   const [lightbox, setLightbox] = useState<{ open: boolean; images: { data: string; caption: string; tradePair?: string }[]; index: number }>({ open: false, images: [], index: 0 });
   const [screenshotModal, setScreenshotModal] = useState<{ open: boolean; trade: Trade | null }>({ open: false, trade: null });
+  const [monthTrades, setMonthTrades] = useState<Trade[]>([]);
+  const [loading, setLoading] = useState(false);
 
   // Review day: default to yesterday
   const [reviewDate, setReviewDate] = useState(() => {
@@ -196,32 +197,54 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
     return d.toISOString().split('T')[0];
   });
 
-  const saveNote = useCallback((date: string, text: string) => {
-    setDailyNotes(prev => {
-      const next = { ...prev, [date]: text };
-      if (noteTimer) clearTimeout(noteTimer);
-      const t = setTimeout(() => localStorage.setItem('gpfx_daily_notes', JSON.stringify(next)), 1000);
-      setNoteTimer(t);
-      return next;
-    });
-  }, [noteTimer]);
+  const saveNote = useCallback(async (date: string, text: string) => {
+    const accountId = (acc as any)._apiId;
+    if (!accountId) return;
+    const res = await dailyNoteService.upsert({ date, note: text, account_id: accountId });
+    setDailyNotes(prev => ({ ...prev, [date]: { id: res.id, note: res.note } }));
+  }, [acc]);
 
-  // Month trades
-  const monthTrades = useMemo(() => {
-    let trades: Trade[] = [];
-    filteredAccounts.forEach(a => {
-      const filtered = a.trades
-        .filter(t => t.year === calYear && t.month === calMonth)
-        .map(t => ({
-          ...t,
-          date: t.date
-            ? t.date.toString().replace(/\./g, '-').substring(0, 10)
-            : t.date,
-        }));
-      trades.push(...filtered);
-    });
-    return trades;
-  }, [filteredAccounts, calYear, calMonth]);
+  // Month trades (from backend)
+  const loadMonthData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const accountIds: string[] = [];
+      if (accFilter === 'all') {
+        state.accounts.forEach(a => {
+          const apiId = (a as any)._apiId;
+          if (apiId) accountIds.push(apiId);
+        });
+      } else {
+        const accSel = state.accounts[parseInt(accFilter)];
+        const apiId = accSel ? (accSel as any)._apiId : null;
+        if (apiId) accountIds.push(apiId);
+      }
+
+      let allTrades: Trade[] = [];
+      for (const id of accountIds) {
+        const res = await tradeService.list(id, 0, 10000, calYear, calMonth + 1);
+        const rawItems = res.items || res;
+        allTrades = allTrades.concat(rawItems.map(apiTradeToLocal));
+      }
+      setMonthTrades(allTrades);
+
+      const noteAccountId = (acc as any)._apiId;
+      if (noteAccountId) {
+        const notes = await dailyNoteService.list(noteAccountId, calYear, calMonth + 1);
+        const noteMap: Record<string, { id?: string; note: string }> = {};
+        notes.forEach(n => { noteMap[n.date] = { id: n.id, note: n.note }; });
+        setDailyNotes(noteMap);
+      }
+    } catch (err) {
+      console.error('Failed to load calendar data', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [accFilter, state.accounts, calYear, calMonth, acc]);
+
+  useEffect(() => {
+    loadMonthData();
+  }, [loadMonthData]);
 
   const monthPnl = sumPnl(monthTrades);
   const daysOperated = new Set(monthTrades.map(t => t.date)).size;
@@ -340,8 +363,8 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
 
   // Review day data
   const reviewTrades = useMemo(() =>
-    acc.trades.filter(t => t.date === reviewDate),
-    [acc.trades, reviewDate]
+    monthTrades.filter(t => t.date === reviewDate),
+    [monthTrades, reviewDate]
   );
   const reviewPnl = sumPnl(reviewTrades);
   const reviewWinRate = getWinRate(reviewTrades);
@@ -358,12 +381,12 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
 
   // Avg last 7 days
   const avg7d = useMemo(() => {
-    const allDates = [...new Set(acc.trades.map(t => t.date))].sort().filter(d => d < reviewDate);
+    const allDates = [...new Set(monthTrades.map(t => t.date))].sort().filter(d => d < reviewDate);
     const last7 = allDates.slice(-7);
     if (last7.length === 0) return 0;
-    const total = last7.reduce((s, d) => s + sumPnl(acc.trades.filter(t => t.date === d)), 0);
+    const total = last7.reduce((s, d) => s + sumPnl(monthTrades.filter(t => t.date === d)), 0);
     return total / last7.length;
-  }, [acc.trades, reviewDate]);
+  }, [monthTrades, reviewDate]);
 
   const reviewDateObj = new Date(reviewDate + 'T12:00:00');
   const reviewDateFormatted = reviewDateObj.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'long', year: 'numeric' });
@@ -377,11 +400,11 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
         : { emoji: '🔴', label: 'Dia Difícil', color: '#ff4d4d' };
 
   const goToChart = (trade: Trade) => {
-    localStorage.setItem('gpfx_chart_goto', JSON.stringify({
+    setChartGoto({
       symbol: pairToSymbol(trade.pair),
       date: trade.date,
       tradeId: trade.id,
-    }));
+    });
     onNavigateView('tradingview');
   };
 
@@ -404,22 +427,26 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
     setReviewDate(d.toISOString().split('T')[0]);
   };
 
-  const handleAddTrade = (data: Partial<Trade>) => {
-    setState(prev => {
-      const accounts = [...prev.accounts];
-      const accCopy = { ...accounts[prev.activeAccount], trades: [...accounts[prev.activeAccount].trades] };
-      const d = new Date((data.date || '') + 'T12:00:00');
-      accCopy.trades.push({
-        id: uid(), year: d.getFullYear(), month: d.getMonth(),
-        date: data.date || '', pair: data.pair || 'EUR/USD', dir: data.dir || 'BUY',
-        lots: data.lots || 0.1, result: data.result || 'WIN', pnl: data.pnl || 0,
-        hasVM: false, vmLots: 0, vmResult: 'WIN', vmPnl: 0,
-        ...(data.screenshot ? { screenshot: data.screenshot } : {}),
-      });
-      accounts[prev.activeAccount] = accCopy;
-      return { ...prev, accounts };
-    });
-    save();
+  const handleAddTrade = async (data: Partial<Trade>) => {
+    const apiId = (acc as any)._apiId;
+    if (!apiId) return;
+    const d = new Date((data.date || '') + 'T12:00:00');
+    await tradeService.create({
+      account_id: apiId,
+      year: d.getFullYear(),
+      month: d.getMonth() + 1,
+      date: data.date || '',
+      pair: data.pair || 'EUR/USD',
+      dir: data.dir || 'BUY',
+      lots: data.lots || 0.1,
+      result: data.result || 'WIN',
+      pnl: data.pnl || 0,
+      has_vm: false,
+      vm_lots: 0,
+      vm_result: 'WIN',
+      vm_pnl: 0,
+    } as any);
+    loadMonthData();
   };
 
   const todayStr = now.toISOString().split('T')[0];
@@ -892,7 +919,7 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
               className="gpfx-input w-full text-xs"
               style={{ minHeight: 80, resize: 'vertical' }}
               placeholder="O que você aprendeu hoje? Como foi sua disciplina e emocional?"
-              value={dailyNotes[reviewDate] || ''}
+              value={dailyNotes[reviewDate]?.note || ''}
               onChange={e => saveNote(reviewDate, e.target.value)}
             />
           </div>

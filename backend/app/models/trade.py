@@ -26,7 +26,7 @@ class Trade(Base):
     vm_result = Column(String(10), nullable=True)
     vm_pnl = Column(Numeric(15, 2), default=0)
     screenshot_url = Column(Text, nullable=True)
-    screenshots = Column(JSON, nullable=True, default=[])
+    screenshots = Column(JSON, nullable=True, default=list)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)

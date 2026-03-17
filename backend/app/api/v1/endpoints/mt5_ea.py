@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
 from app.core.database import get_db
+from app.core.config import settings
 from app.models.user import User
 from app.models.account import Account
 from app.models.trade import Trade
@@ -12,6 +13,11 @@ import asyncio
 from app.websocket.trade_ws import manager as ws_manager
 
 router = APIRouter()
+
+def verify_internal_api_key(x_api_key: str = Header(None)):
+    if not x_api_key or x_api_key != settings.INTERNAL_API_KEY:
+        raise HTTPException(status_code=401, detail="API key invÃ¡lida")
+    return True
 
 class TradeItem(BaseModel):
     ticket: int
@@ -127,7 +133,11 @@ def get_or_create_account(db, workspace, login, name, server):
     return account
 
 @router.post("/sync")
-async def sync(req: SyncRequest, db: Session = Depends(get_db)):
+async def sync(
+    req: SyncRequest,
+    db: Session = Depends(get_db),
+    _: bool = Depends(verify_internal_api_key)
+):
     user = db.query(User).filter(User.email == req.email).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
@@ -190,6 +200,15 @@ async def sync(req: SyncRequest, db: Session = Depends(get_db)):
             imported += 1
     db.commit()
 
+    # Recalculate balance after sync
+    from sqlalchemy.sql import func
+    total_pnl = db.query(func.sum(Trade.pnl)).filter(Trade.account_id == account.id).scalar() or 0.0
+    total_vm = db.query(func.sum(Trade.vm_pnl)).filter(
+        Trade.account_id == account.id, Trade.has_vm == True
+    ).scalar() or 0.0
+    account.balance = float(account.initial_balance) + float(total_pnl) + float(total_vm)
+    db.commit()
+
     if imported > 0 or updated > 0:
         asyncio.create_task(ws_manager.send_to_user(str(user.id), {
             "type": "trade_synced",
@@ -209,7 +228,11 @@ async def sync(req: SyncRequest, db: Session = Depends(get_db)):
     }
 
 @router.post("/open")
-def open_trade(req: OpenRequest, db: Session = Depends(get_db)):
+def open_trade(
+    req: OpenRequest,
+    db: Session = Depends(get_db),
+    _: bool = Depends(verify_internal_api_key)
+):
     user = db.query(User).filter(User.email == req.email).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
@@ -228,7 +251,11 @@ def open_trade(req: OpenRequest, db: Session = Depends(get_db)):
     return {"success": True, "message": "Posição aberta registrada", "ticket": req.ticket}
 
 @router.post("/close")
-async def close_trade(req: CloseRequest, db: Session = Depends(get_db)):
+async def close_trade(
+    req: CloseRequest,
+    db: Session = Depends(get_db),
+    _: bool = Depends(verify_internal_api_key)
+):
     user = db.query(User).filter(User.email == req.email).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")

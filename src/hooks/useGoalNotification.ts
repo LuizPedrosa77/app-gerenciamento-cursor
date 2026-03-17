@@ -1,5 +1,5 @@
 /**
- * Hook para gerenciar notificações de metas atingidas
+ * Hook para gerenciar notificacoes de metas atingidas (sem storage local)
  */
 import { useState, useEffect, useCallback } from 'react';
 import { calendarService } from '../services/calendarService';
@@ -24,26 +24,20 @@ interface UseGoalNotificationReturn {
   checkGoals: () => Promise<void>;
 }
 
-const STORAGE_KEY = 'gpfx_goal_notifications';
-const DISMISSED_KEY = 'gpfx_dismissed_goals';
+const dismissedGoalsMemory = new Set<string>();
 
 export function useGoalNotification(): UseGoalNotificationReturn {
   const [notifications, setNotifications] = useState<GoalNotification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [accounts, setAccounts] = useState<any[]>([]);
 
-  // Carregar contas ao montar
   useEffect(() => {
     loadAccounts();
   }, []);
 
-  // Verificar metas ao carregar e a cada mudança de página
   useEffect(() => {
     checkGoals();
-    
-    // Verificar a cada 5 minutos
     const interval = setInterval(checkGoals, 5 * 60 * 1000);
-    
     return () => clearInterval(interval);
   }, [accounts]);
 
@@ -62,13 +56,11 @@ export function useGoalNotification(): UseGoalNotificationReturn {
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
-    
-    const dismissedGoals = getDismissedGoals();
+
     const newNotifications: GoalNotification[] = [];
 
     for (const account of accounts) {
       try {
-        // Verificar meta mensal
         const monthlyGoal = await calendarService.checkGoalReached(
           currentYear,
           currentMonth,
@@ -77,13 +69,12 @@ export function useGoalNotification(): UseGoalNotificationReturn {
 
         if (monthlyGoal.monthly && monthlyGoal.monthly.achieved) {
           const notificationId = `monthly_${account.id}_${currentYear}_${currentMonth}`;
-          
-          if (!isGoalDismissed(notificationId, dismissedGoals)) {
+          if (!dismissedGoalsMemory.has(notificationId)) {
             newNotifications.push({
               id: notificationId,
               type: 'monthly',
-              title: 'Meta Mensal Atingida! 🎉',
-              message: `Parabéns! Você atingiu sua meta mensal de ${monthlyGoal.monthly.goal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+              title: 'Meta Mensal Atingida!',
+              message: `Parabens! Voce atingiu sua meta mensal de ${monthlyGoal.monthly.goal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
               amount: monthlyGoal.monthly.goal,
               percentage: monthlyGoal.monthly.percentage,
               achieved_at: new Date().toISOString(),
@@ -92,16 +83,14 @@ export function useGoalNotification(): UseGoalNotificationReturn {
           }
         }
 
-        // Verificar meta quinzenal
         if (monthlyGoal.biweekly && monthlyGoal.biweekly.achieved) {
           const notificationId = `biweekly_${account.id}_${currentYear}_${currentMonth}_${Math.ceil(currentMonth / 2)}`;
-          
-          if (!isGoalDismissed(notificationId, dismissedGoals)) {
+          if (!dismissedGoalsMemory.has(notificationId)) {
             newNotifications.push({
               id: notificationId,
               type: 'biweekly',
-              title: 'Meta Quinzenal Atingida! 🎉',
-              message: `Excelente! Você atingiu sua meta quinzenal de ${monthlyGoal.biweekly.goal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+              title: 'Meta Quinzenal Atingida!',
+              message: `Excelente! Voce atingiu sua meta quinzenal de ${monthlyGoal.biweekly.goal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
               amount: monthlyGoal.biweekly.goal,
               percentage: monthlyGoal.biweekly.percentage,
               achieved_at: new Date().toISOString(),
@@ -117,96 +106,19 @@ export function useGoalNotification(): UseGoalNotificationReturn {
     if (newNotifications.length > 0) {
       setNotifications(prev => [...prev, ...newNotifications]);
       setShowNotifications(true);
-      saveNotifications(newNotifications);
     }
   }, [accounts]);
 
-  const getDismissedGoals = (): Set<string> => {
-    try {
-      const dismissed = localStorage.getItem(DISMISSED_KEY);
-      return dismissed ? new Set(JSON.parse(dismissed)) : new Set();
-    } catch (error) {
-      console.error('Error loading dismissed goals:', error);
-      return new Set();
-    }
-  };
-
-  const isGoalDismissed = (goalId: string, dismissedGoals: Set<string>): boolean => {
-    return dismissedGoals.has(goalId);
-  };
-
-  const saveNotifications = (newNotifications: GoalNotification[]) => {
-    try {
-      const existing = getStoredNotifications();
-      const updated = [...existing, ...newNotifications];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch (error) {
-      console.error('Error saving notifications:', error);
-    }
-  };
-
-  const getStoredNotifications = (): GoalNotification[] => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch (error) {
-      console.error('Error loading stored notifications:', error);
-      return [];
-    }
-  };
-
   const dismissNotification = useCallback((id: string) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
-    
-    // Adicionar ao dismissed
-    const dismissed = getDismissedGoals();
-    dismissed.add(id);
-    localStorage.setItem(DISMISSED_KEY, JSON.stringify([...dismissed]));
-    
-    // Remover do storage se não houver mais notificações
-    const remaining = notifications.filter(n => n.id !== id);
-    if (remaining.length === 0) {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  }, [notifications]);
+    dismissedGoalsMemory.add(id);
+  }, []);
 
   const dismissAllNotifications = useCallback(() => {
+    notifications.forEach(n => dismissedGoalsMemory.add(n.id));
     setNotifications([]);
     setShowNotifications(false);
-    
-    // Adicionar todos ao dismissed
-    const dismissed = getDismissedGoals();
-    notifications.forEach(n => dismissed.add(n.id));
-    localStorage.setItem(DISMISSED_KEY, JSON.stringify([...dismissed]));
-    
-    // Limpar storage
-    localStorage.removeItem(STORAGE_KEY);
   }, [notifications]);
-
-  // Limpar notificações antigas (mais de 30 dias)
-  useEffect(() => {
-    const cleanupOldNotifications = () => {
-      const stored = getStoredNotifications();
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      
-      const validNotifications = stored.filter(n => 
-        new Date(n.achieved_at) > thirtyDaysAgo
-      );
-      
-      if (validNotifications.length !== stored.length) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(validNotifications));
-        setNotifications(validNotifications);
-      }
-    };
-
-    cleanupOldNotifications();
-    
-    // Executar a cada 24 horas
-    const interval = setInterval(cleanupOldNotifications, 24 * 60 * 60 * 1000);
-    
-    return () => clearInterval(interval);
-  }, []);
 
   return {
     notifications,
@@ -218,7 +130,7 @@ export function useGoalNotification(): UseGoalNotificationReturn {
 }
 
 /**
- * Componente para exibir banner de notificação de meta
+ * Componente para exibir banner de notificacao de meta
  */
 import React from 'react';
 import { X, Trophy } from 'lucide-react';
@@ -232,20 +144,20 @@ interface GoalNotificationBannerProps {
   onDismiss: () => void;
 }
 
-export function GoalNotificationBanner({ 
-  notification, 
-  onDismiss 
+export function GoalNotificationBanner({
+  notification,
+  onDismiss
 }: GoalNotificationBannerProps) {
-  const bgColor = notification.type === 'monthly' 
-    ? 'bg-green-50 border-green-200' 
+  const bgColor = notification.type === 'monthly'
+    ? 'bg-green-50 border-green-200'
     : 'bg-blue-50 border-blue-200';
 
-  const textColor = notification.type === 'monthly' 
-    ? 'text-green-800' 
+  const textColor = notification.type === 'monthly'
+    ? 'text-green-800'
     : 'text-blue-800';
 
-  const iconColor = notification.type === 'monthly' 
-    ? 'text-green-600' 
+  const iconColor = notification.type === 'monthly'
+    ? 'text-green-600'
     : 'text-blue-600';
 
   return (
@@ -257,12 +169,9 @@ export function GoalNotificationBanner({
       shadow-lg
     `}>
       <div className="flex items-center space-x-3">
-        {/* Ícone */}
         <div className={`p-2 rounded-full ${iconColor}`}>
           <Trophy className="w-5 h-5" />
         </div>
-        
-        {/* Conteúdo */}
         <div>
           <h3 className={`font-bold ${textColor} text-sm`}>
             {notification.title}
@@ -272,8 +181,6 @@ export function GoalNotificationBanner({
           </p>
         </div>
       </div>
-      
-      {/* Botão de fechar */}
       <button
         onClick={onDismiss}
         className={`
@@ -288,14 +195,14 @@ export function GoalNotificationBanner({
 }
 
 /**
- * Componente para exibir múltiplos banners de notificação
+ * Componente para exibir multiplos banners de notificacao
  */
 export function GoalNotificationBanners() {
-  const { 
-    notifications, 
-    showNotifications, 
+  const {
+    notifications,
+    showNotifications,
     dismissNotification,
-    dismissAllNotifications 
+    dismissAllNotifications
   } = useGoalNotification();
 
   if (!showNotifications || notifications.length === 0) {
@@ -305,7 +212,7 @@ export function GoalNotificationBanners() {
   return (
     <>
       {notifications.map((notification, index) => (
-        <div 
+        <div
           key={notification.id}
           style={{ top: `${index * 80}px` }}
         >
@@ -315,10 +222,8 @@ export function GoalNotificationBanners() {
           />
         </div>
       ))}
-      
-      {/* Botão para descartar todos */}
       {notifications.length > 1 && (
-        <div 
+        <div
           className="fixed top-4 right-4 z-50"
           style={{ top: `${notifications.length * 80 + 20}px` }}
         >

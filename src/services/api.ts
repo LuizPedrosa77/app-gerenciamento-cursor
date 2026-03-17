@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import { authService } from './authService';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://api.painelzap.com';
 
@@ -13,7 +14,7 @@ export const api = axios.create({
 
 // Injeta o token automaticamente em todas as requisições
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('gpfx_auth_token');
+  const token = authService.getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }

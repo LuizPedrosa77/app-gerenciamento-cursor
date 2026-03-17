@@ -23,13 +23,24 @@ export interface APITrade {
   vm_pnl: number;
   screenshot?: { data: string; caption: string };
   screenshot_url?: string;
+  screenshots?: Array<{ id?: string; url?: string; filename?: string; created_at?: string }>;
 }
 
 const tradeService = {
-  list: async (accountId: string, skip: number = 0, limit: number = 50, year?: number, month?: number): Promise<PaginatedTrades> => {
+  list: async (
+    accountId: string,
+    skip: number = 0,
+    limit: number = 50,
+    year?: number,
+    month?: number,
+    start_date?: string,
+    end_date?: string
+  ): Promise<PaginatedTrades> => {
     const params: any = { account_id: accountId, skip, limit };
     if (year) params.year = year;
     if (month) params.month = month;
+    if (start_date) params.start_date = start_date;
+    if (end_date) params.end_date = end_date;
     const { data } = await api.get('/api/v1/trades', { params });
     // Backward compatibility just in case
     if (Array.isArray(data)) return { items: data, total: data.length };

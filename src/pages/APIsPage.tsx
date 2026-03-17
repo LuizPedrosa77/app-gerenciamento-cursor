@@ -28,17 +28,63 @@ interface Section {
 }
 
 /* ── data ── */
-const BASE_URL = 'https://api.painelzap.com/api/v1';
+const BASE_URL = `${import.meta.env.VITE_API_URL || 'https://api.painelzap.com'}/api/v1`;
 
 const sections: Section[] = [
   {
     icon: <Lock size={16} />,
     title: 'Autenticação',
     endpoints: [
-      { method: 'POST', path: '/auth/register', description: 'Criar conta de usuário', n8nExample: `// HTTP Request Node\nMethod: POST\nURL: ${BASE_URL}/auth/register\nBody (JSON):\n{\n  "email": "user@email.com",\n  "password": "sua_senha"\n}`, pythonExample: `import requests\n\nres = requests.post(\n  "${BASE_URL}/auth/register",\n  json={"email": "user@email.com", "password": "sua_senha"}\n)\nprint(res.json())` },
-      { method: 'POST', path: '/auth/login', description: 'Fazer login e obter token JWT', n8nExample: `// HTTP Request Node\nMethod: POST\nURL: ${BASE_URL}/auth/login\nBody (JSON):\n{\n  "email": "user@email.com",\n  "password": "sua_senha"\n}`, pythonExample: `import requests\n\nres = requests.post(\n  "${BASE_URL}/auth/login",\n  json={"email": "user@email.com", "password": "sua_senha"}\n)\ntoken = res.json()["token"]\nprint(token)` },
-      { method: 'POST', path: '/auth/refresh', description: 'Renovar token de acesso', n8nExample: `// HTTP Request Node\nMethod: POST\nURL: ${BASE_URL}/auth/refresh\nHeaders:\n  Authorization: Bearer {token}`, pythonExample: `res = requests.post(\n  "${BASE_URL}/auth/refresh",\n  headers={"Authorization": f"Bearer {token}"}\n)\nprint(res.json())` },
-      { method: 'GET', path: '/auth/me', description: 'Dados do usuário autenticado', n8nExample: `// HTTP Request Node\nMethod: GET\nURL: ${BASE_URL}/auth/me\nHeaders:\n  Authorization: Bearer {token}`, pythonExample: `res = requests.get(\n  "${BASE_URL}/auth/me",\n  headers={"Authorization": f"Bearer {token}"}\n)\nprint(res.json())` },
+      { method: 'POST', path: '/auth/register', description: 'Criar conta de usuario', n8nExample: `// HTTP Request Node
+Method: POST
+URL: ${BASE_URL}/auth/register
+Body (JSON):
+{
+  "name": "Seu Nome",
+  "email": "user@email.com",
+  "password": "sua_senha"
+}`, pythonExample: `import requests
+
+res = requests.post(
+  "${BASE_URL}/auth/register",
+  json={"name": "Seu Nome", "email": "user@email.com", "password": "sua_senha"}
+)
+print(res.json())` },
+      { method: 'POST', path: '/auth/login', description: 'Fazer login e obter token JWT', n8nExample: `// HTTP Request Node
+Method: POST
+URL: ${BASE_URL}/auth/login
+Body (JSON):
+{
+  "email": "user@email.com",
+  "password": "sua_senha"
+}`, pythonExample: `import requests
+
+res = requests.post(
+  "${BASE_URL}/auth/login",
+  json={"email": "user@email.com", "password": "sua_senha"}
+)
+token = res.json()["access_token"]
+print(token)` },
+      { method: 'POST', path: '/auth/refresh', description: 'Renovar token de acesso', n8nExample: `// HTTP Request Node
+Method: POST
+URL: ${BASE_URL}/auth/refresh
+Body (JSON):
+{
+  "refresh_token": "{refresh_token}"
+}`, pythonExample: `res = requests.post(
+  "${BASE_URL}/auth/refresh",
+  json={"refresh_token": refresh_token}
+)
+print(res.json())` },
+      { method: 'GET', path: '/auth/me', description: 'Dados do usuario autenticado', n8nExample: `// HTTP Request Node
+Method: GET
+URL: ${BASE_URL}/auth/me
+Headers:
+  Authorization: Bearer {token}`, pythonExample: `res = requests.get(
+  "${BASE_URL}/auth/me",
+  headers={"Authorization": f"Bearer {token}"}
+)
+print(res.json())` },
     ],
   },
   {
@@ -46,7 +92,7 @@ const sections: Section[] = [
     title: 'Contas de Trading',
     endpoints: [
       { method: 'GET', path: '/accounts', description: 'Listar todas as contas', n8nExample: `Method: GET\nURL: ${BASE_URL}/accounts\nHeaders:\n  Authorization: Bearer {token}`, pythonExample: `res = requests.get("${BASE_URL}/accounts", headers=headers)\nprint(res.json())` },
-      { method: 'POST', path: '/accounts', description: 'Criar nova conta', n8nExample: `Method: POST\nURL: ${BASE_URL}/accounts\nBody: { "name": "Conta MT5", "broker": "IC Markets" }`, pythonExample: `res = requests.post("${BASE_URL}/accounts",\n  json={"name": "Conta MT5", "broker": "IC Markets"},\n  headers=headers)\nprint(res.json())` },
+      { method: 'POST', path: '/accounts', description: 'Criar nova conta', n8nExample: `Method: POST\nURL: ${BASE_URL}/accounts\nBody: { "name": "Conta MT5", "initial_balance": 10000 }`, pythonExample: `res = requests.post("${BASE_URL}/accounts",\n  json={"name": "Conta MT5", "initial_balance": 10000},\n  headers=headers)\nprint(res.json())` },
       { method: 'GET', path: '/accounts/{id}', description: 'Detalhes de uma conta', n8nExample: `Method: GET\nURL: ${BASE_URL}/accounts/{{account_id}}`, pythonExample: `res = requests.get(f"${BASE_URL}/accounts/{account_id}", headers=headers)` },
       { method: 'PATCH', path: '/accounts/{id}', description: 'Atualizar conta', n8nExample: `Method: PATCH\nURL: ${BASE_URL}/accounts/{{account_id}}\nBody: { "name": "Novo Nome" }`, pythonExample: `res = requests.patch(f"${BASE_URL}/accounts/{account_id}",\n  json={"name": "Novo Nome"}, headers=headers)` },
       { method: 'DELETE', path: '/accounts/{id}', description: 'Remover conta', n8nExample: `Method: DELETE\nURL: ${BASE_URL}/accounts/{{account_id}}`, pythonExample: `res = requests.delete(f"${BASE_URL}/accounts/{account_id}", headers=headers)` },
@@ -100,7 +146,7 @@ URL: ${BASE_URL}/withdrawals/{{withdrawal_id}}`, pythonExample: `res = requests.
     icon: <LineChart size={16} />,
     title: 'Dashboard & Relatórios',
     endpoints: [
-      { method: 'GET', path: '/dashboard/summary', description: 'Resumo geral do dashboard', n8nExample: `Method: GET\nURL: ${BASE_URL}/dashboard/summary`, pythonExample: `res = requests.get("${BASE_URL}/dashboard/summary", headers=headers)` },
+      { method: 'GET', path: '/dashboard/stats', description: 'Resumo geral do dashboard (stats)', n8nExample: `Method: GET\nURL: ${BASE_URL}/dashboard/stats`, pythonExample: `res = requests.get("${BASE_URL}/dashboard/stats", headers=headers)` },
       { method: 'GET', path: '/dashboard/monthly', description: 'P&L mensal detalhado', n8nExample: `Method: GET\nURL: ${BASE_URL}/dashboard/monthly`, pythonExample: `res = requests.get("${BASE_URL}/dashboard/monthly", headers=headers)` },
       { method: 'GET', path: '/dashboard/by-pair', description: 'Estatísticas por ativo/par', n8nExample: `Method: GET\nURL: ${BASE_URL}/dashboard/by-pair`, pythonExample: `res = requests.get("${BASE_URL}/dashboard/by-pair", headers=headers)` },
       { method: 'GET', path: '/dashboard/by-weekday', description: 'Estatísticas por dia da semana', n8nExample: `Method: GET\nURL: ${BASE_URL}/dashboard/by-weekday`, pythonExample: `res = requests.get("${BASE_URL}/dashboard/by-weekday", headers=headers)` },
@@ -157,12 +203,32 @@ asyncio.run(replay())` },
   },
   {
     icon: <Settings size={16} />,
-    title: 'Automação (n8n / Python)',
+    title: 'MT5 EA (API Key)',
     endpoints: [
-      { method: 'POST', path: '/internal/sync/account/{id}', description: 'Sincronizar conta específica', n8nExample: `Method: POST\nURL: ${BASE_URL}/internal/sync/account/{{id}}\nHeaders:\n  x-api-key: {sua_api_key}`, pythonExample: `res = requests.post(f"${BASE_URL}/internal/sync/account/{id}",\n  headers={"x-api-key": API_KEY})` },
-      { method: 'POST', path: '/internal/sync/workspace/{id}', description: 'Sincronizar workspace inteiro', n8nExample: `Method: POST\nURL: ${BASE_URL}/internal/sync/workspace/{{id}}\nHeaders:\n  x-api-key: {sua_api_key}`, pythonExample: `res = requests.post(f"${BASE_URL}/internal/sync/workspace/{id}",\n  headers={"x-api-key": API_KEY})` },
-      { method: 'GET', path: '/internal/health', description: 'Health check do sistema', n8nExample: `Method: GET\nURL: ${BASE_URL}/internal/health`, pythonExample: `res = requests.get("${BASE_URL}/internal/health")` },
-      { method: 'GET', path: '/internal/status', description: 'Status detalhado do sistema', n8nExample: `Method: GET\nURL: ${BASE_URL}/internal/status`, pythonExample: `res = requests.get("${BASE_URL}/internal/status")` },
+      { method: 'POST', path: '/mt5-ea/sync', description: 'Sincronizar trades do EA', n8nExample: `Method: POST
+URL: ${BASE_URL}/mt5-ea/sync
+Headers:
+  x-api-key: {sua_api_key}
+Body: { "email": "user@email.com", "account_login": "123", "account_name": "Conta MT5", "server": "ICMarkets", "trades": [], "positions": [] }`, pythonExample: `res = requests.post(f"${BASE_URL}/mt5-ea/sync",
+  headers={"x-api-key": API_KEY},
+  json={"email": "user@email.com", "account_login": "123", "account_name": "Conta MT5", "server": "ICMarkets", "trades": [], "positions": []})
+print(res.json())` },
+      { method: 'POST', path: '/mt5-ea/open', description: 'Notificar abertura de posicao (EA)', n8nExample: `Method: POST
+URL: ${BASE_URL}/mt5-ea/open
+Headers:
+  x-api-key: {sua_api_key}
+Body: { "email": "user@email.com", "account_login": "123", "account_name": "Conta MT5", "server": "ICMarkets", "ticket": 1, "symbol": "EURUSD", "type": "BUY", "volume": 0.1, "open_price": 1.2345, "open_time": "2025-01-15 10:00:00" }`, pythonExample: `res = requests.post(f"${BASE_URL}/mt5-ea/open",
+  headers={"x-api-key": API_KEY},
+  json={"email": "user@email.com", "account_login": "123", "account_name": "Conta MT5", "server": "ICMarkets", "ticket": 1, "symbol": "EURUSD", "type": "BUY", "volume": 0.1, "open_price": 1.2345, "open_time": "2025-01-15 10:00:00"})
+print(res.json())` },
+      { method: 'POST', path: '/mt5-ea/close', description: 'Notificar fechamento de trade (EA)', n8nExample: `Method: POST
+URL: ${BASE_URL}/mt5-ea/close
+Headers:
+  x-api-key: {sua_api_key}
+Body: { "email": "user@email.com", "account_login": "123", "server": "ICMarkets", "ticket": 1, "symbol": "EURUSD", "type": "BUY", "volume": 0.1, "profit": 12.34, "open_time": "2025-01-15 10:00:00", "close_time": "2025-01-15 12:00:00", "open_price": 1.2345, "close_price": 1.2360 }`, pythonExample: `res = requests.post(f"${BASE_URL}/mt5-ea/close",
+  headers={"x-api-key": API_KEY},
+  json={"email": "user@email.com", "account_login": "123", "server": "ICMarkets", "ticket": 1, "symbol": "EURUSD", "type": "BUY", "volume": 0.1, "profit": 12.34, "open_time": "2025-01-15 10:00:00", "close_time": "2025-01-15 12:00:00", "open_price": 1.2345, "close_price": 1.2360})
+print(res.json())` },
     ],
   },
 ];

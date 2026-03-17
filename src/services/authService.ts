@@ -45,6 +45,9 @@ export interface RefreshTokenResponse {
 }
 
 class AuthService {
+  private accessToken: string | null = null;
+  private refreshToken: string | null = null;
+  private userData: any | null = null;
   /**
    * Realiza login do usuário
    */
@@ -55,9 +58,9 @@ class AuthService {
         password: credentials.password,
       };
       const response = await api.post<AuthResponse>('/api/v1/auth/login', payload);
-      localStorage.setItem('gpfx_auth_token', response.data.access_token);
-      localStorage.setItem('gpfx_refresh_token', response.data.refresh_token);
-      localStorage.setItem('user_data', JSON.stringify(response.data.user));
+      this.accessToken = response.data.access_token;
+      this.refreshToken = response.data.refresh_token;
+      this.userData = response.data.user;
       return response.data;
     } catch (error) {
       console.error('Login error:', error);
@@ -83,9 +86,9 @@ class AuthService {
       };
       console.log('[AUTH] Register payload:', JSON.stringify(payload));
       const response = await api.post<AuthResponse>('/api/v1/auth/register', payload);
-      localStorage.setItem('gpfx_auth_token', response.data.access_token);
-      localStorage.setItem('gpfx_refresh_token', response.data.refresh_token);
-      localStorage.setItem('user_data', JSON.stringify(response.data.user));
+      this.accessToken = response.data.access_token;
+      this.refreshToken = response.data.refresh_token;
+      this.userData = response.data.user;
       return response.data;
     } catch (error) {
       console.error('Register error:', error);
@@ -98,7 +101,7 @@ class AuthService {
    */
   async logout(): Promise<void> {
     try {
-      const refreshToken = localStorage.getItem('gpfx_refresh_token');
+      const refreshToken = this.refreshToken;
       
       if (refreshToken) {
         // Chamar endpoint de logout no backend
@@ -109,9 +112,9 @@ class AuthService {
       // Mesmo com erro, limpar dados locais
     } finally {
       // Limpar dados locais
-      localStorage.removeItem('gpfx_auth_token');
-      localStorage.removeItem('gpfx_refresh_token');
-      localStorage.removeItem('user_data');
+      this.accessToken = null;
+      this.refreshToken = null;
+      this.userData = null;
       
       // Redirecionar para login
       window.location.href = '/';
@@ -123,7 +126,7 @@ class AuthService {
    */
   async refreshToken(): Promise<RefreshTokenResponse> {
     try {
-      const refreshToken = localStorage.getItem('gpfx_refresh_token');
+      const refreshToken = this.refreshToken;
       
       if (!refreshToken) {
         throw new Error('No refresh token available');
@@ -134,8 +137,8 @@ class AuthService {
       });
       
       // Salvar novos tokens
-      localStorage.setItem('gpfx_auth_token', response.data.access_token);
-      localStorage.setItem('gpfx_refresh_token', response.data.refresh_token);
+      this.accessToken = response.data.access_token;
+      this.refreshToken = response.data.refresh_token;
       
       return response.data;
     } catch (error) {
@@ -151,8 +154,8 @@ class AuthService {
     try {
       const response = await api.get('/api/v1/auth/me');
       
-      // Atualizar dados do usuário no localStorage
-      localStorage.setItem('user_data', JSON.stringify(response.data));
+      // Atualizar dados do usuário em memória
+      this.userData = response.data;
       
       return response.data;
     } catch (error) {
@@ -165,49 +168,35 @@ class AuthService {
    * Verifica se o usuário está autenticado
    */
   isAuthenticated(): boolean {
-    const token = localStorage.getItem('gpfx_auth_token');
-    const userData = localStorage.getItem('user_data');
-    
-    return !!(token && userData);
+    return !!(this.accessToken && this.userData);
   }
 
   /**
-   * Obtém dados do usuário do localStorage
+   * Obtém dados do usuário em memória
    */
   getUserData(): any | null {
-    const userData = localStorage.getItem('user_data');
-    
-    if (userData) {
-      try {
-        return JSON.parse(userData);
-      } catch (error) {
-        console.error('Error parsing user data:', error);
-        return null;
-      }
-    }
-    
-    return null;
+    return this.userData;
   }
 
   /**
-   * Atualiza dados do usuário no localStorage
+   * Atualiza dados do usuário em memória
    */
   updateUserData(userData: any): void {
-    localStorage.setItem('user_data', JSON.stringify(userData));
+    this.userData = userData;
   }
 
   /**
    * Obtém o token de acesso
    */
   getAccessToken(): string | null {
-    return localStorage.getItem('gpfx_auth_token');
+    return this.accessToken;
   }
 
   /**
    * Obtém o refresh token
    */
   getRefreshToken(): string | null {
-    return localStorage.getItem('gpfx_refresh_token');
+    return this.refreshToken;
   }
 
   /**

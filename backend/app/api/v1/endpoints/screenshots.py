@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.minio import get_minio_client
 from app.models.trade import Trade
+from app.models.workspace import Workspace
 from app.models.user import User
 from app.schemas.screenshot import ScreenshotResponse
 from app.dependencies import DbSession, CurrentUser, get_current_user
@@ -35,7 +36,9 @@ async def upload_screenshot(
         WorkspaceMember.workspace_id == trade.workspace_id,
         WorkspaceMember.user_id == current_user.id
     ).first()
-    if not member:
+    workspace = db.query(Workspace).filter(Workspace.id == trade.workspace_id).first()
+    is_owner = workspace and str(workspace.owner_id) == str(current_user.id)
+    if not member and not is_owner:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Sem acesso a este trade"
@@ -121,7 +124,9 @@ async def delete_screenshot(
         WorkspaceMember.workspace_id == trade.workspace_id,
         WorkspaceMember.user_id == current_user.id
     ).first()
-    if not member:
+    workspace = db.query(Workspace).filter(Workspace.id == trade.workspace_id).first()
+    is_owner = workspace and str(workspace.owner_id) == str(current_user.id)
+    if not member and not is_owner:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Sem acesso a este trade"
@@ -171,7 +176,9 @@ async def list_screenshots(
         WorkspaceMember.workspace_id == trade.workspace_id,
         WorkspaceMember.user_id == current_user.id
     ).first()
-    if not member:
+    workspace = db.query(Workspace).filter(Workspace.id == trade.workspace_id).first()
+    is_owner = workspace and str(workspace.owner_id) == str(current_user.id)
+    if not member and not is_owner:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Sem acesso a este trade"

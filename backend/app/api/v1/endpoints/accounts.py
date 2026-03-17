@@ -97,7 +97,7 @@ def get_total_balance(
                 "id": str(a.id),
                 "name": a.name,
                 "balance": round(float(a.balance or 0), 2),
-                "broker": a.broker
+                "broker": a.broker_type
             }
             for a in accounts
         ]

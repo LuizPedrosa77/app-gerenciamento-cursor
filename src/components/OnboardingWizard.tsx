@@ -83,7 +83,6 @@ export default function OnboardingWizard({ onComplete, onNavigate }: OnboardingW
   const [notifyGoal, setNotifyGoal] = useState(true);
 
   const dismiss = () => {
-    localStorage.setItem(STORAGE_KEY, 'true');
     onComplete();
   };
 
@@ -114,8 +113,6 @@ export default function OnboardingWizard({ onComplete, onNavigate }: OnboardingW
       return { ...prev, accounts };
     });
     save();
-    localStorage.setItem(STORAGE_KEY, 'true');
-    if (notifyGoal) localStorage.setItem('gpfx_goal_notify', 'true');
     setShowConfetti(true);
     setStep(3);
   };
@@ -264,7 +261,7 @@ export default function OnboardingWizard({ onComplete, onNavigate }: OnboardingW
 }
 
 export function shouldShowOnboarding(accounts: { trades: any[] }[]): boolean {
-  if (localStorage.getItem(STORAGE_KEY) === 'true') return false;
-  // Show if all accounts have zero trades (new user)
-  return accounts.every(a => !a.trades || a.trades.length === 0);
+  void accounts;
+  void STORAGE_KEY;
+  return false;
 }

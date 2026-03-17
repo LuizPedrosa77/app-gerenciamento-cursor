@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { useGPFX } from '@/contexts/GPFXContext';
-import { Account, sumPnl, getMonthPnl, getAccountBalance, fmtNum, getTradePnl } from '@/lib/gpfx-utils';
+import { useState, useEffect } from 'react';
+import { useGPFX, apiTradeToLocal } from '@/contexts/GPFXContext';
+import tradeService from '@/services/tradeService';
+import { Account, sumPnl, fmtNum, getTradePnl, Trade } from '@/lib/gpfx-utils';
 import { BarChart, Bar, ResponsiveContainer } from 'recharts';
 import { Target, Plug } from 'lucide-react';
 import { ConnectBrokerModal } from '@/components/ConnectBrokerModal';
@@ -37,6 +38,27 @@ export default function ContasAtivasPage({ onNavigatePlanilha }: ContasAtivasPro
   const [editingGoal, setEditingGoal] = useState<number | null>(null);
   const [goalValue, setGoalValue] = useState('');
   const [brokerModal, setBrokerModal] = useState(false);
+  const [accountTrades, setAccountTrades] = useState<Record<string, Trade[]>>({});
+
+  useEffect(() => {
+    const loadTrades = async () => {
+      const start = new Date(curYear, curMonth, 1).toISOString().split('T')[0];
+      const end = new Date().toISOString().split('T')[0];
+      const map: Record<string, Trade[]> = {};
+      for (const acc of state.accounts) {
+        const apiId = (acc as any)._apiId;
+        if (!apiId) continue;
+        try {
+          const res = await tradeService.list(apiId, 0, 2000, undefined, undefined, start, end);
+          map[apiId] = (res.items || res).map(apiTradeToLocal);
+        } catch (err) {
+          console.error('Falha ao carregar trades da conta', err);
+        }
+      }
+      setAccountTrades(map);
+    };
+    loadTrades();
+  }, [state.accounts, curYear, curMonth]);
 
   return (
     <>
@@ -46,8 +68,10 @@ export default function ContasAtivasPage({ onNavigatePlanilha }: ContasAtivasPro
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {state.accounts.map((acc, i) => {
           const isActive = i === state.activeAccount;
-          const balance = getAccountBalance(acc);
-          const monthPnl = getMonthPnl(acc, curYear, curMonth);
+          const balance = acc.balance || 0;
+          const apiId = (acc as any)._apiId;
+          const trades = apiId ? (accountTrades[apiId] || []) : [];
+          const monthPnl = sumPnl(trades);
           const hasGoal = (acc.monthlyGoal || 0) > 0;
 
           return (
@@ -138,7 +162,7 @@ export default function ContasAtivasPage({ onNavigatePlanilha }: ContasAtivasPro
                 )}
               </div>
 
-              <Sparkline trades={acc.trades} />
+              <Sparkline trades={trades} />
 
               <button
                 onClick={() => {

@@ -63,7 +63,8 @@ class ConnectionManager:
         This is what endpoints (like MT5 sync) should call.
         """
         if redis_client is None:
-            logger.warning("Redis client not initialized. Cannot publish.")
+            logger.warning("Redis client not initialized. Falling back to local websocket.")
+            await self.send_personal_message(user_id, event)
             return
 
         # Add routing info to the payload
@@ -77,6 +78,10 @@ class ConnectionManager:
     async def broadcast(self, event: dict):
         """Publish broadcast event to Redis for all users."""
         if redis_client is None:
+            async with self.lock:
+                local_users = list(self.connections.keys())
+            for uid in local_users:
+                await self.send_personal_message(uid, event)
             return
         
         event["_target_user_id"] = "ALL"

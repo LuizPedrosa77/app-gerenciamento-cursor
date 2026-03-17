@@ -1,16 +1,17 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Wallet } from 'lucide-react';
-import { useGPFX } from '@/contexts/GPFXContext';
+import { useGPFX, apiTradeToLocal } from '@/contexts/GPFXContext';
 import {
-  MONTHS, WEEKDAYS, sumPnl, fmtNum, getAccountBalance, getWinRate, getTradePnl, Trade, getWeekOfMonth, getMonthPnl,
+  MONTHS, sumPnl, fmtNum, Trade,
 } from '@/lib/gpfx-utils';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell, AreaChart, Area, ReferenceLine, LabelList,
 } from 'recharts';
-import { AccountSelector, DateRangeFilter, DateRange, filterTradesByRange } from '@/components/GPFXFilters';
+import { AccountSelector, DateRangeFilter, DateRange } from '@/components/GPFXFilters';
 import WeeklyReport from '@/components/WeeklyReport';
 import dashboardService from '@/services/dashboardService';
+import tradeService from '@/services/tradeService';
 
 /* ── Mini Sparkline for KPI cards ── */
 function MiniSparkline({ data, color }: { data: number[]; color: string }) {
@@ -52,10 +53,12 @@ function KpiCard({ label, value, color, sparkData, variation }: {
 /* ── Monthly Goal Card ── */
 function MonthlyGoalCard({ accFilter }: { accFilter: string }) {
   const { state } = useGPFX();
+  const [monthPnl, setMonthPnl] = useState(0);
+  const [daysOperated, setDaysOperated] = useState(0);
   const now = new Date();
   const curYear = now.getFullYear();
   const curMonth = now.getMonth();
-  const MONTHS_FULL = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  const MONTHS_FULL = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
   // If "all accounts", use active account's goal; otherwise use selected
   const accIdx = accFilter === 'all' ? state.activeAccount : parseInt(accFilter);
@@ -64,7 +67,28 @@ function MonthlyGoalCard({ accFilter }: { accFilter: string }) {
   const goal = acc.monthlyGoal || 0;
   if (goal <= 0) return null;
 
-  const monthPnl = getMonthPnl(acc, curYear, curMonth);
+  useEffect(() => {
+    const load = async () => {
+      const apiId = (acc as any)._apiId;
+      if (!apiId) {
+        setMonthPnl(0);
+        setDaysOperated(0);
+        return;
+      }
+      try {
+        const start = new Date(curYear, curMonth, 1).toISOString().split('T')[0];
+        const end = new Date().toISOString().split('T')[0];
+        const res = await tradeService.list(apiId, 0, 10000, undefined, undefined, start, end);
+        const trades = (res.items || res).map(apiTradeToLocal);
+        setMonthPnl(sumPnl(trades));
+        setDaysOperated(new Set(trades.filter(t => t.date).map(t => t.date)).size);
+      } catch (err) {
+        console.error('Failed to load monthly goal stats', err);
+      }
+    };
+    load();
+  }, [acc, curYear, curMonth]);
+
   const pct = (monthPnl / goal) * 100;
   const clampedPct = Math.min(100, Math.max(0, pct));
   const barColor = pct >= 100 ? '#00d395' : pct >= 71 ? '#3b82f6' : pct >= 41 ? '#f59e0b' : '#ff4d4d';
@@ -74,21 +98,17 @@ function MonthlyGoalCard({ accFilter }: { accFilter: string }) {
   const lastDay = new Date(curYear, curMonth + 1, 0).getDate();
   const daysRemaining = Math.max(0, lastDay - now.getDate());
 
-  // Days operated this month
-  const monthTrades = acc.trades.filter(t => t.year === curYear && t.month === curMonth);
-  const daysOperated = new Set(monthTrades.filter(t => t.date).map(t => t.date)).size;
-
   // Pace
   const rateNeeded = daysRemaining > 0 ? Math.max(0, (goal - monthPnl) / daysRemaining) : 0;
   const rateActual = daysOperated > 0 ? monthPnl / daysOperated : 0;
 
   // Status badge
   let badge: { emoji: string; text: string; color: string };
-  if (monthPnl < 0) badge = { emoji: '🔴', text: 'Atenção — Revise sua estratégia', color: '#ff4d4d' };
-  else if (pct >= 100) badge = { emoji: '🟢', text: 'Meta Atingida!', color: '#00d395' };
-  else if (pct >= 71) badge = { emoji: '🔵', text: 'Quase lá!', color: '#3b82f6' };
-  else if (pct >= 41) badge = { emoji: '🟡', text: 'No caminho certo', color: '#f59e0b' };
-  else badge = { emoji: '🟠', text: 'Abaixo do esperado', color: '#f97316' };
+  if (monthPnl < 0) badge = { emoji: '', text: 'Atencao - Revise sua estrategia', color: '#ff4d4d' };
+  else if (pct >= 100) badge = { emoji: '', text: 'Meta Atingida!', color: '#00d395' };
+  else if (pct >= 71) badge = { emoji: '', text: 'Quase la!', color: '#3b82f6' };
+  else if (pct >= 41) badge = { emoji: '', text: 'No caminho certo', color: '#f59e0b' };
+  else badge = { emoji: '', text: 'Abaixo do esperado', color: '#f97316' };
 
   const diff = monthPnl - goal;
 
@@ -98,7 +118,7 @@ function MonthlyGoalCard({ accFilter }: { accFilter: string }) {
         <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
           <div>
             <div className="text-base font-extrabold flex items-center gap-2" style={{ color: 'var(--gpfx-text-primary)' }}>
-              🎯 Meta Mensal — {acc.name}
+              Meta Mensal - {acc.name}
             </div>
             <div className="text-xs mt-0.5" style={{ color: 'var(--gpfx-text-muted)' }}>
               {MONTHS_FULL[curMonth]} {curYear}
@@ -125,7 +145,7 @@ function MonthlyGoalCard({ accFilter }: { accFilter: string }) {
           <div className="text-3xl font-black" style={{ color: barColor }}>{clampedPct.toFixed(0)}%</div>
           <div className="flex-1 text-right">
             <div className="text-xs font-bold" style={{ color: isAchieved ? '#00d395' : '#ff4d4d' }}>
-              {isAchieved ? `Meta superada em $${fmtNum(diff)} 🎉` : `Faltam $${fmtNum(Math.abs(diff))} para atingir a meta`}
+              {isAchieved ? `Meta superada em $${fmtNum(diff)}` : `Faltam $${fmtNum(Math.abs(diff))} para atingir a meta`}
             </div>
           </div>
         </div>
@@ -166,7 +186,7 @@ function MonthlyGoalCard({ accFilter }: { accFilter: string }) {
           </div>
           {!isAchieved && daysRemaining > 0 && (
             <div className="flex flex-col">
-              <span style={{ color: 'var(--gpfx-text-muted)' }}>Ritmo necessário</span>
+              <span style={{ color: 'var(--gpfx-text-muted)' }}>Ritmo necessario</span>
               <span className="font-bold" style={{ color: '#f59e0b' }}>${fmtNum(rateNeeded)}/dia</span>
             </div>
           )}
@@ -192,6 +212,7 @@ export default function DashboardPage() {
     balanceEvoSampled: [], heatmapData: [], top5Best: [], top5Worst: [],
     accountSummary: [], weekTrades: [], weekPnlTotal: 0, wrSpark: [], monthlyPnls: []
   });
+  const [weeklyTrades, setWeeklyTrades] = useState<Trade[]>([]);
 
   // Call the robust, scalable backend aggregation APIs!
   const loadData = async () => {
@@ -239,13 +260,43 @@ export default function DashboardPage() {
       const evolutionMapped = evoRaw.map(e => ({ date: e.date, balance: e.cumulative }));
       const monthlyPnls = heatmapData[0].months;
 
-      const accountSummary = state.accounts.map(a => ({
-        name: a.name,
-        balance: getAccountBalance(a),
-        pnl: sumPnl(a.trades), // Keep local sum for quick visual if needed, or omit.
-        winRate: getWinRate(a.trades),
-        trades: a.trades.length,
+      const allAccountIds = state.accounts.map(a => (a as any)._apiId).filter(Boolean) as string[];
+      const filteredAccountIds = (filters.account_ids && filters.account_ids.length > 0)
+        ? filters.account_ids
+        : allAccountIds;
+
+      const accountSummary = await Promise.all(state.accounts.map(async a => {
+        const apiId = (a as any)._apiId;
+        if (!apiId) {
+          return { name: a.name, balance: a.balance || 0, pnl: 0, winRate: 0, trades: 0 };
+        }
+        const sumAcc = await dashboardService.getSummary({
+          account_ids: [apiId],
+          start_date: filters.start_date,
+          end_date: filters.end_date,
+        });
+        return {
+          name: a.name,
+          balance: sumAcc.total_balance ?? a.balance ?? 0,
+          pnl: sumAcc.total_pnl ?? 0,
+          winRate: sumAcc.win_rate ?? 0,
+          trades: sumAcc.total_trades ?? 0,
+        };
       }));
+
+      // Weekly trades for report (last 90 days)
+      const end = new Date();
+      const start = new Date();
+      start.setDate(end.getDate() - 90);
+      const startStr = start.toISOString().split('T')[0];
+      const endStr = end.toISOString().split('T')[0];
+      let weeklyAgg: Trade[] = [];
+      for (const id of filteredAccountIds) {
+        const res = await tradeService.list(id, 0, 10000, undefined, undefined, startStr, endStr);
+        const portion = (res.items || res).map(apiTradeToLocal);
+        weeklyAgg = weeklyAgg.concat(portion);
+      }
+      setWeeklyTrades(weeklyAgg);
 
       setStats({
         totalBalance: sum.current_balance || sum.total_balance || 0,
@@ -284,6 +335,28 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, accFilter, dateRange]);
 
+  const weekTrades = useMemo(() => {
+    const now = new Date();
+    const monday = new Date(now);
+    const day = monday.getDay();
+    monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+    monday.setHours(0, 0, 0, 0);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const monStr = monday.toISOString().split('T')[0];
+    const sunStr = sunday.toISOString().split('T')[0];
+    return weeklyTrades.filter(t => t.date && t.date >= monStr && t.date <= sunStr);
+  }, [weeklyTrades]);
+
+  const weekPnlTotal = sumPnl(weekTrades);
+
+  const selectedAcc = accFilter === 'all' ? null : state.accounts[parseInt(accFilter)];
+  const selectedAccSummary = selectedAcc
+    ? stats.accountSummary.find((a: any) => a.name === selectedAcc.name)
+    : null;
+  const totalBalanceDisplay = accFilter === 'all'
+    ? stats.totalBalance
+    : (selectedAccSummary?.balance ?? selectedAcc?.balance ?? stats.totalBalance);
 
   const tooltipStyle = { background: 'var(--gpfx-card)', border: '1px solid var(--gpfx-border)', borderRadius: 8, color: 'var(--gpfx-text-primary)' };
 
@@ -341,12 +414,12 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="text-3xl font-black" style={{ color: 'var(--gpfx-text-primary)' }}>
-          ${fmtNum(stats.totalBalance)}
+          ${fmtNum(totalBalanceDisplay)}
         </div>
-        {state.accounts.length > 1 && (
+        {state.accounts.length > 1 && accFilter === 'all' && (
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: 'var(--gpfx-text-muted)', opacity: 0.7 }}>
             {state.accounts.map((acc, i) => (
-              <span key={i}>{acc.name}: <span className="font-semibold" style={{ color: 'var(--gpfx-text-secondary)' }}>${fmtNum(getAccountBalance(acc))}</span></span>
+              <span key={i}>{acc.name}: <span className="font-semibold" style={{ color: 'var(--gpfx-text-secondary)' }}>${fmtNum(acc.balance || 0)}</span></span>
             ))}
           </div>
         )}
@@ -361,7 +434,7 @@ export default function DashboardPage() {
 
       {/* Weekly Report */}
       <WeeklyReport
-        trades={accFilter === 'all' ? state.accounts.flatMap(a => a.trades) : (state.accounts[parseInt(accFilter)]?.trades || [])}
+        trades={weeklyTrades}
         accountName={accFilter === 'all' ? 'Todas as contas' : (state.accounts[parseInt(accFilter)]?.name || '')}
       />
 
@@ -608,8 +681,8 @@ export default function DashboardPage() {
         <div className="gpfx-card">
           <div className="gpfx-card-header">
             <span className="gpfx-card-title">Trades da Semana</span>
-            <span className="text-xs font-bold" style={{ color: stats.weekPnlTotal >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)' }}>
-              Total: {stats.weekPnlTotal >= 0 ? '+' : ''}${fmtNum(stats.weekPnlTotal)}
+            <span className="text-xs font-bold" style={{ color: weekPnlTotal >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)' }}>
+              Total: {weekPnlTotal >= 0 ? '+' : ''}${fmtNum(weekPnlTotal)}
             </span>
           </div>
           <div className="gpfx-card-body overflow-x-auto">
@@ -624,7 +697,7 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {stats.weekTrades.map((t, i) => (
+                {weekTrades.map((t, i) => (
                   <tr key={i} style={{ borderBottom: '1px solid var(--gpfx-border)' }}>
                     <td className="py-2 text-xs" style={{ color: 'var(--gpfx-text-muted)' }}>{t.date || '—'}</td>
                     <td className="py-2 text-xs font-bold" style={{ color: 'var(--gpfx-text-primary)' }}>{t.pair}</td>
@@ -639,7 +712,7 @@ export default function DashboardPage() {
                     </td>
                   </tr>
                 ))}
-                {stats.weekTrades.length === 0 && (
+                {weekTrades.length === 0 && (
                   <tr><td colSpan={5} className="py-6 text-center text-xs" style={{ color: 'var(--gpfx-text-muted)' }}>Nenhum trade esta semana.</td></tr>
                 )}
               </tbody>

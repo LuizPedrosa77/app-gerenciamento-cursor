@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useGPFX } from '@/contexts/GPFXContext';
+import { useGPFX, apiTradeToLocal } from '@/contexts/GPFXContext';
 import { Trade, getTradePnl, fmtNum, sumPnl, getWinRate } from '@/lib/gpfx-utils';
 import { ChevronDown, ChevronUp, MapPin, Camera } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Lightbox } from '@/components/Lightbox';
 import { ScreenshotModal } from '@/components/ScreenshotModal';
+import tradeService from '@/services/tradeService';
+import { getChartGoto, clearChartGoto } from '@/lib/chart-goto';
 
 const SYMBOLS = [
   { value: '__ALL__', label: '📊 Todos os ativos', pair: '__ALL__' },
@@ -93,18 +95,47 @@ export default function TradingViewPage() {
   const scriptLoaded = useRef(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [tradePeriod, setTradePeriod] = useState('all');
-  const [showMarkers, setShowMarkers] = useState(() => localStorage.getItem('gpfx_show_markers') !== 'false');
+  const [showMarkers, setShowMarkers] = useState(true);
   const [screenshotModal, setScreenshotModal] = useState<{ open: boolean; trade: Trade | null }>({ open: false, trade: null });
   const [lightbox, setLightbox] = useState<{ open: boolean; images: { data: string; caption: string; tradePair?: string }[]; index: number }>({ open: false, images: [], index: 0 });
 
   // New filters
-  const [accountFilter, setAccountFilter] = useState(() => localStorage.getItem('gpfx_tv_account') || 'all');
-  const [headerPeriod, setHeaderPeriod] = useState(() => localStorage.getItem('gpfx_tv_period') || 'all');
+  const [accountFilter, setAccountFilter] = useState('all');
+  const [headerPeriod, setHeaderPeriod] = useState('all');
+  const [allTrades, setAllTrades] = useState<Trade[]>([]);
 
   // Track last real symbol for chart (when "all assets" is selected)
   const lastRealSymbol = useRef('FX:EURUSD');
   const isAllAssets = symbol === '__ALL__';
   const chartSymbol = isAllAssets ? lastRealSymbol.current : symbol;
+
+  useEffect(() => {
+    const loadAllTrades = async () => {
+      try {
+        const accountIds: string[] = [];
+        if (accountFilter === 'all') {
+          state.accounts.forEach(a => {
+            const apiId = (a as any)._apiId;
+            if (apiId) accountIds.push(apiId);
+          });
+        } else {
+          accountIds.push(accountFilter);
+        }
+
+        const startDate = getHeaderPeriodCutoff(headerPeriod) || undefined;
+        let trades: Trade[] = [];
+        for (const id of accountIds) {
+          const res = await tradeService.list(id, 0, 10000, undefined, undefined, startDate);
+          const rawItems = res.items || res;
+          trades = trades.concat(rawItems.map(apiTradeToLocal));
+        }
+        setAllTrades(trades);
+      } catch (err) {
+        console.error('Failed to load trades for TradingView', err);
+      }
+    };
+    loadAllTrades();
+  }, [accountFilter, headerPeriod, state.accounts]);
 
   // Keep track of last real symbol
   useEffect(() => {
@@ -112,50 +143,36 @@ export default function TradingViewPage() {
   }, [symbol, isAllAssets]);
 
   // Persist filter preferences
-  useEffect(() => { localStorage.setItem('gpfx_tv_account', accountFilter); }, [accountFilter]);
-  useEffect(() => { localStorage.setItem('gpfx_tv_period', headerPeriod); }, [headerPeriod]);
 
   // Read gpfx_chart_goto on mount
   useEffect(() => {
-    const raw = localStorage.getItem('gpfx_chart_goto');
-    if (raw) {
-      try {
-        const data = JSON.parse(raw);
-        if (data.symbol) {
-          setSymbol(data.symbol);
-          setInterval('D');
-          toast({
-            title: `📍 Mostrando ${getPairFromSymbol(data.symbol) || data.symbol}`,
-            description: data.date ? `Trade de ${data.date}` : undefined,
-          });
-        }
-      } catch { /* ignore */ }
-      localStorage.removeItem('gpfx_chart_goto');
+    const data = getChartGoto();
+    if (data?.symbol) {
+      setSymbol(data.symbol);
+      setInterval('D');
+      toast({
+        title: `Mostrando ${getPairFromSymbol(data.symbol) || data.symbol}`,
+        description: data.date ? `Trade de ${data.date}` : undefined,
+      });
     }
+    clearChartGoto();
   }, []);
 
   // Save marker preference
   useEffect(() => {
-    localStorage.setItem('gpfx_show_markers', String(showMarkers));
+    void showMarkers;
   }, [showMarkers]);
 
   // Get all trades filtered by account, pair, and header period
   const currentPair = getPairFromSymbol(symbol);
 
   const allPairTrades = useMemo(() => {
-    const trades: Trade[] = [];
-    const headerCutoff = getHeaderPeriodCutoff(headerPeriod);
-
-    state.accounts.forEach((acc, accIdx) => {
-      if (accountFilter !== 'all' && String(accIdx) !== accountFilter) return;
-      acc.trades.forEach(t => {
-        if (!isAllAssets && t.pair !== currentPair) return;
-        if (headerCutoff && t.date && t.date < headerCutoff) return;
-        trades.push(t);
-      });
+    const trades = allTrades.filter(t => {
+      if (!isAllAssets && t.pair !== currentPair) return false;
+      return true;
     });
     return trades.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  }, [state, currentPair, isAllAssets, accountFilter, headerPeriod]);
+  }, [allTrades, currentPair, isAllAssets]);
 
   const filteredPairTrades = useMemo(() => {
     if (tradePeriod === 'all') return allPairTrades;
@@ -254,8 +271,8 @@ export default function TradingViewPage() {
         </select>
         <select value={accountFilter} onChange={e => setAccountFilter(e.target.value)} style={selectStyle}>
           <option value="all">📊 Todas as contas</option>
-          {state.accounts.map((a, i) => (
-            <option key={i} value={String(i)}>{a.name}</option>
+          {state.accounts.filter(a => (a as any)._apiId).map((a, i) => (
+            <option key={i} value={(a as any)._apiId}>{a.name}</option>
           ))}
         </select>
         <select value={headerPeriod} onChange={e => setHeaderPeriod(e.target.value)} style={selectStyle}>
