@@ -12,7 +12,7 @@ interface GPFXContextType {
   addAccount: () => void;
   deleteAccount: (i: number) => void;
   renameAccount: (i: number, name: string) => void;
-  updateBalance: (val: number) => void;
+  updateInitialBalance: (val: number) => void;
   updateNotes: (val: string) => void;
   updateMeta: (val: number) => void;
   updateMonthlyGoal: (accIdx: number, val: number) => void;
@@ -242,14 +242,14 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     });
   }, [doSave]);
 
-  const updateBalance = useCallback((val: number) => {
+  const updateInitialBalance = useCallback((val: number) => {
     doSave(s => {
       const accounts = [...s.accounts];
-      accounts[s.activeAccount] = { ...accounts[s.activeAccount], balance: val };
+      accounts[s.activeAccount] = { ...accounts[s.activeAccount], initialBalance: val };
 
       const apiId = getApiId(accounts[s.activeAccount]);
       if (isAuthenticated() && apiId) {
-        fireAndForget(accountService.update(apiId, { balance: val }));
+        fireAndForget(accountService.update(apiId, { initial_balance: val }));
       }
 
       return { ...s, accounts };
@@ -668,7 +668,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     <GPFXContext.Provider value={{
       state, activeAcc, setState, save,
       switchAccount, addAccount, deleteAccount, renameAccount,
-      updateBalance, updateNotes, updateMeta, updateMonthlyGoal,
+      updateInitialBalance, updateNotes, updateMeta, updateMonthlyGoal,
       addTrade, addNewDay, updateTrade, deleteTrade, resetAccount,
       switchYear, switchMonth, updateWithdrawal,
       showSaved,

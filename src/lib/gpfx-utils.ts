@@ -39,6 +39,7 @@ export interface Trade {
 }
 
 export interface Account {
+  _apiId?: string;
   name: string;
   balance: number;
   initialBalance?: number;
@@ -116,32 +117,15 @@ export function getWeekOfMonth(dateStr: string): number {
 
 export function loadState(): GPFXState {
   const now = new Date();
-  const defaultState: GPFXState = {
+  return {
     accounts: [createAccount(0)],
     activeAccount: 0,
     activeYear: now.getFullYear(),
     activeMonth: now.getMonth(),
   };
-
-  const saved = localStorage.getItem('gustavoPedrosaFX_v1');
-  if (saved) {
-    try {
-      const state = JSON.parse(saved);
-      if (!state.accounts || state.accounts.length === 0) {
-        return defaultState;
-      }
-      if (state.activeAccount >= state.accounts.length) {
-        state.activeAccount = 0;
-      }
-      return state;
-    } catch (e) {
-      return defaultState;
-    }
-  }
-
-  return defaultState;
 }
 
 export function saveState(state: GPFXState): void {
-  localStorage.setItem('gustavoPedrosaFX_v1', JSON.stringify(state));
+  // No-op: state is persisted only on the backend.
+  void state;
 }

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useGPFX } from '@/contexts/GPFXContext';
 import {
   MONTHS, YEARS, PAIRS, DIRECTIONS, RESULTS,
@@ -9,6 +9,7 @@ import { ConnectBrokerModal } from '@/components/ConnectBrokerModal';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Lightbox } from '@/components/Lightbox';
 import { ScreenshotModal } from '@/components/ScreenshotModal';
+import reportService, { AnnualMonthSummary } from '@/services/reportService';
 
 /* ── Modal component ── */
 function Modal({ open, onClose, title, children, footer }: {
@@ -33,7 +34,7 @@ function Modal({ open, onClose, title, children, footer }: {
 export default function PlanilhaPage() {
   const {
     state, activeAcc, setState, save, switchAccount, addAccount, deleteAccount, renameAccount,
-    updateBalance, updateNotes, updateMeta, addTrade, addNewDay, updateTrade,
+    updateInitialBalance, updateNotes, updateMeta, addTrade, addNewDay, updateTrade,
     deleteTrade, resetAccount, switchYear, switchMonth, updateWithdrawal,
   } = useGPFX();
 
@@ -51,6 +52,7 @@ export default function PlanilhaPage() {
   const [filterDir, setFilterDir] = useState('');
   const [filterResult, setFilterResult] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [annualSummaries, setAnnualSummaries] = useState<Record<number, AnnualMonthSummary[]>>({});
 
   // Edit modal state
   const [editModal, setEditModal] = useState<{ open: boolean; trade: Trade | null }>({ open: false, trade: null });
@@ -67,6 +69,7 @@ export default function PlanilhaPage() {
   const year = state.activeYear;
   const month = state.activeMonth;
   const acc = activeAcc;
+  const accApiId = (acc as any)?._apiId as string | undefined;
 
   const allTrades = acc.trades;
   let monthTrades = allTrades.filter(t => t.year === year && t.month === month);
@@ -78,12 +81,11 @@ export default function PlanilhaPage() {
   if (filterResult) monthTrades = monthTrades.filter(t => t.result === filterResult);
 
   const monthPnl = sumPnl(acc.trades.filter(t => t.year === year && t.month === month));
-  const yearPnl = sumPnl(yearTrades);
   const totalPnl = sumPnl(allTrades);
   const allWithdrawals = Object.values(acc.withdrawals || {}).reduce((s, v) => s + v, 0);
-  const yearWithdrawals = Object.entries(acc.withdrawals || {}).filter(e => e[0].startsWith(year + '-')).reduce((s, e) => s + e[1], 0);
   const monthWithdrawal = (acc.withdrawals || {})[year + '-' + month] || 0;
-  const balance = acc.balance + totalPnl - allWithdrawals;
+  const baseBalance = (acc.initialBalance ?? acc.balance) || 0;
+  const balance = baseBalance + totalPnl - allWithdrawals;
   const monthWins = acc.trades.filter(t => t.year === year && t.month === month && t.result === 'WIN').length;
   const monthLosses = acc.trades.filter(t => t.year === year && t.month === month && t.result === 'LOSS').length;
   const monthTotal = acc.trades.filter(t => t.year === year && t.month === month).length;
@@ -91,10 +93,25 @@ export default function PlanilhaPage() {
   const monthNet = monthPnl - monthWithdrawal;
 
   // Monthly data for grid
+  const yearSummary = annualSummaries[year] || [];
   const monthlyData = MONTHS.map((_, mi) => {
-    const mt = yearTrades.filter(t => t.month === mi);
-    return { pnl: sumPnl(mt), count: mt.length };
+    const summary = yearSummary.find(s => s.month === mi + 1);
+    return { pnl: summary?.pnl ?? 0, count: summary?.trades ?? 0 };
   });
+
+  useEffect(() => {
+    if (!accApiId) return;
+    let alive = true;
+    reportService.getAnnualSummary({ year, account_id: accApiId })
+      .then(res => {
+        if (!alive) return;
+        setAnnualSummaries(prev => ({ ...prev, [year]: res.months || [] }));
+      })
+      .catch(err => {
+        console.warn('[Trade Log] Falha ao carregar resumo anual', err);
+      });
+    return () => { alive = false; };
+  }, [year, accApiId]);
 
   // Max win/loss
   const allSignedPnls = acc.trades.filter(t => t.year === year && t.month === month).flatMap(t => {
@@ -405,7 +422,13 @@ export default function PlanilhaPage() {
           <div className="flex items-start gap-4 flex-wrap">
             <div className="flex flex-col gap-1">
               <label className="text-[11px] font-semibold uppercase" style={{ color: '#8b949e' }}>Saldo Inicial (USD)</label>
-              <input type="number" className="gpfx-input" style={{ width: 140 }} value={acc.balance} onChange={e => updateBalance(parseFloat(e.target.value) || 0)} />
+              <input
+                type="number"
+                className="gpfx-input"
+                style={{ width: 140 }}
+                value={acc.initialBalance ?? acc.balance}
+                onChange={e => updateInitialBalance(parseFloat(e.target.value) || 0)}
+              />
             </div>
             <div className="flex-1 min-w-[200px]">
               <label className="text-[11px] font-semibold uppercase" style={{ color: '#8b949e' }}>Anotações da Conta</label>
@@ -427,8 +450,8 @@ export default function PlanilhaPage() {
               <div className="absolute right-0 top-full mt-2 rounded-xl overflow-hidden z-50" style={{ background: '#161b22', border: '1px solid #30363d', boxShadow: '0 12px 32px rgba(0,0,0,0.4)', minWidth: 200, maxHeight: 400, overflowY: 'auto' }}>
                 <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: '#6e7681', borderBottom: '1px solid #21262d' }}>Selecionar Ano</div>
                 {YEARS.map(y => {
-                  const yTrades = acc.trades.filter(t => t.year === y);
-                  const yPnl = sumPnl(yTrades);
+                  const ySummary = annualSummaries[y];
+                  const yPnl = ySummary ? ySummary.reduce((s, m) => s + (m.pnl || 0), 0) : null;
                   return (
                     <div key={y}
                       className={`flex items-center justify-between px-4 py-3 cursor-pointer text-sm font-semibold transition-colors ${y === year ? 'font-extrabold' : ''}`}
@@ -436,8 +459,8 @@ export default function PlanilhaPage() {
                       onClick={() => { switchYear(y); setYearPickerOpen(false); }}
                     >
                       <span>{y}</span>
-                      <span className="text-[11px] font-bold" style={{ color: yPnl > 0 ? '#00d395' : yPnl < 0 ? '#ff4d4d' : '#484f58' }}>
-                        {yPnl !== 0 ? (yPnl > 0 ? '+' : '') + '$' + fmtNum(yPnl) : '–'}
+                      <span className="text-[11px] font-bold" style={{ color: yPnl && yPnl > 0 ? '#00d395' : yPnl && yPnl < 0 ? '#ff4d4d' : '#484f58' }}>
+                        {yPnl === null ? '?' : (yPnl !== 0 ? (yPnl > 0 ? '+' : '') + '$' + fmtNum(yPnl) : '?')}
                       </span>
                     </div>
                   );
