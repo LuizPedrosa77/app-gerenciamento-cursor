@@ -1,6 +1,8 @@
 ﻿"use client";
 
 import { useState, useEffect, useRef } from "react";
+import Index from "./pages/Index";
+import authService from "./services/authService";
 
 // â”€â”€â”€ TYPES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 interface Stat   { value: string; label: string; color?: string }
@@ -740,8 +742,37 @@ function Footer({ go }: { go:(p:Page)=>void }) {
   );
 }
 
-function LoginModal({ open, onClose }: { open: boolean; onClose: ()=>void }) {
+function LoginModal({
+  open,
+  onClose,
+  onLoginSuccess,
+}: {
+  open: boolean;
+  onClose: ()=>void;
+  onLoginSuccess: ()=>void;
+}) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
   if (!open) return null;
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      await authService.login({ email, password });
+      onClose();
+      onLoginSuccess();
+    } catch (err: any) {
+      const message = err?.response?.data?.detail || "Email ou senha incorretos.";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div
       className="login-modal-overlay"
@@ -758,10 +789,28 @@ function LoginModal({ open, onClose }: { open: boolean; onClose: ()=>void }) {
         <p className="login-modal-sub">Acesse sua conta para continuar.</p>
         <div className="login-form">
           <label className="login-label">E-mail</label>
-          <input type="email" className="login-input" placeholder="voce@email.com" />
+          <input
+            type="email"
+            className="login-input"
+            placeholder="voce@email.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
           <label className="login-label">Senha</label>
-          <input type="password" className="login-input" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" />
-          <button className="login-submit-btn" onClick={onClose}>Entrar</button>
+          <input
+            type="password"
+            className="login-input"
+            placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !loading) handleSubmit();
+            }}
+          />
+          {error ? <p className="login-error-msg">{error}</p> : null}
+          <button className="login-submit-btn" onClick={handleSubmit} disabled={loading}>
+            {loading ? "Entrando..." : "Entrar"}
+          </button>
         </div>
       </div>
     </div>
@@ -1124,8 +1173,10 @@ footer p{font-size:12px;color:var(--t4);font-style:italic}
 .login-label{font-size:12px;color:var(--t2)}
 .login-input{height:40px;border-radius:8px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);padding:0 12px;color:var(--t1);outline:none}
 .login-input:focus{border-color:var(--bg_line)}
+.login-error-msg{font-size:12px;color:#ff7a7a;margin-top:2px}
 .login-submit-btn{margin-top:8px;height:42px;border:none;border-radius:8px;background:var(--ggold);color:var(--inv);font-weight:700;cursor:pointer}
 .login-submit-btn:hover{filter:brightness(1.04)}
+.login-submit-btn:disabled{opacity:.7;cursor:not-allowed}
 
 /* SCROLL REVEAL */
 .sr{opacity:0;transform:translateY(28px);transition:opacity .6s var(--reveal),transform .6s var(--reveal)}
@@ -1163,7 +1214,12 @@ footer p{font-size:12px;color:var(--t4);font-style:italic}
 export default function App() {
   const [page, setPage] = useState<Page>("home");
   const [loginOpen, setLoginOpen] = useState(false);
+  const [authenticated, setAuthenticated] = useState(() => authService.isAuthenticated());
   const { curRef, ringRef } = useCustomCursor();
+
+  if (authenticated) {
+    return <Index />;
+  }
 
   const go = (p: Page) => {
     setPage(p);
@@ -1195,7 +1251,11 @@ export default function App() {
       <Nav cur={page} go={go} onOpenLogin={() => setLoginOpen(true)} />
       {renderPage()}
       <Footer go={go} />
-      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
+      <LoginModal
+        open={loginOpen}
+        onClose={() => setLoginOpen(false)}
+        onLoginSuccess={() => setAuthenticated(true)}
+      />
 
       {/* â‘£ WhatsApp button â€” global, visible on all pages */}
       <WhatsAppBtn />
