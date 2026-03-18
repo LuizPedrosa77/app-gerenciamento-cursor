@@ -1,30 +1,38 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
-type Theme = 'dark' | 'light';
+type Theme = 'dark' | 'light' | 'brown';
 
 interface ThemeContextType {
   theme: Theme;
+  setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const THEME_KEY = 'gpfx_theme';
+
   const [theme, setTheme] = useState<Theme>(() => {
+    const stored = localStorage.getItem(THEME_KEY) as Theme | null;
+    if (stored === 'dark' || stored === 'light' || stored === 'brown') return stored;
     const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
     return prefersLight ? 'light' : 'dark';
   });
 
   useEffect(() => {
-    document.documentElement.className = `theme-${theme}`;
+    const root = document.documentElement;
+    root.classList.remove('theme-dark', 'theme-light', 'theme-brown');
+    root.classList.add(`theme-${theme}`);
+    localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
 
   const toggleTheme = useCallback(() => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+    setTheme(prev => (prev === 'dark' ? 'light' : prev === 'light' ? 'brown' : 'dark'));
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );

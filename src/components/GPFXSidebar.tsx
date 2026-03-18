@@ -41,7 +41,7 @@ export function AppSidebar({ activeView, onChangeView, mobileOpen, onToggleMobil
   const { showSaved } = useGPFX();
   const isMobile = useIsMobile();
   const effectiveCollapsed = isMobile ? false : collapsed;
-  const { theme, toggleTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const [clickedItem, setClickedItem] = useState<string | null>(null);
   const [showScanLine, setShowScanLine] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -229,6 +229,33 @@ export function AppSidebar({ activeView, onChangeView, mobileOpen, onToggleMobil
           )}
         </div>
 
+        {/* Themes */}
+        <div className="relative z-10 px-3 pb-2">
+          {!effectiveCollapsed && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-[2px]" style={{ color: 'var(--gpfx-text-muted)' }}>
+                Temas
+              </span>
+              <div className="flex items-center gap-1.5">
+                {(['dark', 'light', 'brown'] as const).map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => setTheme(opt)}
+                    className="px-2 py-1 rounded-md text-[10px] font-semibold uppercase tracking-[1px] transition-all"
+                    style={{
+                      border: `1px solid ${theme === opt ? 'var(--gpfx-green)' : 'var(--gpfx-border)'}`,
+                      color: theme === opt ? 'var(--gpfx-green)' : 'var(--gpfx-text-secondary)',
+                      background: theme === opt ? 'rgba(0,211,149,0.12)' : 'rgba(255,255,255,0.04)',
+                    }}
+                  >
+                    {opt === 'dark' ? 'Dark' : opt === 'light' ? 'Light' : 'Marrom'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Footer */}
         <div className="relative z-10 flex items-center px-3 py-3" style={{ justifyContent: effectiveCollapsed ? 'center' : 'space-between' }}>
           {!effectiveCollapsed && (
@@ -238,17 +265,18 @@ export function AppSidebar({ activeView, onChangeView, mobileOpen, onToggleMobil
             </div>
           )}
 
-          <button
-            onClick={toggleTheme}
-            className="sidebar-theme-btn"
-            title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
-          >
-            {theme === 'dark' ? <Moon size={14} color="#8b949e" /> : <Sun size={14} color="#f59e0b" />}
-          </button>
-
           {effectiveCollapsed && (
-            <div className="flex items-center" style={{ color: showSaved ? '#00d395' : '#1e3a2e' }}>
-              <CheckCircle size={12} />
+            <div className="flex items-center gap-1.5">
+              <div className="flex items-center" style={{ color: showSaved ? '#00d395' : '#1e3a2e' }}>
+                <CheckCircle size={12} />
+              </div>
+              <button
+                onClick={() => setTheme(theme === 'dark' ? 'light' : theme === 'light' ? 'brown' : 'dark')}
+                className="sidebar-theme-btn"
+                title={theme === 'dark' ? 'Modo claro' : theme === 'light' ? 'Modo marrom' : 'Modo escuro'}
+              >
+                {theme === 'dark' ? <Moon size={14} color="#8b949e" /> : <Sun size={14} color="#f59e0b" />}
+              </button>
             </div>
           )}
         </div>
