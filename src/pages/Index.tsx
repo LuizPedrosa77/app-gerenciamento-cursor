@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { GPFXProvider, useGPFX } from '@/contexts/GPFXContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import OnboardingWizard, { shouldShowOnboarding } from '@/components/OnboardingWizard';
@@ -13,7 +13,6 @@ import TradingViewPage from '@/pages/TradingViewPage';
 import IADoTradePage from '@/pages/IADoTradePage';
 import APIsPage from '@/pages/APIsPage';
 import PerfilPage from '@/pages/PerfilPage';
-import AuthPage from '@/pages/AuthPage';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { authService } from '@/services/authService';
 
@@ -28,21 +27,32 @@ function AppLayout({ onLogout }: { onLogout: () => void }) {
     return window.innerWidth < 1024;
   });
 
-  const sidebarWidth = isMobile ? 0 : (collapsed ? 68 : 260);
+  const sidebarWidth = isMobile ? 0 : collapsed ? 68 : 260;
 
   const renderPage = () => {
     switch (activeView) {
-      case 'dashboard': return <DashboardPage />;
-      case 'tradingview': return <TradingViewPage />;
-      case 'evolucao': return <EvolucaoPage />;
-      case 'calendario': return <CalendarioPage onNavigateView={setActiveView} />;
-      case 'planilha': return <PlanilhaPage />;
-      case 'contas': return <ContasAtivasPage onNavigatePlanilha={() => setActiveView('planilha')} />;
-      case 'analise': return <AnalisePage />;
-      case 'ia': return <IADoTradePage />;
-      case 'apis': return <APIsPage />;
-      case 'perfil': return <PerfilPage />;
-      default: return <PlanilhaPage />;
+      case 'dashboard':
+        return <DashboardPage />;
+      case 'tradingview':
+        return <TradingViewPage />;
+      case 'evolucao':
+        return <EvolucaoPage />;
+      case 'calendario':
+        return <CalendarioPage onNavigateView={setActiveView} />;
+      case 'planilha':
+        return <PlanilhaPage />;
+      case 'contas':
+        return <ContasAtivasPage onNavigatePlanilha={() => setActiveView('planilha')} />;
+      case 'analise':
+        return <AnalisePage />;
+      case 'ia':
+        return <IADoTradePage />;
+      case 'apis':
+        return <APIsPage />;
+      case 'perfil':
+        return <PerfilPage />;
+      default:
+        return <PlanilhaPage />;
     }
   };
 
@@ -82,9 +92,11 @@ class ErrorBoundary extends React.Component<
     super(props);
     this.state = { hasError: false };
   }
+
   static getDerivedStateFromError() {
     return { hasError: true };
   }
+
   render() {
     if (this.state.hasError) {
       return (
@@ -120,18 +132,19 @@ class ErrorBoundary extends React.Component<
         </div>
       );
     }
+
     return this.props.children;
   }
 }
 
 export default function Index() {
-  const [authenticated, setAuthenticated] = useState(() => {
-    return authService.isAuthenticated();
-  });
+  const [authenticated, setAuthenticated] = useState(() => authService.isAuthenticated());
 
-  const handleLogin = () => {
-    setAuthenticated(true);
-  };
+  useEffect(() => {
+    if (!authenticated) {
+      window.location.replace('/');
+    }
+  }, [authenticated]);
 
   const handleLogout = () => {
     authService.logout();
@@ -139,11 +152,7 @@ export default function Index() {
   };
 
   if (!authenticated) {
-    return (
-      <ThemeProvider>
-        <AuthPage onLogin={handleLogin} />
-      </ThemeProvider>
-    );
+    return null;
   }
 
   return (

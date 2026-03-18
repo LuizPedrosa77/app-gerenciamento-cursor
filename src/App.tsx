@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Index from "./pages/Index";
 import authService from "./services/authService";
 
-// â”€â”€â”€ TYPES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── TYPES ────────────────────────────────────────────────────────────────────
 interface Stat   { value: string; label: string; color?: string }
 interface Service{ num: string; title: string; desc: string; tags: string[] }
 interface Result { num: string; label: string }
@@ -13,77 +13,77 @@ interface PricingPlan { name: string; price: { monthly: number; annual: number }
 interface FAQ { q: string; a: string }
 type Page = "home" | "funcionalidades" | "precos" | "faq" | "empresa";
 
-// â”€â”€â”€ DATA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── DATA ─────────────────────────────────────────────────────────────────────
 const DASHBOARD_STATS: Stat[] = [
   { value: "+$4.280", label: "P&L Mensal",  color: "ok"   },
   { value: "67,4%",   label: "Win Rate"                   },
-  { value: "2,3",     label: "RR MÃ©dio",    color: "ok"   },
+  { value: "2,3",     label: "RR Médio",    color: "ok"   },
   { value: "86",      label: "GP Score",    color: "gold" },
 ];
 
 const MARQUEE_ITEMS = [
-  "ðŸ“Š Dashboard","ðŸ“ˆ EvoluÃ§Ã£o da Conta",
-  "ðŸ”¬ AnÃ¡lise das OperaÃ§Ãµes","ðŸ“… CalendÃ¡rio",
-  "ðŸ“‹ Trade Log","ðŸ“‰ TradingView Chart",
-  "ðŸ¦ Contas Ativas","ðŸ¤– IA do Trade",
-  "ðŸ”Œ APIs","ðŸ‘¤ Perfil",
+  "📊 Dashboard","📈 Evolução da Conta",
+  "🔬 Análise das Operações","📅 Calendário",
+  "📋 Trade Log","📉 TradingView Chart",
+  "🏦 Contas Ativas","🤖 IA do Trade",
+  "🔌 APIs","👤 Perfil",
 ];
 
-// â”€â”€â”€ SIDEBAR ITEMS (novo menu atualizado) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── SIDEBAR ITEMS (novo menu atualizado) ─────────────────────────────────────
 const SIDEBAR_ITEMS = [
-  { icon: "ðŸ“Š", label: "Dashboard",              act: true  },
-  { icon: "ðŸ“ˆ", label: "EvoluÃ§Ã£o da Conta",       act: false },
-  { icon: "ðŸ”¬", label: "AnÃ¡lise das OperaÃ§Ãµes",   act: false },
-  { icon: "ðŸ“…", label: "CalendÃ¡rio",              act: false },
-  { icon: "ðŸ“‹", label: "Trade Log",               act: false },
-  { icon: "ðŸ“‰", label: "TradingView Chart",        act: false },
-  { icon: "ðŸ¦", label: "Contas Ativas",            act: false },
-  { icon: "ðŸ¤–", label: "IA do Trade",             act: false },
-  { icon: "ðŸ”Œ", label: "APIs",                    act: false },
-  { icon: "ðŸ‘¤", label: "Perfil",                  act: false },
+  { icon: "📊", label: "Dashboard",              act: true  },
+  { icon: "📈", label: "Evolução da Conta",       act: false },
+  { icon: "🔬", label: "Análise das Operações",   act: false },
+  { icon: "📅", label: "Calendário",              act: false },
+  { icon: "📋", label: "Trade Log",               act: false },
+  { icon: "📉", label: "TradingView Chart",        act: false },
+  { icon: "🏦", label: "Contas Ativas",            act: false },
+  { icon: "🤖", label: "IA do Trade",             act: false },
+  { icon: "🔌", label: "APIs",                    act: false },
+  { icon: "👤", label: "Perfil",                  act: false },
 ];
 
 // Calendar days (28-day month grid)
 const CAL_DAYS = Array.from({ length: 28 }, (_, i) => i + 1);
-const CAL_HEADERS = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÃB"];
+const CAL_HEADERS = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
 
 const SERVICES: Service[] = [
-  { num:"01/", title:"Dashboard completo com 8 grÃ¡ficos",    desc:"Win rate, P&L diÃ¡rio, distribuiÃ§Ã£o por ativo, horÃ¡rio ideal de entrada â€” tudo em tempo real.",        tags:["SincronizaÃ§Ã£o automÃ¡tica","8 mÃ©tricas"] },
-  { num:"02/", title:"CalendÃ¡rio com GP Score",               desc:"Cada dia recebe uma pontuaÃ§Ã£o baseada em disciplina, risco e resultado. Evolua de forma mensurÃ¡vel.", tags:["Score de disciplina"] },
-  { num:"03/", title:"ConexÃ£o MT5, MT4 e cTrader",            desc:"Importe todas as suas operaÃ§Ãµes automaticamente. Sem planilhas, sem trabalho manual.",                tags:["Import automÃ¡tico"] },
-  { num:"04/", title:"Replay de Mercado",                     desc:"Reviva qualquer operaÃ§Ã£o tick a tick. Treine, identifique padrÃµes e melhore suas entradas.",          tags:["Modo treinamento"] },
-  { num:"05/", title:"IA do Trade para anÃ¡lise inteligente",  desc:"Nossa IA analisa seus padrÃµes de comportamento e sugere melhorias especÃ­ficas para o seu estilo.",    tags:["Powered by AI"] },
+  { num:"01/", title:"Dashboard completo com 8 gráficos",    desc:"Win rate, P&L diário, distribuição por ativo, horário ideal de entrada — tudo em tempo real.",        tags:["Sincronização automática","8 métricas"] },
+  { num:"02/", title:"Calendário com GP Score",               desc:"Cada dia recebe uma pontuação baseada em disciplina, risco e resultado. Evolua de forma mensurável.", tags:["Score de disciplina"] },
+  { num:"03/", title:"Conexão MT5, MT4 e cTrader",            desc:"Importe todas as suas operações automaticamente. Sem planilhas, sem trabalho manual.",                tags:["Import automático"] },
+  { num:"04/", title:"Replay de Mercado",                     desc:"Reviva qualquer operação tick a tick. Treine, identifique padrões e melhore suas entradas.",          tags:["Modo treinamento"] },
+  { num:"05/", title:"IA do Trade para análise inteligente",  desc:"Nossa IA analisa seus padrões de comportamento e sugere melhorias específicas para o seu estilo.",    tags:["Powered by AI"] },
 ];
 
 const RESULTS: Result[] = [
-  { num:"+67%",   label:"aumento mÃ©dio no win rate apÃ³s 60 dias" },
+  { num:"+67%",   label:"aumento médio no win rate após 60 dias" },
   { num:"2.400+", label:"traders profissionais ativos"           },
-  { num:"âˆ’45%",   label:"reduÃ§Ã£o no drawdown mensal"             },
-  { num:"4.9â˜…",   label:"avaliaÃ§Ã£o mÃ©dia dos usuÃ¡rios"           },
+  { num:"−45%",   label:"redução no drawdown mensal"             },
+  { num:"4.9★",   label:"avaliação média dos usuários"           },
 ];
 
 const TESTIMONIALS: Testimonial[] = [
-  { quote:"O GP Score mudou minha visÃ£o sobre disciplina. Os dados mostraram onde eu estava errando.", name:"Rafael Cunha",   role:"Trader Forex Â· 3 anos",  metric:"+34% no win rate em 60 dias" },
-  { quote:"A conexÃ£o com MT5 Ã© perfeita. Zero trabalho manual. O replay me ajudou a melhorar muito.", name:"Ana Martins",    role:"Prop Trader Â· FTMO",     metric:"Passou na avaliaÃ§Ã£o FTMO na 2Âª tentativa" },
-  { quote:"A IA identificou que perco mais nos primeiros 30 min. Mudei e os resultados melhoraram.",   name:"Lucas Ferreira", role:"Day Trader Â· Ãndices",   metric:"Drawdown reduzido em 45%" },
+  { quote:"O GP Score mudou minha visão sobre disciplina. Os dados mostraram onde eu estava errando.", name:"Rafael Cunha",   role:"Trader Forex · 3 anos",  metric:"+34% no win rate em 60 dias" },
+  { quote:"A conexão com MT5 é perfeita. Zero trabalho manual. O replay me ajudou a melhorar muito.", name:"Ana Martins",    role:"Prop Trader · FTMO",     metric:"Passou na avaliação FTMO na 2ª tentativa" },
+  { quote:"A IA identificou que perco mais nos primeiros 30 min. Mudei e os resultados melhoraram.",   name:"Lucas Ferreira", role:"Day Trader · Índices",   metric:"Drawdown reduzido em 45%" },
 ];
 
 const PRICING_PLANS: PricingPlan[] = [
-  { name:"Starter", price:{monthly:0,annual:0},   desc:"Para traders que estÃ£o comeÃ§ando a controlar suas mÃ©tricas.",          features:["Dashboard bÃ¡sico (4 grÃ¡ficos)","ConexÃ£o com 1 corretora","GP Score mensal","HistÃ³rico de 30 dias"], cta:"Criar conta agora" },
-  { name:"Pro",     price:{monthly:97,annual:77},  desc:"Para traders sÃ©rios que querem evoluir de forma consistente.",          features:["Dashboard completo (8 grÃ¡ficos)","ConexÃ£o ilimitada com corretoras","GP Score diÃ¡rio + calendÃ¡rio","IA do Trade","Replay de Mercado","RelatÃ³rios automÃ¡ticos","HistÃ³rico ilimitado"], cta:"ComeÃ§ar 7 dias grÃ¡tis", highlight:true },
-  { name:"Elite",   price:{monthly:197,annual:157},desc:"Para prop traders e profissionais que exigem o mÃ¡ximo.",                features:["Tudo do Pro","AnÃ¡lise multi-conta","RelatÃ³rios personalizados","Suporte prioritÃ¡rio","API de integraÃ§Ã£o","Onboarding individual"], cta:"Falar com especialista" },
+  { name:"Starter", price:{monthly:0,annual:0},   desc:"Para traders que estão começando a controlar suas métricas.",          features:["Dashboard básico (4 gráficos)","Conexão com 1 corretora","GP Score mensal","Histórico de 30 dias"], cta:"Criar conta agora" },
+  { name:"Pro",     price:{monthly:97,annual:77},  desc:"Para traders sérios que querem evoluir de forma consistente.",          features:["Dashboard completo (8 gráficos)","Conexão ilimitada com corretoras","GP Score diário + calendário","IA do Trade","Replay de Mercado","Relatórios automáticos","Histórico ilimitado"], cta:"Começar 7 dias grátis", highlight:true },
+  { name:"Elite",   price:{monthly:197,annual:157},desc:"Para prop traders e profissionais que exigem o máximo.",                features:["Tudo do Pro","Análise multi-conta","Relatórios personalizados","Suporte prioritário","API de integração","Onboarding individual"], cta:"Falar com especialista" },
 ];
 
 const FAQS: FAQ[] = [
-  { q:"Como funciona a conexÃ£o com MT5/MT4/cTrader?",           a:"A integraÃ§Ã£o Ã© feita via plugin. ApÃ³s a instalaÃ§Ã£o, todas as operaÃ§Ãµes sÃ£o sincronizadas automaticamente em tempo real." },
-  { q:"Preciso de cartÃ£o de crÃ©dito para testar?",              a:"NÃ£o. O plano Starter Ã© gratuito para sempre. O perÃ­odo de 7 dias grÃ¡tis do Pro tambÃ©m nÃ£o exige cartÃ£o." },
-  { q:"O que Ã© o GP Score?",                                    a:"GP Score Ã© nossa mÃ©trica proprietÃ¡ria que avalia cada dia de trading com uma pontuaÃ§Ã£o de 0 a 100, baseada em disciplina, gestÃ£o de risco e resultado." },
-  { q:"A IA do Trade funciona com qualquer estilo de trading?",  a:"Sim. A IA analisa seus prÃ³prios dados e aprende o seu estilo â€” seja scalping, day trade ou swing trade." },
-  { q:"Posso cancelar a qualquer momento?",                     a:"Sim, sem burocracia. VocÃª cancela pela prÃ³pria plataforma. Seus dados ficam disponÃ­veis por 90 dias apÃ³s o cancelamento." },
-  { q:"A plataforma funciona com corretoras brasileiras?",      a:"Sim. Qualquer corretora que opere com MT5, MT4 ou cTrader Ã© compatÃ­vel, incluindo as principais do mercado brasileiro." },
+  { q:"Como funciona a conexão com MT5/MT4/cTrader?",           a:"A integração é feita via plugin. Após a instalação, todas as operações são sincronizadas automaticamente em tempo real." },
+  { q:"Preciso de cartão de crédito para testar?",              a:"Não. O plano Starter é gratuito para sempre. O período de 7 dias grátis do Pro também não exige cartão." },
+  { q:"O que é o GP Score?",                                    a:"GP Score é nossa métrica proprietária que avalia cada dia de trading com uma pontuação de 0 a 100, baseada em disciplina, gestão de risco e resultado." },
+  { q:"A IA do Trade funciona com qualquer estilo de trading?",  a:"Sim. A IA analisa seus próprios dados e aprende o seu estilo — seja scalping, day trade ou swing trade." },
+  { q:"Posso cancelar a qualquer momento?",                     a:"Sim, sem burocracia. Você cancela pela própria plataforma. Seus dados ficam disponíveis por 90 dias após o cancelamento." },
+  { q:"A plataforma funciona com corretoras brasileiras?",      a:"Sim. Qualquer corretora que opere com MT5, MT4 ou cTrader é compatível, incluindo as principais do mercado brasileiro." },
 ];
 
-// â”€â”€â”€ HOOKS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── HOOKS ────────────────────────────────────────────────────────────────────
 function useScrollReveal() {
   useEffect(() => {
     const io = new IntersectionObserver(
@@ -114,14 +114,14 @@ function useCustomCursor() {
   return { curRef, ringRef };
 }
 
-// â”€â”€â”€ ATOMS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── ATOMS ───────────────────────────────────────────────────────────────────
 const Eyebrow  = ({ children }: { children: React.ReactNode }) => <span className="eyebrow">{children}</span>;
 const SecTitle = ({ children }: { children: React.ReactNode }) => <h2 className="sec-title">{children}</h2>;
 
-// â”€â”€â”€ WHATSAPP BUTTON â€” global, appears on all pages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── WHATSAPP BUTTON — global, appears on all pages ──────────────────────────
 function WhatsAppBtn() {
   const phone = "5581989224862";
-  const msg   = encodeURIComponent("OlÃ¡! Gostaria de saber mais sobre o GP Trading Suite.");
+  const msg   = encodeURIComponent("Olá! Gostaria de saber mais sobre o GP Trading Suite.");
   return (
     <a
       href={`https://wa.me/${phone}?text=${msg}`}
@@ -141,7 +141,7 @@ function WhatsAppBtn() {
   );
 }
 
-// â”€â”€â”€ NAV â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── NAV ─────────────────────────────────────────────────────────────────────
 function Nav({ cur, go, onOpenLogin }: { cur:Page; go:(p:Page)=>void; onOpenLogin: ()=>void }) {
   const [mob, setMob] = useState(false);
   const [co,  setCo]  = useState(false);
@@ -155,7 +155,7 @@ function Nav({ cur, go, onOpenLogin }: { cur:Page; go:(p:Page)=>void; onOpenLogi
 
   const nav = [
     { label:"Funcionalidades", page:"funcionalidades" as Page },
-    { label:"PreÃ§os",          page:"precos"          as Page },
+    { label:"Preços",          page:"precos"          as Page },
     { label:"FAQ",             page:"faq"             as Page },
   ];
 
@@ -191,7 +191,7 @@ function Nav({ cur, go, onOpenLogin }: { cur:Page; go:(p:Page)=>void; onOpenLogi
                 </button>
                 <div className={`nav-dropdown${co?" visible":""}`}>
                   <div className="nav-dropdown-inner">
-                    <button className="nav-dropdown-item" onClick={()=>{ go("empresa"); setCo(false); }}>Sobre nÃ³s</button>
+                    <button className="nav-dropdown-item" onClick={()=>{ go("empresa"); setCo(false); }}>Sobre nós</button>
                     <a href="#contato" className="nav-dropdown-item">Contato</a>
                   </div>
                 </div>
@@ -202,7 +202,7 @@ function Nav({ cur, go, onOpenLogin }: { cur:Page; go:(p:Page)=>void; onOpenLogi
           {/* CTAs */}
           <div className="nav-cta-wrap">
             <button className="btn-outline" onClick={onOpenLogin}>Entrar</button>
-            {/* â‘  "Criar conta agora" em todo o nav */}
+            {/* ① "Criar conta agora" em todo o nav */}
             <a href="/register" className="btn-nav-gold">Criar conta agora</a>
           </div>
 
@@ -231,7 +231,7 @@ function Nav({ cur, go, onOpenLogin }: { cur:Page; go:(p:Page)=>void; onOpenLogi
               </button>
               {mco && (
                 <div className="nav-mobile-subnav">
-                  <button className="nav-mobile-sublink" onClick={()=>{ go("empresa"); setMob(false); }}>Sobre nÃ³s</button>
+                  <button className="nav-mobile-sublink" onClick={()=>{ go("empresa"); setMob(false); }}>Sobre nós</button>
                   <a href="#contato" className="nav-mobile-sublink">Contato</a>
                 </div>
               )}
@@ -240,7 +240,7 @@ function Nav({ cur, go, onOpenLogin }: { cur:Page; go:(p:Page)=>void; onOpenLogi
           <div className="nav-mobile-divider"/>
           <div className="nav-mobile-footer">
             <button className="btn-outline" style={{flex:1,textAlign:"center"}} onClick={onOpenLogin}>Entrar</button>
-            {/* â‘  mobile "Criar conta agora" */}
+            {/* ① mobile "Criar conta agora" */}
             <a href="/register" className="btn-nav-gold" style={{flex:1,textAlign:"center"}}>Criar conta agora</a>
           </div>
         </div>
@@ -249,8 +249,8 @@ function Nav({ cur, go, onOpenLogin }: { cur:Page; go:(p:Page)=>void; onOpenLogi
   );
 }
 
-// â”€â”€â”€ CALENDAR MOCKUP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// â‘¡ CalendÃ¡rio recriado fiel Ã  imagem enviada
+// ─── CALENDAR MOCKUP ─────────────────────────────────────────────────────────
+// ② Calendário recriado fiel à imagem enviada
 function CalendarMockup() {
   return (
     <div className="cal-wrap">
@@ -268,7 +268,7 @@ function CalendarMockup() {
   );
 }
 
-// â”€â”€â”€ DASHBOARD MOCKUP â€” expanded + calendar below charts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── DASHBOARD MOCKUP — expanded + calendar below charts ─────────────────────
 function DashMockup() {
   return (
     <div className="dash-wrap">
@@ -280,7 +280,7 @@ function DashMockup() {
         </div>
 
         <div className="dash-body">
-          {/* â‘¢ Sidebar with updated menu items */}
+          {/* ③ Sidebar with updated menu items */}
           <div className="sidebar">
             {SIDEBAR_ITEMS.map(item => (
               <div key={item.label} className={`si${item.act?" act":""}`}>
@@ -322,10 +322,10 @@ function DashMockup() {
               </div>
             </div>
 
-            {/* â‘¡ Calendar below the two charts */}
+            {/* ② Calendar below the two charts */}
             <div className="dash-calendar-section">
               <div className="dash-calendar-title">
-                <span className="chart-t" style={{marginBottom:0}}>CalendÃ¡rio Â· GP Score</span>
+                <span className="chart-t" style={{marginBottom:0}}>Calendário · GP Score</span>
                 <span className="dash-cal-month">Junho 2025</span>
               </div>
               <CalendarMockup/>
@@ -338,16 +338,16 @@ function DashMockup() {
   );
 }
 
-// â”€â”€â”€ MARQUEE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── MARQUEE ─────────────────────────────────────────────────────────────────
 function Marquee() {
   const items = [...MARQUEE_ITEMS,...MARQUEE_ITEMS];
   return (
     <div className="marquee-sec">
-      <p className="marquee-lbl">Tudo que vocÃª precisa em uma plataforma</p>
+      <p className="marquee-lbl">Tudo que você precisa em uma plataforma</p>
       <div style={{overflow:"hidden"}}>
         <div className="marquee-track">
           {items.map((item,i)=>(
-            <span key={i} className="m-item">{item}{i<items.length-1&&<span className="m-sep"> Â· </span>}</span>
+            <span key={i} className="m-item">{item}{i<items.length-1&&<span className="m-sep"> · </span>}</span>
           ))}
         </div>
       </div>
@@ -355,7 +355,7 @@ function Marquee() {
   );
 }
 
-// â”€â”€â”€ REUSABLE BLOCKS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── REUSABLE BLOCKS ──────────────────────────────────────────────────────────
 function ServicesList({ onClick }: { onClick?: ()=>void }) {
   return (
     <div className="services-list">
@@ -367,7 +367,7 @@ function ServicesList({ onClick }: { onClick?: ()=>void }) {
             <div className="srv-desc">{s.desc}</div>
             <div className="srv-tags">{s.tags.map(t=><span key={t} className="srv-tag">{t}</span>)}</div>
           </div>
-          <div className="srv-arrow" onClick={onClick} style={onClick?{cursor:"pointer"}:{}}>â†’</div>
+          <div className="srv-arrow" onClick={onClick} style={onClick?{cursor:"pointer"}:{}}>→</div>
         </div>
       ))}
     </div>
@@ -383,17 +383,17 @@ function PricingBlock({ annual }: { annual: boolean }) {
           <div className="plan-name">{plan.name}</div>
           <div className="plan-price">
             {plan.price.monthly===0
-              ? <span className="p-val">GrÃ¡tis</span>
-              : <><span className="p-curr">R$</span><span className="p-val">{annual?plan.price.annual:plan.price.monthly}</span><span className="p-per">/mÃªs</span></>
+              ? <span className="p-val">Grátis</span>
+              : <><span className="p-curr">R$</span><span className="p-val">{annual?plan.price.annual:plan.price.monthly}</span><span className="p-per">/mês</span></>
             }
           </div>
           {annual && plan.price.monthly>0 && (
-            <p className="p-annual-note">cobrado anualmente Â· R${(annual?plan.price.annual:plan.price.monthly)*12}/ano</p>
+            <p className="p-annual-note">cobrado anualmente · R${(annual?plan.price.annual:plan.price.monthly)*12}/ano</p>
           )}
           <p className="plan-desc">{plan.desc}</p>
           <a href="/register" className={`plan-cta${plan.highlight?" plan-cta-p":""}`}>{plan.cta}</a>
           <ul className="plan-features">
-            {plan.features.map(f=><li key={f}><span className="feat-check">âœ“</span>{f}</li>)}
+            {plan.features.map(f=><li key={f}><span className="feat-check">✓</span>{f}</li>)}
           </ul>
         </div>
       ))}
@@ -409,7 +409,7 @@ function FAQList({ items }: { items: FAQ[] }) {
         <div key={i} className={`faq-item sr d${Math.min(i+1,4)}${open===i?" open":""}`}>
           <button className="faq-q" onClick={()=>setOpen(open===i?null:i)}>
             <span>{item.q}</span>
-            <span className="faq-icon">{open===i?"âˆ’":"+"}</span>
+            <span className="faq-icon">{open===i?"−":"+"}</span>
           </button>
           <div className="faq-a-wrap" style={{maxHeight:open===i?"400px":"0"}}>
             <p className="faq-a">{item.a}</p>
@@ -433,7 +433,7 @@ function InnerHero({ badge, title, sub }: { badge:string; title:React.ReactNode;
   );
 }
 
-// â”€â”€â”€ HOME â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── HOME ────────────────────────────────────────────────────────────────────
 function HomePage({ go }: { go:(p:Page)=>void }) {
   useScrollReveal();
   return (
@@ -442,19 +442,19 @@ function HomePage({ go }: { go:(p:Page)=>void }) {
       <section className="hero">
         <div className="h-mesh"/><div className="h-orb-a"/><div className="h-orb-b"/><div className="noise"/>
         <div className="badge"><div className="badge-dot"/> Plataforma #1 para traders profissionais</div>
-        <h1 className="hero-title">Gerencie suas operaÃ§Ãµes <b>com inteligÃªncia</b></h1>
-        <p className="hero-sub">Dashboard completo, GP Score, IA para anÃ¡lise e conexÃ£o direta com MT5, MT4 e cTrader.</p>
+        <h1 className="hero-title">Gerencie suas operações <b>com inteligência</b></h1>
+        <p className="hero-sub">Dashboard completo, GP Score, IA para análise e conexão direta com MT5, MT4 e cTrader.</p>
         <div className="hero-btns">
-          {/* â‘  "Criar conta agora" */}
+          {/* ① "Criar conta agora" */}
           <a href="/register" className="btn-hg btn-hg-p">Criar conta agora</a>
-          <button className="btn-hg btn-hg-s" onClick={()=>go("funcionalidades")}>Ver funcionalidades â†’</button>
+          <button className="btn-hg btn-hg-s" onClick={()=>go("funcionalidades")}>Ver funcionalidades →</button>
         </div>
         <div className="hero-proof">
           <p className="proof-txt">Usado por <strong>+2.400 traders</strong> profissionais</p>
           <div className="hr-divider"/>
-          <p className="proof-txt proof-stars">â˜…â˜…â˜…â˜…â˜… 4.9</p>
+          <p className="proof-txt proof-stars">★★★★★ 4.9</p>
         </div>
-        {/* â‘¡ Expanded DashMockup with calendar below */}
+        {/* ② Expanded DashMockup with calendar below */}
         <DashMockup/>
       </section>
 
@@ -464,12 +464,12 @@ function HomePage({ go }: { go:(p:Page)=>void }) {
       <section className="services" id="features">
         <div className="sec-hd sr">
           <Eyebrow>Funcionalidades</Eyebrow>
-          <SecTitle>Ferramentas que fazem a diferenÃ§a<br/><b>no seu trading</b></SecTitle>
+          <SecTitle>Ferramentas que fazem a diferença<br/><b>no seu trading</b></SecTitle>
         </div>
         <ServicesList onClick={()=>go("funcionalidades")}/>
         <div style={{textAlign:"center",marginTop:"40px"}}>
           <button className="btn-see-all" onClick={()=>go("funcionalidades")}>
-            Ver demonstraÃ§Ã£o completa â†’
+            Ver demonstração completa →
           </button>
         </div>
       </section>
@@ -479,7 +479,7 @@ function HomePage({ go }: { go:(p:Page)=>void }) {
         <div className="results-inner">
           <div className="sec-hd sr">
             <Eyebrow>Resultados reais</Eyebrow>
-            <SecTitle>NÃºmeros que <b>falam por si</b></SecTitle>
+            <SecTitle>Números que <b>falam por si</b></SecTitle>
           </div>
           <div className="results-grid">
             {RESULTS.map((r,i)=>(
@@ -507,7 +507,7 @@ function HomePage({ go }: { go:(p:Page)=>void }) {
                 <p className="t-txt">{t.quote}</p>
                 <div className="t-name">{t.name}</div>
                 <div className="t-role">{t.role}</div>
-                <div className="t-metric">â€” {t.metric}</div>
+                <div className="t-metric">— {t.metric}</div>
               </div>
             ))}
           </div>
@@ -518,12 +518,12 @@ function HomePage({ go }: { go:(p:Page)=>void }) {
       <section className="cta">
         <div className="cta-inner sr">
           <Eyebrow>Comece agora</Eyebrow>
-          <h2 className="cta-title">Opere com <b>inteligÃªncia real</b></h2>
-          <p className="cta-sub">Crie sua conta gratuitamente. Sem cartÃ£o de crÃ©dito. Conecte sua corretora em menos de 2 minutos.</p>
+          <h2 className="cta-title">Opere com <b>inteligência real</b></h2>
+          <p className="cta-sub">Crie sua conta gratuitamente. Sem cartão de crédito. Conecte sua corretora em menos de 2 minutos.</p>
           <div className="cta-btns">
-            {/* â‘  "Criar conta agora" */}
+            {/* ① "Criar conta agora" */}
             <a href="/register" className="btn-hg btn-hg-p" style={{fontSize:"16px",padding:"15px 38px"}}>Criar conta agora</a>
-            <button className="btn-hg btn-hg-s" onClick={()=>go("precos")}>Ver planos â†’</button>
+            <button className="btn-hg btn-hg-s" onClick={()=>go("precos")}>Ver planos →</button>
           </div>
         </div>
       </section>
@@ -531,31 +531,31 @@ function HomePage({ go }: { go:(p:Page)=>void }) {
   );
 }
 
-// â”€â”€â”€ PAGE: FUNCIONALIDADES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── PAGE: FUNCIONALIDADES ───────────────────────────────────────────────────
 function FuncPage({ onOpenLogin }: { onOpenLogin: ()=>void }) {
   useScrollReveal();
   return (
     <main className="page-main">
       <InnerHero
-        badge="Veja como funciona na prÃ¡tica"
-        title={<>ConheÃ§a cada <b>funcionalidade</b><br/>da plataforma</>}
-        sub="Do dashboard ao GP Score, da IA ao Replay â€” assista ao vÃ­deo e explore o sistema completo."
+        badge="Veja como funciona na prática"
+        title={<>Conheça cada <b>funcionalidade</b><br/>da plataforma</>}
+        sub="Do dashboard ao GP Score, da IA ao Replay — assista ao vídeo e explore o sistema completo."
       />
 
       {/* VIDEO DEMO */}
       <section className="video-sec" id="demo">
         <div className="video-inner sr">
           <div className="sec-hd" style={{textAlign:"center",marginBottom:"40px"}}>
-            <Eyebrow>DemonstraÃ§Ã£o</Eyebrow>
-            <SecTitle>Veja a plataforma <b>em aÃ§Ã£o</b></SecTitle>
-            <p className="sec-sub">ConheÃ§a todas as funcionalidades em menos de 3 minutos.</p>
+            <Eyebrow>Demonstração</Eyebrow>
+            <SecTitle>Veja a plataforma <b>em ação</b></SecTitle>
+            <p className="sec-sub">Conheça todas as funcionalidades em menos de 3 minutos.</p>
           </div>
           <div className="yt-wrap">
             <div className="yt-frame">
-              {/* âš ï¸ Substitua pelo seu ID do YouTube */}
+              {/* Substitua pelo seu ID do YouTube */}
               <iframe
                 src="https://www.youtube.com/embed/dQw4w9WgXcQ?rel=0&modestbranding=1"
-                title="GP Trading Suite â€” DemonstraÃ§Ã£o"
+                title="GP Trading Suite — Demonstração"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
               />
@@ -567,24 +567,24 @@ function FuncPage({ onOpenLogin }: { onOpenLogin: ()=>void }) {
       {/* LISTA COMPLETA */}
       <section className="services" style={{paddingTop:"60px"}}>
         <div className="sec-hd sr">
-          <Eyebrow>O que estÃ¡ incluÃ­do</Eyebrow>
+          <Eyebrow>O que está incluído</Eyebrow>
           <SecTitle>Todas as ferramentas<br/><b>do seu lado</b></SecTitle>
         </div>
         <ServicesList/>
       </section>
 
-      {/* GALERIA â€” placeholders */}
+      {/* GALERIA — placeholders */}
       <section className="gallery-sec">
         <div className="gallery-inner">
           <div className="sec-hd sr" style={{textAlign:"center"}}>
             <Eyebrow>Screenshots</Eyebrow>
             <SecTitle>Dentro da <b>plataforma</b></SecTitle>
-            <p className="sec-sub">As imagens do sistema serÃ£o adicionadas em breve.</p>
+            <p className="sec-sub">As imagens do sistema serão adicionadas em breve.</p>
           </div>
           <div className="gallery-grid sr d1">
             {[1,2,3,4].map(n=>(
               <div key={n} className="gallery-placeholder">
-                <div className="gp-icon">ðŸ“¸</div>
+                <div className="gp-icon">📸</div>
                 <p className="gp-txt">Screenshot {n}<br/><span>Aguardando imagem</span></p>
               </div>
             ))}
@@ -595,13 +595,13 @@ function FuncPage({ onOpenLogin }: { onOpenLogin: ()=>void }) {
       {/* CTA */}
       <section className="cta" style={{paddingTop:"60px"}}>
         <div className="cta-inner sr">
-          <Eyebrow>Pronto para comeÃ§ar?</Eyebrow>
+          <Eyebrow>Pronto para começar?</Eyebrow>
           <h2 className="cta-title">Experimente <b>gratuitamente</b></h2>
           <p className="cta-sub">Crie sua conta e conecte sua corretora em menos de 2 minutos.</p>
           <div className="cta-btns">
-            {/* â‘  "Criar conta agora" */}
+            {/* ① "Criar conta agora" */}
             <a href="/register" className="btn-hg btn-hg-p" style={{fontSize:"16px",padding:"15px 38px"}}>Criar conta agora</a>
-            <button className="btn-hg btn-hg-s" onClick={onOpenLogin}>JÃ¡ tenho conta â†’</button>
+            <button className="btn-hg btn-hg-s" onClick={onOpenLogin}>Já tenho conta →</button>
           </div>
         </div>
       </section>
@@ -609,28 +609,28 @@ function FuncPage({ onOpenLogin }: { onOpenLogin: ()=>void }) {
   );
 }
 
-// â”€â”€â”€ PAGE: PREÃ‡OS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── PAGE: PREÇOS ────────────────────────────────────────────────────────────
 function PrecosPage() {
   const [annual, setAnnual] = useState(false);
   useScrollReveal();
   const priceFaqs: FAQ[] = [
-    { q:"Preciso de cartÃ£o para comeÃ§ar?",           a:"NÃ£o. O plano Starter Ã© gratuito para sempre. Upgrade sÃ³ exige cartÃ£o se vocÃª decidir avanÃ§ar." },
-    { q:"Posso trocar de plano a qualquer momento?", a:"Sim. Upgrade ou downgrade pela prÃ³pria plataforma, sem taxas extras." },
-    { q:"O que acontece com meus dados se cancelar?",a:"Ficam disponÃ­veis para exportaÃ§Ã£o por 90 dias apÃ³s o cancelamento." },
-    { q:"O plano Pro tem trial grÃ¡tis?",             a:"Sim, 7 dias grÃ¡tis sem cartÃ£o. Se nÃ£o gostar, simplesmente nÃ£o continue â€” sem cobranÃ§as." },
+    { q:"Preciso de cartão para começar?",           a:"Não. O plano Starter é gratuito para sempre. Upgrade só exige cartão se você decidir avançar." },
+    { q:"Posso trocar de plano a qualquer momento?", a:"Sim. Upgrade ou downgrade pela própria plataforma, sem taxas extras." },
+    { q:"O que acontece com meus dados se cancelar?",a:"Ficam disponíveis para exportação por 90 dias após o cancelamento." },
+    { q:"O plano Pro tem trial grátis?",             a:"Sim, 7 dias grátis sem cartão. Se não gostar, simplesmente não continue — sem cobranças." },
   ];
   return (
     <main className="page-main">
       <InnerHero
-        badge="Sem taxa de setup Â· Cancele quando quiser"
+        badge="Sem taxa de setup · Cancele quando quiser"
         title={<>Planos que cabem no seu <b>estilo de trading</b></>}
-        sub="Comece grÃ¡tis. FaÃ§a upgrade quando estiver pronto. Sem cartÃ£o de crÃ©dito para comeÃ§ar."
+        sub="Comece grátis. Faça upgrade quando estiver pronto. Sem cartão de crédito para começar."
       />
 
       <section className="pricing-sec" id="precos" style={{paddingTop:"20px"}}>
         <div className="pricing-inner">
           <div className="sec-hd sr" style={{textAlign:"center"}}>
-            <Eyebrow>PreÃ§os</Eyebrow>
+            <Eyebrow>Preços</Eyebrow>
             <SecTitle>Invista no seu <b>desenvolvimento</b></SecTitle>
             <p className="sec-sub">Escolha o plano ideal para o seu momento.</p>
             <div className="billing-toggle">
@@ -638,7 +638,7 @@ function PrecosPage() {
               <button className={`toggle-btn${annual?" on":""}`} onClick={()=>setAnnual(!annual)} aria-label="Anual">
                 <div className="toggle-knob"/>
               </button>
-              <span className={annual?"tog-act":""}>Anual <em className="save-badge">âˆ’20%</em></span>
+              <span className={annual?"tog-act":""}>Anual <em className="save-badge">−20%</em></span>
             </div>
           </div>
           <PricingBlock annual={annual}/>
@@ -648,8 +648,8 @@ function PrecosPage() {
       <section className="faq-sec" style={{paddingTop:"60px",paddingBottom:"80px"}}>
         <div className="faq-inner">
           <div className="sec-hd sr" style={{textAlign:"center"}}>
-            <Eyebrow>DÃºvidas sobre os planos</Eyebrow>
-            <SecTitle>Perguntas sobre <b>preÃ§os</b></SecTitle>
+            <Eyebrow>Dúvidas sobre os planos</Eyebrow>
+            <SecTitle>Perguntas sobre <b>preços</b></SecTitle>
           </div>
           <FAQList items={priceFaqs}/>
         </div>
@@ -658,22 +658,22 @@ function PrecosPage() {
   );
 }
 
-// â”€â”€â”€ PAGE: FAQ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── PAGE: FAQ ───────────────────────────────────────────────────────────────
 function FAQPage() {
   useScrollReveal();
   return (
     <main className="page-main">
       <InnerHero
-        badge="Respostas rÃ¡pidas e diretas"
+        badge="Respostas rápidas e diretas"
         title={<>Perguntas <b>frequentes</b></>}
-        sub="Tire todas as suas dÃºvidas sobre a plataforma, integraÃ§Ãµes e planos."
+        sub="Tire todas as suas dúvidas sobre a plataforma, integrações e planos."
       />
       <section className="faq-sec" style={{paddingTop:"40px",paddingBottom:"100px",background:"var(--bg)"}}>
         <div className="faq-inner" style={{maxWidth:"860px"}}>
           <FAQList items={FAQS}/>
           <div className="faq-more sr" style={{marginTop:"32px"}}>
             <div className="faq-more-icon">ï¼‹</div>
-            <p className="faq-more-txt">Mais perguntas serÃ£o adicionadas em breve.</p>
+            <p className="faq-more-txt">Mais perguntas serão adicionadas em breve.</p>
           </div>
         </div>
       </section>
@@ -681,31 +681,31 @@ function FAQPage() {
   );
 }
 
-// â”€â”€â”€ PAGE: EMPRESA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── PAGE: EMPRESA ───────────────────────────────────────────────────────────
 function EmpresaPage() {
   useScrollReveal();
   return (
     <main className="page-main">
       <InnerHero
-        badge="Nossa histÃ³ria"
-        title={<>Por trÃ¡s da <b>plataforma</b></>}
-        sub="Criada por traders, para traders. ConheÃ§a quem construiu o GP Trading Suite."
+        badge="Nossa história"
+        title={<>Por trás da <b>plataforma</b></>}
+        sub="Criada por traders, para traders. Conheça quem construiu o GP Trading Suite."
       />
       <section className="empresa-sec">
         <div className="empresa-inner">
           <div className="empresa-block sr">
-            <div><Eyebrow>Nossa missÃ£o</Eyebrow></div>
+            <div><Eyebrow>Nossa missão</Eyebrow></div>
             <div className="empresa-block-body">
               <SecTitle>Dados que <b>transformam</b> a forma de operar</SecTitle>
-              <p className="empresa-txt">O GP Trading Suite nasceu da frustraÃ§Ã£o de traders que nÃ£o tinham ferramentas profissionais acessÃ­veis. Nossa missÃ£o Ã© dar a qualquer trader o mesmo arsenal analÃ­tico das mesas proprietÃ¡rias.</p>
-              <p className="empresa-txt" style={{marginTop:"12px",opacity:.6}}>Este bloco serÃ¡ expandido com a histÃ³ria completa, fotos e informaÃ§Ãµes da equipe.</p>
+              <p className="empresa-txt">O GP Trading Suite nasceu da frustração de traders que não tinham ferramentas profissionais acessíveis. Nossa missão é dar a qualquer trader o mesmo arsenal analítico das mesas proprietárias.</p>
+              <p className="empresa-txt" style={{marginTop:"12px",opacity:.6}}>Este bloco será expandido com a história completa, fotos e informações da equipe.</p>
             </div>
           </div>
           <div className="empresa-values sr d2">
             {[
-              { icon:"ðŸ“Š", title:"Dados primeiro",        desc:"Toda decisÃ£o deve ser baseada em mÃ©tricas, nÃ£o em emoÃ§Ã£o." },
-              { icon:"ðŸŽ¯", title:"Disciplina mensurÃ¡vel", desc:"O GP Score traduz comportamento em nÃºmeros claros e objetivos." },
-              { icon:"ðŸ¤", title:"Trader no centro",      desc:"Cada funcionalidade foi criada a partir da dor real de quem opera." },
+              { icon:"📊", title:"Dados primeiro",        desc:"Toda decisão deve ser baseada em métricas, não em emoção." },
+              { icon:"🎯", title:"Disciplina mensurável", desc:"O GP Score traduz comportamento em números claros e objetivos." },
+              { icon:"🤝", title:"Trader no centro",      desc:"Cada funcionalidade foi criada a partir da dor real de quem opera." },
             ].map(v=>(
               <div key={v.title} className="empresa-value-card">
                 <div className="empresa-value-icon">{v.icon}</div>
@@ -715,9 +715,9 @@ function EmpresaPage() {
             ))}
           </div>
           <div className="empresa-link-placeholder sr d3">
-            <div style={{fontSize:"28px",opacity:.5}}>ðŸ”—</div>
+            <div style={{fontSize:"28px",opacity:.5}}>🔗</div>
             <p style={{fontSize:"13px",color:"var(--t4)",textAlign:"center",lineHeight:1.6,maxWidth:"480px"}}>
-              Em breve: bloco na pÃ¡gina principal com link para esta seÃ§Ã£o "Empresa".
+              Em breve: bloco na página principal com link para esta seção "Empresa".
             </p>
           </div>
         </div>
@@ -726,14 +726,14 @@ function EmpresaPage() {
   );
 }
 
-// â”€â”€â”€ FOOTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── FOOTER ──────────────────────────────────────────────────────────────────
 function Footer({ go }: { go:(p:Page)=>void }) {
   return (
     <footer>
-      <p>Â© 2025 Gustavo Pedrosa FX Â· Pro Trading Suite</p>
+      <p>© 2025 Gustavo Pedrosa FX · Pro Trading Suite</p>
       <div className="foot-links">
         <button className="foot-btn" onClick={()=>go("empresa")}>Empresa</button>
-        <button className="foot-btn" onClick={()=>go("precos")}>PreÃ§os</button>
+        <button className="foot-btn" onClick={()=>go("precos")}>Preços</button>
         <a href="#">Termos</a>
         <a href="#">Privacidade</a>
         <a href="#">Suporte</a>
@@ -784,7 +784,7 @@ function LoginModal({
       <div className="login-modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="login-modal-head">
           <h3>Entrar</h3>
-          <button className="login-close-btn" onClick={onClose} aria-label="Fechar">Ã—</button>
+          <button className="login-close-btn" onClick={onClose} aria-label="Fechar">×</button>
         </div>
         <p className="login-modal-sub">Acesse sua conta para continuar.</p>
         <div className="login-form">
@@ -800,7 +800,7 @@ function LoginModal({
           <input
             type="password"
             className="login-input"
-            placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+            placeholder="••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => {
@@ -817,7 +817,7 @@ function LoginModal({
   );
 }
 
-// â”€â”€â”€ STYLES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── STYLES ───────────────────────────────────────────────────────────────────
 const STYLES = `
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased}
@@ -842,15 +842,15 @@ html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased}
 }
 body{background:var(--bg);color:var(--t1);font-family:var(--fb);overflow-x:hidden;cursor:none}
 
-/* â”€â”€ CURSOR â”€â”€ */
+/* ── CURSOR ── */
 #cur{position:fixed;width:8px;height:8px;background:var(--gold);border-radius:50%;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);mix-blend-mode:difference;transition:width .15s,height .15s}
 #cur-ring{position:fixed;width:30px;height:30px;border:1px solid rgba(212,175,106,.5);border-radius:50%;pointer-events:none;z-index:9998;transform:translate(-50%,-50%);transition:all .1s var(--ease)}
 body.hov #cur{width:16px;height:16px}
 body.hov #cur-ring{width:46px;height:46px;opacity:.35}
 
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   â‘£ WHATSAPP FLOATING BUTTON
-   â€” appears on all pages, bottom-right
+   ④ WHATSAPP FLOATING BUTTON
+   — appears on all pages, bottom-right
 â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .wa-btn{
   position:fixed;bottom:28px;right:28px;z-index:500;
@@ -969,14 +969,14 @@ body.hov #cur-ring{width:46px;height:46px;opacity:.35}
 .proof-stars{color:var(--goldl) !important}
 
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   DASHBOARD MOCKUP â€” expanded
+   DASHBOARD MOCKUP — expanded
 â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .dash-wrap{margin-top:56px;width:100%;max-width:1080px;position:relative;z-index:1;animation:fU .7s .5s var(--reveal) both}
 .dash{background:var(--bg1);border:1px solid var(--bg_line);border-radius:16px;overflow:hidden;box-shadow:var(--sc),var(--sg)}
 .dash-bar{display:flex;align-items:center;gap:6px;padding:12px 16px;background:rgba(255,255,255,.02);border-bottom:1px solid var(--b0)}
 .dot{width:9px;height:9px;border-radius:50%}.dot-r{background:#FF5F57}.dot-y{background:#FEBC2E}.dot-g{background:#28C840}
 .dash-url{flex:1;background:rgba(255,255,255,.04);border-radius:5px;padding:4px 10px;font-size:10px;color:var(--t4);text-align:center;margin:0 16px;letter-spacing:.04em}
-/* â‘¢ wider sidebar to fit new longer labels */
+/* ③ wider sidebar to fit new longer labels */
 .dash-body{display:grid;grid-template-columns:172px 1fr;min-height:auto}
 .sidebar{border-right:1px solid var(--b0);padding:12px 8px;display:flex;flex-direction:column;gap:2px}
 .si{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:7px;font-size:10.5px;color:var(--t3);transition:all .2s;cursor:default;line-height:1.2}
@@ -999,8 +999,8 @@ body.hov #cur-ring{width:46px;height:46px;opacity:.35}
 .eq-svg{position:absolute;bottom:8px;left:12px;right:12px;height:44px}
 
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   â‘¡ CALENDAR MOCKUP
-   (fiel Ã  imagem enviada)
+   ② CALENDAR MOCKUP
+   (fiel à imagem enviada)
 â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .dash-calendar-section{background:rgba(255,255,255,.015);border:1px solid var(--b0);border-radius:10px;padding:12px;margin-top:2px}
 .dash-calendar-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
@@ -1210,7 +1210,7 @@ footer p{font-size:12px;color:var(--t4);font-style:italic}
 }
 `;
 
-// â”€â”€â”€ ROOT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function App() {
   const [page, setPage] = useState<Page>("home");
   const [loginOpen, setLoginOpen] = useState(false);
@@ -1257,7 +1257,7 @@ export default function App() {
         onLoginSuccess={() => setAuthenticated(true)}
       />
 
-      {/* â‘£ WhatsApp button â€” global, visible on all pages */}
+      {/* ④ WhatsApp button — global, visible on all pages */}
       <WhatsAppBtn />
     </>
   );
