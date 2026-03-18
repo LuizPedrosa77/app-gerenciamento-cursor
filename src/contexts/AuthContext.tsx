@@ -217,9 +217,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       dispatch({ type: 'CHECK_AUTH_START' });
       
       const token = authService.getAccessToken();
-      const userData = authService.getUserData();
       
-      if (!token || !userData) {
+      if (!token) {
         dispatch({ type: 'CHECK_AUTH_FAILURE' });
         return;
       }

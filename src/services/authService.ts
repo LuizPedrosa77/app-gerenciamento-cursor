@@ -46,8 +46,61 @@ export interface RefreshTokenResponse {
 
 class AuthService {
   private accessToken: string | null = null;
-  private refreshToken: string | null = null;
+  private refreshTokenValue: string | null = null;
   private userData: any | null = null;
+  private readonly ACCESS_TOKEN_KEY = 'gpfx_access_token';
+  private readonly REFRESH_TOKEN_KEY = 'gpfx_refresh_token';
+  private readonly USER_DATA_KEY = 'gpfx_user_data';
+
+  constructor() {
+    this.restoreSession();
+  }
+
+  private persistSession(): void {
+    try {
+      if (this.accessToken) {
+        localStorage.setItem(this.ACCESS_TOKEN_KEY, this.accessToken);
+      } else {
+        localStorage.removeItem(this.ACCESS_TOKEN_KEY);
+      }
+
+      if (this.refreshTokenValue) {
+        localStorage.setItem(this.REFRESH_TOKEN_KEY, this.refreshTokenValue);
+      } else {
+        localStorage.removeItem(this.REFRESH_TOKEN_KEY);
+      }
+
+      if (this.userData) {
+        localStorage.setItem(this.USER_DATA_KEY, JSON.stringify(this.userData));
+      } else {
+        localStorage.removeItem(this.USER_DATA_KEY);
+      }
+    } catch (error) {
+      console.warn('Persist session warning:', error);
+    }
+  }
+
+  private restoreSession(): void {
+    try {
+      const accessToken = localStorage.getItem(this.ACCESS_TOKEN_KEY);
+      const refreshToken = localStorage.getItem(this.REFRESH_TOKEN_KEY);
+      const userDataRaw = localStorage.getItem(this.USER_DATA_KEY);
+
+      this.accessToken = accessToken || null;
+      this.refreshTokenValue = refreshToken || null;
+      this.userData = userDataRaw ? JSON.parse(userDataRaw) : null;
+    } catch (error) {
+      console.warn('Restore session warning:', error);
+      this.clearSession();
+    }
+  }
+
+  private clearSession(): void {
+    this.accessToken = null;
+    this.refreshTokenValue = null;
+    this.userData = null;
+    this.persistSession();
+  }
   /**
    * Realiza login do usuário
    */
@@ -59,8 +112,9 @@ class AuthService {
       };
       const response = await api.post<AuthResponse>('/api/v1/auth/login', payload);
       this.accessToken = response.data.access_token;
-      this.refreshToken = response.data.refresh_token;
+      this.refreshTokenValue = response.data.refresh_token;
       this.userData = response.data.user;
+      this.persistSession();
       return response.data;
     } catch (error) {
       console.error('Login error:', error);
@@ -87,8 +141,9 @@ class AuthService {
       console.log('[AUTH] Register payload:', JSON.stringify(payload));
       const response = await api.post<AuthResponse>('/api/v1/auth/register', payload);
       this.accessToken = response.data.access_token;
-      this.refreshToken = response.data.refresh_token;
+      this.refreshTokenValue = response.data.refresh_token;
       this.userData = response.data.user;
+      this.persistSession();
       return response.data;
     } catch (error) {
       console.error('Register error:', error);
@@ -101,7 +156,7 @@ class AuthService {
    */
   async logout(): Promise<void> {
     try {
-      const refreshToken = this.refreshToken;
+      const refreshToken = this.refreshTokenValue;
       
       if (refreshToken) {
         // Chamar endpoint de logout no backend
@@ -112,9 +167,7 @@ class AuthService {
       // Mesmo com erro, limpar dados locais
     } finally {
       // Limpar dados locais
-      this.accessToken = null;
-      this.refreshToken = null;
-      this.userData = null;
+      this.clearSession();
       
       // Redirecionar para login
       window.location.href = '/';
@@ -126,7 +179,7 @@ class AuthService {
    */
   async refreshToken(): Promise<RefreshTokenResponse> {
     try {
-      const refreshToken = this.refreshToken;
+      const refreshToken = this.refreshTokenValue;
       
       if (!refreshToken) {
         throw new Error('No refresh token available');
@@ -138,7 +191,8 @@ class AuthService {
       
       // Salvar novos tokens
       this.accessToken = response.data.access_token;
-      this.refreshToken = response.data.refresh_token;
+      this.refreshTokenValue = response.data.refresh_token;
+      this.persistSession();
       
       return response.data;
     } catch (error) {
@@ -156,6 +210,7 @@ class AuthService {
       
       // Atualizar dados do usuário em memória
       this.userData = response.data;
+      this.persistSession();
       
       return response.data;
     } catch (error) {
@@ -168,7 +223,7 @@ class AuthService {
    * Verifica se o usuário está autenticado
    */
   isAuthenticated(): boolean {
-    return !!(this.accessToken && this.userData);
+    return !!this.accessToken;
   }
 
   /**
@@ -183,6 +238,7 @@ class AuthService {
    */
   updateUserData(userData: any): void {
     this.userData = userData;
+    this.persistSession();
   }
 
   /**
@@ -196,7 +252,7 @@ class AuthService {
    * Obtém o refresh token
    */
   getRefreshToken(): string | null {
-    return this.refreshToken;
+    return this.refreshTokenValue;
   }
 
   /**
