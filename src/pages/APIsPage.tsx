@@ -1,24 +1,12 @@
 import { useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
-import {
-  Plug, Copy, Check, Shield, ChevronDown, Lock,
-  CreditCard, BarChart3, Wallet, CalendarDays, LineChart,
-  Cable, Clapperboard, Settings, ExternalLink
-} from 'lucide-react';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion';
+import { Plug, Copy, Check, ChevronDown, Lock, CreditCard, BarChart3, Wallet, CalendarDays, LineChart, Cable, Clapperboard, Settings, ExternalLink } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
-/* ── types ── */
 interface Endpoint {
   method: 'GET' | 'POST' | 'PATCH' | 'DELETE' | 'WS';
   path: string;
   description: string;
-  n8nExample: string;
-  pythonExample: string;
 }
 
 interface Section {
@@ -27,213 +15,149 @@ interface Section {
   endpoints: Endpoint[];
 }
 
-/* ── data ── */
-const BASE_URL = `${import.meta.env.VITE_API_URL || 'https://api.painelzap.com'}/api/v1`;
+const API_ROOT = import.meta.env.VITE_API_URL || 'https://api.painelzap.com';
+const BASE_URL = `${API_ROOT}/api/v1`;
+const WS_BASE = API_ROOT.replace(/^http/, 'ws');
 
 const sections: Section[] = [
   {
     icon: <Lock size={16} />,
     title: 'Autenticação',
     endpoints: [
-      { method: 'POST', path: '/auth/register', description: 'Criar conta de usuario', n8nExample: `// HTTP Request Node
-Method: POST
-URL: ${BASE_URL}/auth/register
-Body (JSON):
-{
-  "name": "Seu Nome",
-  "email": "user@email.com",
-  "password": "sua_senha"
-}`, pythonExample: `import requests
-
-res = requests.post(
-  "${BASE_URL}/auth/register",
-  json={"name": "Seu Nome", "email": "user@email.com", "password": "sua_senha"}
-)
-print(res.json())` },
-      { method: 'POST', path: '/auth/login', description: 'Fazer login e obter token JWT', n8nExample: `// HTTP Request Node
-Method: POST
-URL: ${BASE_URL}/auth/login
-Body (JSON):
-{
-  "email": "user@email.com",
-  "password": "sua_senha"
-}`, pythonExample: `import requests
-
-res = requests.post(
-  "${BASE_URL}/auth/login",
-  json={"email": "user@email.com", "password": "sua_senha"}
-)
-token = res.json()["access_token"]
-print(token)` },
-      { method: 'POST', path: '/auth/refresh', description: 'Renovar token de acesso', n8nExample: `// HTTP Request Node
-Method: POST
-URL: ${BASE_URL}/auth/refresh
-Body (JSON):
-{
-  "refresh_token": "{refresh_token}"
-}`, pythonExample: `res = requests.post(
-  "${BASE_URL}/auth/refresh",
-  json={"refresh_token": refresh_token}
-)
-print(res.json())` },
-      { method: 'GET', path: '/auth/me', description: 'Dados do usuario autenticado', n8nExample: `// HTTP Request Node
-Method: GET
-URL: ${BASE_URL}/auth/me
-Headers:
-  Authorization: Bearer {token}`, pythonExample: `res = requests.get(
-  "${BASE_URL}/auth/me",
-  headers={"Authorization": f"Bearer {token}"}
-)
-print(res.json())` },
+      { method: 'POST', path: '/auth/register', description: 'Criar conta' },
+      { method: 'POST', path: '/auth/login', description: 'Login e JWT' },
+      { method: 'POST', path: '/auth/refresh', description: 'Renovar token' },
+      { method: 'GET', path: '/auth/me', description: 'Usuário autenticado' },
+      { method: 'POST', path: '/auth/logout', description: 'Logout' },
+      { method: 'POST', path: '/auth/change-password', description: 'Alterar senha' },
+      { method: 'POST', path: '/auth/forgot-password', description: 'Recuperação de senha' },
     ],
   },
   {
     icon: <CreditCard size={16} />,
-    title: 'Contas de Trading',
+    title: 'Contas',
     endpoints: [
-      { method: 'GET', path: '/accounts', description: 'Listar todas as contas', n8nExample: `Method: GET\nURL: ${BASE_URL}/accounts\nHeaders:\n  Authorization: Bearer {token}`, pythonExample: `res = requests.get("${BASE_URL}/accounts", headers=headers)\nprint(res.json())` },
-      { method: 'POST', path: '/accounts', description: 'Criar nova conta', n8nExample: `Method: POST\nURL: ${BASE_URL}/accounts\nBody: { "name": "Conta MT5", "initial_balance": 10000 }`, pythonExample: `res = requests.post("${BASE_URL}/accounts",\n  json={"name": "Conta MT5", "initial_balance": 10000},\n  headers=headers)\nprint(res.json())` },
-      { method: 'GET', path: '/accounts/{id}', description: 'Detalhes de uma conta', n8nExample: `Method: GET\nURL: ${BASE_URL}/accounts/{{account_id}}`, pythonExample: `res = requests.get(f"${BASE_URL}/accounts/{account_id}", headers=headers)` },
-      { method: 'PATCH', path: '/accounts/{id}', description: 'Atualizar conta', n8nExample: `Method: PATCH\nURL: ${BASE_URL}/accounts/{{account_id}}\nBody: { "name": "Novo Nome" }`, pythonExample: `res = requests.patch(f"${BASE_URL}/accounts/{account_id}",\n  json={"name": "Novo Nome"}, headers=headers)` },
-      { method: 'DELETE', path: '/accounts/{id}', description: 'Remover conta', n8nExample: `Method: DELETE\nURL: ${BASE_URL}/accounts/{{account_id}}`, pythonExample: `res = requests.delete(f"${BASE_URL}/accounts/{account_id}", headers=headers)` },
+      { method: 'GET', path: '/accounts', description: 'Listar contas' },
+      { method: 'POST', path: '/accounts', description: 'Criar conta' },
+      { method: 'GET', path: '/accounts/{id}', description: 'Detalhe da conta' },
+      { method: 'PATCH', path: '/accounts/{id}', description: 'Atualizar conta' },
+      { method: 'DELETE', path: '/accounts/{id}', description: 'Excluir conta' },
+      { method: 'GET', path: '/accounts/total-balance', description: 'Saldo consolidado' },
     ],
   },
-    {
+  {
     icon: <BarChart3 size={16} />,
-    title: 'Trades',
+    title: 'Trades & Screenshots',
     endpoints: [
-      { method: 'GET', path: '/trades', description: 'Listar trades (use account_id como query)', n8nExample: `Method: GET
-URL: ${BASE_URL}/trades?account_id={{account_id}}`, pythonExample: `res = requests.get(f"${BASE_URL}/trades?account_id={account_id}", headers=headers)` },
-      { method: 'POST', path: '/trades', description: 'Criar novo trade', n8nExample: `Method: POST
-URL: ${BASE_URL}/trades
-Body: { "account_id": "...", "pair": "EURUSD", "direction": "BUY", "result": "WIN", "pnl": 120.5, "date": "2025-01-15" }`, pythonExample: `res = requests.post(f"${BASE_URL}/trades", json={"account_id": account_id, "pair": "EURUSD", "direction": "BUY", "result": "WIN", "pnl": 120.5, "date": "2025-01-15"}, headers=headers)` },
-      { method: 'PATCH', path: '/trades/{id}', description: 'Atualizar trade', n8nExample: `Method: PATCH
-URL: ${BASE_URL}/trades/{{trade_id}}
-Body: { "result": "LOSS" }`, pythonExample: `res = requests.patch(f"${BASE_URL}/trades/{trade_id}", json={"result": "LOSS"}, headers=headers)` },
-      { method: 'DELETE', path: '/trades/{id}', description: 'Remover trade', n8nExample: `Method: DELETE
-URL: ${BASE_URL}/trades/{{trade_id}}`, pythonExample: `res = requests.delete(f"${BASE_URL}/trades/{trade_id}", headers=headers)` },
-      { method: 'POST', path: '/screenshots/upload/{trade_id}', description: 'Upload de screenshot do trade', n8nExample: `Method: POST
-URL: ${BASE_URL}/screenshots/upload/{{trade_id}}
-Content-Type: multipart/form-data
-Body: file (binary)`, pythonExample: `with open("trade.png", "rb") as f:
-  res = requests.post(f"${BASE_URL}/screenshots/upload/{trade_id}", files={"file": f}, headers=headers)` },
+      { method: 'GET', path: '/trades', description: 'Listar trades' },
+      { method: 'GET', path: '/trades/chart-data', description: 'Trades para TradingView' },
+      { method: 'POST', path: '/trades', description: 'Criar trade' },
+      { method: 'PATCH', path: '/trades/{id}', description: 'Atualizar trade' },
+      { method: 'DELETE', path: '/trades/{id}', description: 'Excluir trade' },
+      { method: 'DELETE', path: '/trades/bulk?account_id={id}', description: 'Excluir todos os trades da conta' },
+      { method: 'POST', path: '/screenshots/upload/{trade_id}', description: 'Upload screenshot' },
+      { method: 'GET', path: '/screenshots/{trade_id}', description: 'Listar screenshots' },
+      { method: 'DELETE', path: '/screenshots/{trade_id}/{filename}', description: 'Excluir screenshot' },
     ],
   },
-    {
+  {
     icon: <Wallet size={16} />,
     title: 'Saques',
     endpoints: [
-      { method: 'GET', path: '/withdrawals', description: 'Listar saques (use account_id como query)', n8nExample: `Method: GET
-URL: ${BASE_URL}/withdrawals?account_id={{account_id}}`, pythonExample: `res = requests.get(f"${BASE_URL}/withdrawals?account_id={account_id}", headers=headers)` },
-      { method: 'POST', path: '/withdrawals', description: 'Criar saque', n8nExample: `Method: POST
-URL: ${BASE_URL}/withdrawals
-Body: { "account_id": "...", "amount": 500, "date": "2025-01-15" }`, pythonExample: `res = requests.post(f"${BASE_URL}/withdrawals", json={"account_id": account_id, "amount": 500, "date": "2025-01-15"}, headers=headers)` },
-      { method: 'DELETE', path: '/withdrawals/{id}', description: 'Remover saque', n8nExample: `Method: DELETE
-URL: ${BASE_URL}/withdrawals/{{withdrawal_id}}`, pythonExample: `res = requests.delete(f"${BASE_URL}/withdrawals/{withdrawal_id}", headers=headers)` },
+      { method: 'GET', path: '/withdrawals', description: 'Listar saques' },
+      { method: 'POST', path: '/withdrawals', description: 'Criar saque' },
+      { method: 'DELETE', path: '/withdrawals/{id}', description: 'Excluir saque' },
     ],
   },
   {
     icon: <CalendarDays size={16} />,
-    title: 'Notas Diárias',
+    title: 'Calendário & Notas',
     endpoints: [
-      { method: 'GET', path: '/daily-notes', description: 'Listar notas diárias', n8nExample: `Method: GET\nURL: ${BASE_URL}/daily-notes`, pythonExample: `res = requests.get("${BASE_URL}/daily-notes", headers=headers)` },
-      { method: 'POST', path: '/daily-notes', description: 'Criar nota diária', n8nExample: `Method: POST\nURL: ${BASE_URL}/daily-notes\nBody: { "date": "2025-01-15", "note": "Mercado volátil" }`, pythonExample: `res = requests.post("${BASE_URL}/daily-notes",\n  json={"date": "2025-01-15", "note": "Mercado volátil"},\n  headers=headers)` },
-      { method: 'PATCH', path: '/daily-notes/{id}', description: 'Atualizar nota', n8nExample: `Method: PATCH\nURL: ${BASE_URL}/daily-notes/{{id}}`, pythonExample: `res = requests.patch(f"${BASE_URL}/daily-notes/{id}",\n  json={"note": "Atualizado"}, headers=headers)` },
-      { method: 'DELETE', path: '/daily-notes/{id}', description: 'Remover nota', n8nExample: `Method: DELETE\nURL: ${BASE_URL}/daily-notes/{{id}}`, pythonExample: `res = requests.delete(f"${BASE_URL}/daily-notes/{id}", headers=headers)` },
+      { method: 'GET', path: '/daily-notes', description: 'Listar notas diárias' },
+      { method: 'POST', path: '/daily-notes', description: 'Criar/atualizar nota diária' },
+      { method: 'PATCH', path: '/daily-notes/{id}', description: 'Editar nota diária' },
+      { method: 'DELETE', path: '/daily-notes/{id}', description: 'Excluir nota diária' },
+      { method: 'GET', path: '/calendar/data', description: 'Dados mensais' },
+      { method: 'GET', path: '/calendar/summary', description: 'Resumo mensal' },
+      { method: 'GET', path: '/calendar/streaks', description: 'Streaks' },
+      { method: 'GET', path: '/calendar/heatmap', description: 'Heatmap anual' },
+      { method: 'GET', path: '/calendar/goals', description: 'Metas' },
+      { method: 'GET', path: '/calendar/goals/check', description: 'Status da meta' },
+      { method: 'GET', path: '/calendar/events', description: 'Listar eventos' },
+      { method: 'POST', path: '/calendar/events', description: 'Criar evento' },
+      { method: 'DELETE', path: '/calendar/events/{event_id}', description: 'Excluir evento' },
+      { method: 'GET', path: '/calendar/holidays', description: 'Feriados' },
+      { method: 'GET', path: '/calendar/export', description: 'Exportação do calendário' },
     ],
   },
   {
     icon: <LineChart size={16} />,
     title: 'Dashboard & Relatórios',
     endpoints: [
-      { method: 'GET', path: '/dashboard/stats', description: 'Resumo geral do dashboard (stats)', n8nExample: `Method: GET\nURL: ${BASE_URL}/dashboard/stats`, pythonExample: `res = requests.get("${BASE_URL}/dashboard/stats", headers=headers)` },
-      { method: 'GET', path: '/dashboard/monthly', description: 'P&L mensal detalhado', n8nExample: `Method: GET\nURL: ${BASE_URL}/dashboard/monthly`, pythonExample: `res = requests.get("${BASE_URL}/dashboard/monthly", headers=headers)` },
-      { method: 'GET', path: '/dashboard/by-pair', description: 'Estatísticas por ativo/par', n8nExample: `Method: GET\nURL: ${BASE_URL}/dashboard/by-pair`, pythonExample: `res = requests.get("${BASE_URL}/dashboard/by-pair", headers=headers)` },
-      { method: 'GET', path: '/dashboard/by-weekday', description: 'Estatísticas por dia da semana', n8nExample: `Method: GET\nURL: ${BASE_URL}/dashboard/by-weekday`, pythonExample: `res = requests.get("${BASE_URL}/dashboard/by-weekday", headers=headers)` },
-      { method: 'GET', path: '/dashboard/by-direction', description: 'Comparação BUY vs SELL', n8nExample: `Method: GET\nURL: ${BASE_URL}/dashboard/by-direction`, pythonExample: `res = requests.get("${BASE_URL}/dashboard/by-direction", headers=headers)` },
-      { method: 'GET', path: '/dashboard/top-trades', description: 'Melhores trades', n8nExample: `Method: GET\nURL: ${BASE_URL}/dashboard/top-trades`, pythonExample: `res = requests.get("${BASE_URL}/dashboard/top-trades", headers=headers)` },
-      { method: 'GET', path: '/dashboard/account-evolution', description: 'Evolução do saldo da conta', n8nExample: `Method: GET\nURL: ${BASE_URL}/dashboard/account-evolution`, pythonExample: `res = requests.get("${BASE_URL}/dashboard/account-evolution", headers=headers)` },
-      { method: 'GET', path: '/reports/weekly', description: 'Relatório semanal', n8nExample: `Method: GET\nURL: ${BASE_URL}/reports/weekly`, pythonExample: `res = requests.get("${BASE_URL}/reports/weekly", headers=headers)` },
+      { method: 'GET', path: '/dashboard/stats', description: 'Resumo consolidado' },
+      { method: 'GET', path: '/dashboard/monthly', description: 'Dados mensais' },
+      { method: 'GET', path: '/dashboard/by-pair', description: 'Performance por par' },
+      { method: 'GET', path: '/dashboard/by-weekday', description: 'Performance por dia' },
+      { method: 'GET', path: '/dashboard/by-direction', description: 'BUY vs SELL' },
+      { method: 'GET', path: '/dashboard/top-trades', description: 'Top trades' },
+      { method: 'GET', path: '/dashboard/account-evolution', description: 'Evolução da conta' },
+      { method: 'GET', path: '/reports/weekly', description: 'Relatório semanal' },
+      { method: 'GET', path: '/reports/gp-score', description: 'GP Score' },
+      { method: 'GET', path: '/reports/gp-score/history', description: 'Histórico GP Score' },
+      { method: 'GET', path: '/reports/streaks', description: 'Streaks' },
+      { method: 'GET', path: '/reports/best-day', description: 'Melhor dia' },
+      { method: 'GET', path: '/reports/monthly-summary', description: 'Resumo mensal' },
+      { method: 'GET', path: '/reports/risk-metrics', description: 'Métricas de risco' },
+      { method: 'GET', path: '/reports/annual-summary', description: 'Resumo anual' },
+      { method: 'GET', path: '/reports/notifications/goals', description: 'Notificações de metas' },
+      { method: 'POST', path: '/reports/notifications/goals/{goal_id}/dismiss', description: 'Dispensar notificação' },
     ],
   },
-    {
+  {
     icon: <Cable size={16} />,
-    title: 'Corretoras',
+    title: 'Corretoras & MetaApi',
     endpoints: [
-      { method: 'GET', path: '/brokers', description: 'Listar conexoes com corretoras', n8nExample: `Method: GET
-URL: ${BASE_URL}/brokers`, pythonExample: `res = requests.get("${BASE_URL}/brokers", headers=headers)` },
-      { method: 'POST', path: '/brokers/connect', description: 'Criar nova conexao', n8nExample: `Method: POST
-URL: ${BASE_URL}/brokers/connect
-Body: { "broker_type": "MT5", "account_name": "Conta", "login": "...", "server": "..." }`, pythonExample: `res = requests.post("${BASE_URL}/brokers/connect", json={"broker_type": "MT5", "account_name": "Conta", "login": "...", "server": "..."}, headers=headers)` },
-      { method: 'GET', path: '/brokers/{id}', description: 'Detalhes da conexao', n8nExample: `Method: GET
-URL: ${BASE_URL}/brokers/{{id}}`, pythonExample: `res = requests.get(f"${BASE_URL}/brokers/{id}", headers=headers)` },
-      { method: 'PATCH', path: '/brokers/{id}', description: 'Atualizar conexao', n8nExample: `Method: PATCH
-URL: ${BASE_URL}/brokers/{{id}}
-Body: { "notes": "..." }`, pythonExample: `res = requests.patch(f"${BASE_URL}/brokers/{id}", json={"notes": "..."}, headers=headers)` },
-      { method: 'DELETE', path: '/brokers/{id}/disconnect', description: 'Desconectar corretora', n8nExample: `Method: DELETE
-URL: ${BASE_URL}/brokers/{{id}}/disconnect`, pythonExample: `res = requests.delete(f"${BASE_URL}/brokers/{id}/disconnect", headers=headers)` },
-      { method: 'GET', path: '/brokers/available', description: 'Corretoras disponiveis', n8nExample: `Method: GET
-URL: ${BASE_URL}/brokers/available`, pythonExample: `res = requests.get("${BASE_URL}/brokers/available", headers=headers)` },
+      { method: 'GET', path: '/brokers', description: 'Listar conexões' },
+      { method: 'POST', path: '/brokers/connect', description: 'Criar conexão' },
+      { method: 'GET', path: '/brokers/{id}', description: 'Detalhe da conexão' },
+      { method: 'PATCH', path: '/brokers/{id}', description: 'Atualizar conexão' },
+      { method: 'DELETE', path: '/brokers/{id}/disconnect', description: 'Desconectar' },
+      { method: 'GET', path: '/brokers/available', description: 'Corretoras disponíveis' },
+      { method: 'POST', path: '/metaapi/connect', description: 'Conectar MetaApi' },
+      { method: 'POST', path: '/metaapi/sync/{account_id}', description: 'Sync MetaApi' },
+      { method: 'GET', path: '/metaapi/status/{account_id}', description: 'Status MetaApi' },
+      { method: 'DELETE', path: '/metaapi/disconnect/{account_id}', description: 'Desconectar MetaApi' },
     ],
   },
-    {
+  {
     icon: <Clapperboard size={16} />,
     title: 'Replay de Mercado',
     endpoints: [
-      { method: 'POST', path: '/replay/sessions', description: 'Criar sessao de replay', n8nExample: `Method: POST
-URL: ${BASE_URL}/replay/sessions?account_id={{account_id}}&pair=EURUSD&date=2025-01-15`, pythonExample: `res = requests.post(f"${BASE_URL}/replay/sessions?account_id={account_id}&pair=EURUSD&date=2025-01-15", headers=headers)` },
-      { method: 'GET', path: '/replay/sessions', description: 'Listar sessoes de replay', n8nExample: `Method: GET
-URL: ${BASE_URL}/replay/sessions`, pythonExample: `res = requests.get("${BASE_URL}/replay/sessions", headers=headers)` },
-      { method: 'GET', path: '/replay/sessions/{id}', description: 'Detalhar sessao', n8nExample: `Method: GET
-URL: ${BASE_URL}/replay/sessions/{{id}}`, pythonExample: `res = requests.get(f"${BASE_URL}/replay/sessions/{id}", headers=headers)` },
-      { method: 'DELETE', path: '/replay/sessions/{id}', description: 'Remover sessao', n8nExample: `Method: DELETE
-URL: ${BASE_URL}/replay/sessions/{{id}}`, pythonExample: `res = requests.delete(f"${BASE_URL}/replay/sessions/{id}", headers=headers)` },
-      { method: 'WS', path: '/replay/ws/{session_id}', description: 'WebSocket para streaming de dados', n8nExample: `// WebSocket nao suportado diretamente no n8n.
-// Use um script Python ou Node.js para conectar.`, pythonExample: `import websockets, asyncio
-
-async def replay():
-  async with websockets.connect(
-    "wss://api.painelzap.com/api/v1/replay/ws/{session_id}?token=SEU_TOKEN"
-  ) as ws:
-    async for msg in ws:
-      print(msg)
-
-asyncio.run(replay())` },
+      { method: 'POST', path: '/replay/sessions', description: 'Criar sessão de replay' },
+      { method: 'GET', path: '/replay/sessions', description: 'Listar sessões' },
+      { method: 'GET', path: '/replay/sessions/{id}', description: 'Detalhar sessão' },
+      { method: 'DELETE', path: '/replay/sessions/{id}', description: 'Remover sessão' },
+      { method: 'WS', path: '/replay/ws/{session_id}', description: 'Streaming do replay' },
+    ],
+  },
+  {
+    icon: <Cable size={16} />,
+    title: 'Tempo Real',
+    endpoints: [
+      { method: 'WS', path: '/ws/trades?token={jwt}', description: 'Eventos trade_synced e trade_closed' },
     ],
   },
   {
     icon: <Settings size={16} />,
-    title: 'MT5 EA (API Key)',
+    title: 'MT5 EA',
     endpoints: [
-      { method: 'POST', path: '/mt5-ea/sync', description: 'Sincronizar trades do EA', n8nExample: `Method: POST
-URL: ${BASE_URL}/mt5-ea/sync
-Headers:
-  x-api-key: {sua_api_key}
-Body: { "email": "user@email.com", "account_login": "123", "account_name": "Conta MT5", "server": "ICMarkets", "trades": [], "positions": [] }`, pythonExample: `res = requests.post(f"${BASE_URL}/mt5-ea/sync",
-  headers={"x-api-key": API_KEY},
-  json={"email": "user@email.com", "account_login": "123", "account_name": "Conta MT5", "server": "ICMarkets", "trades": [], "positions": []})
-print(res.json())` },
-      { method: 'POST', path: '/mt5-ea/open', description: 'Notificar abertura de posicao (EA)', n8nExample: `Method: POST
-URL: ${BASE_URL}/mt5-ea/open
-Headers:
-  x-api-key: {sua_api_key}
-Body: { "email": "user@email.com", "account_login": "123", "account_name": "Conta MT5", "server": "ICMarkets", "ticket": 1, "symbol": "EURUSD", "type": "BUY", "volume": 0.1, "open_price": 1.2345, "open_time": "2025-01-15 10:00:00" }`, pythonExample: `res = requests.post(f"${BASE_URL}/mt5-ea/open",
-  headers={"x-api-key": API_KEY},
-  json={"email": "user@email.com", "account_login": "123", "account_name": "Conta MT5", "server": "ICMarkets", "ticket": 1, "symbol": "EURUSD", "type": "BUY", "volume": 0.1, "open_price": 1.2345, "open_time": "2025-01-15 10:00:00"})
-print(res.json())` },
-      { method: 'POST', path: '/mt5-ea/close', description: 'Notificar fechamento de trade (EA)', n8nExample: `Method: POST
-URL: ${BASE_URL}/mt5-ea/close
-Headers:
-  x-api-key: {sua_api_key}
-Body: { "email": "user@email.com", "account_login": "123", "server": "ICMarkets", "ticket": 1, "symbol": "EURUSD", "type": "BUY", "volume": 0.1, "profit": 12.34, "open_time": "2025-01-15 10:00:00", "close_time": "2025-01-15 12:00:00", "open_price": 1.2345, "close_price": 1.2360 }`, pythonExample: `res = requests.post(f"${BASE_URL}/mt5-ea/close",
-  headers={"x-api-key": API_KEY},
-  json={"email": "user@email.com", "account_login": "123", "server": "ICMarkets", "ticket": 1, "symbol": "EURUSD", "type": "BUY", "volume": 0.1, "profit": 12.34, "open_time": "2025-01-15 10:00:00", "close_time": "2025-01-15 12:00:00", "open_price": 1.2345, "close_price": 1.2360})
-print(res.json())` },
+      { method: 'POST', path: '/mt5-ea/sync', description: 'Sincronizar trades/posições do EA' },
+      { method: 'POST', path: '/mt5-ea/open', description: 'Notificar abertura de posição' },
+      { method: 'POST', path: '/mt5-ea/close', description: 'Notificar fechamento de posição' },
     ],
   },
 ];
 
-/* ── helpers ── */
 const methodColors: Record<string, { bg: string; text: string }> = {
   GET: { bg: 'rgba(59,130,246,0.15)', text: '#3b82f6' },
   POST: { bg: 'rgba(0,211,149,0.15)', text: '#00d395' },
@@ -244,14 +168,13 @@ const methodColors: Record<string, { bg: string; text: string }> = {
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
-  const handle = () => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
   return (
     <button
-      onClick={handle}
+      onClick={() => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
       className="p-1.5 rounded-md transition-colors"
       style={{ background: 'rgba(255,255,255,0.05)' }}
       title="Copiar"
@@ -261,23 +184,16 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function CodeBlock({ code, lang }: { code: string; lang: string }) {
-  return (
-    <div className="relative rounded-lg border border-border overflow-hidden mt-2">
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-border" style={{ background: 'rgba(255,255,255,0.02)' }}>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{lang}</span>
-        <CopyButton text={code} />
-      </div>
-      <pre className="p-3 text-xs overflow-x-auto font-mono text-foreground/80 leading-relaxed whitespace-pre-wrap break-all">
-        {code}
-      </pre>
-    </div>
-  );
-}
-
 function EndpointCard({ ep }: { ep: Endpoint }) {
   const [open, setOpen] = useState(false);
   const mc = methodColors[ep.method];
+  const fullUrl = ep.method === 'WS'
+    ? `${WS_BASE}${ep.path.startsWith('/ws') ? '' : '/api/v1'}${ep.path}`
+    : `${BASE_URL}${ep.path}`;
+  const curl = ep.method === 'WS'
+    ? `# WebSocket endpoint\n${fullUrl}`
+    : `curl -X ${ep.method} "${fullUrl}"`;
+
   return (
     <div className="border border-border rounded-lg overflow-hidden mb-2 transition-colors hover:border-primary/20">
       <button
@@ -285,47 +201,37 @@ function EndpointCard({ ep }: { ep: Endpoint }) {
         className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
         style={{ background: open ? 'rgba(0,211,149,0.03)' : 'transparent' }}
       >
-        <span
-          className="px-2 py-0.5 rounded text-[11px] font-bold tracking-wide shrink-0"
-          style={{ background: mc.bg, color: mc.text, minWidth: 52, textAlign: 'center' }}
-        >
+        <span className="px-2 py-0.5 rounded text-[11px] font-bold tracking-wide shrink-0" style={{ background: mc.bg, color: mc.text, minWidth: 52, textAlign: 'center' }}>
           {ep.method}
         </span>
         <code className="text-sm font-mono text-foreground/90 truncate">{ep.path}</code>
         <span className="ml-auto text-xs text-muted-foreground hidden sm:block">{ep.description}</span>
-        <ChevronDown
-          size={14}
-          className="text-muted-foreground shrink-0 transition-transform duration-200"
-          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0)' }}
-        />
+        <ChevronDown size={14} className="text-muted-foreground shrink-0 transition-transform duration-200" style={{ transform: open ? 'rotate(180deg)' : 'rotate(0)' }} />
       </button>
       {open && (
-        <div className="px-4 pb-4 space-y-3 border-t border-border pt-3" style={{ background: 'rgba(0,0,0,0.15)' }}>
-          <p className="text-sm text-muted-foreground sm:hidden">{ep.description}</p>
-          <CodeBlock code={ep.n8nExample} lang="n8n — HTTP Request" />
-          <CodeBlock code={ep.pythonExample} lang="Python — requests" />
+        <div className="px-4 pb-4 space-y-2 border-t border-border pt-3" style={{ background: 'rgba(0,0,0,0.15)' }}>
+          <p className="text-sm text-muted-foreground">{ep.description}</p>
+          <div className="flex items-start gap-2 p-2.5 rounded border border-border bg-background">
+            <code className="text-xs break-all flex-1">{fullUrl}</code>
+            <CopyButton text={fullUrl} />
+          </div>
+          <div className="flex items-start gap-2 p-2.5 rounded border border-border bg-background">
+            <code className="text-xs break-all flex-1 whitespace-pre-wrap">{curl}</code>
+            <CopyButton text={curl} />
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-/* ── main page ── */
 export default function APIsPage() {
   const { theme } = useTheme();
   const [baseUrlCopied, setBaseUrlCopied] = useState(false);
 
-  const copyBaseUrl = () => {
-    navigator.clipboard.writeText(BASE_URL);
-    setBaseUrlCopied(true);
-    setTimeout(() => setBaseUrlCopied(false), 1500);
-  };
-
   return (
     <div className="w-full min-h-screen main-content-bg p-4 md:p-8">
       <div className="max-w-5xl mx-auto space-y-8">
-
-        {/* ── Header ── */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl" style={{ background: 'rgba(0,211,149,0.1)' }}>
@@ -333,16 +239,11 @@ export default function APIsPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-foreground">APIs & Automação</h1>
-              <p className="text-sm text-muted-foreground">Integre o Gustavo Pedrosa FX com qualquer sistema externo</p>
+              <p className="text-sm text-muted-foreground">Endpoints realmente usados hoje no sistema</p>
             </div>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full sm:ml-auto shrink-0 w-fit" style={{ background: 'rgba(0,211,149,0.1)', border: '1px solid rgba(0,211,149,0.25)' }}>
-            <div className="w-2 h-2 rounded-full animate-pulse bg-primary" />
-            <span className="text-xs font-semibold text-primary">API v1.0 — Online</span>
           </div>
         </div>
 
-        {/* ── Base URL ── */}
         <div
           className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 rounded-xl border"
           style={{
@@ -353,7 +254,11 @@ export default function APIsPage() {
           <span className="text-[10px] font-bold uppercase tracking-widest text-primary">BASE URL</span>
           <code className="text-sm font-mono text-foreground flex-1 break-all">{BASE_URL}</code>
           <button
-            onClick={copyBaseUrl}
+            onClick={() => {
+              navigator.clipboard.writeText(BASE_URL);
+              setBaseUrlCopied(true);
+              setTimeout(() => setBaseUrlCopied(false), 1500);
+            }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
             style={{ background: 'rgba(0,211,149,0.12)', color: '#00d395' }}
           >
@@ -361,75 +266,26 @@ export default function APIsPage() {
           </button>
         </div>
 
-        {/* ── Auth Card ── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-xl border border-border p-5 bg-card space-y-3">
-            <div className="flex items-center gap-2">
-              <Shield size={18} className="text-primary" />
-              <h3 className="text-sm font-bold text-foreground">Autenticação</h3>
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Todas as requisições autenticadas devem incluir o header:
-            </p>
-            <div className="flex items-center gap-2 p-2.5 rounded-lg border border-border font-mono text-xs text-foreground/80 bg-background">
-              <span className="break-all">Authorization: Bearer {'{'}<span className="text-primary">seu_token</span>{'}'}</span>
-              <CopyButton text="Authorization: Bearer {seu_token}" />
-            </div>
-            <a
-              href="https://api.painelzap.com/docs"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline mt-1"
-            >
-              Ver documentação completa <ExternalLink size={12} />
+        <div className="rounded-xl border border-border p-5 bg-card space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-bold text-foreground">Autenticação padrão</span>
+            <a href={`${API_ROOT}/docs`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline">
+              OpenAPI <ExternalLink size={12} />
             </a>
           </div>
-
-          {/* n8n quick start */}
-          <div className="rounded-xl border border-border p-5 bg-card space-y-3">
-            <h3 className="text-sm font-bold text-foreground">⚡ Quick Start — n8n</h3>
-            <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside leading-relaxed">
-              <li>Obtenha seu API Key em configurações</li>
-              <li>No n8n, use o node <strong>HTTP Request</strong></li>
-              <li>Header: <code className="text-primary">Authorization: Bearer {'{'} token {'}'}</code></li>
-              <li>Base URL: <code className="text-foreground/80">{BASE_URL}</code></li>
-            </ol>
+          <div className="p-2.5 rounded border border-border bg-background text-xs font-mono">
+            Authorization: Bearer {'{'}seu_token{'}'}
           </div>
         </div>
 
-        {/* Python quick start */}
-        <div className="rounded-xl border border-border p-5 bg-card space-y-3">
-          <h3 className="text-sm font-bold text-foreground">🐍 Quick Start — Python</h3>
-          <CodeBlock
-            lang="python"
-            code={`import requests
-
-BASE = "${BASE_URL}"
-TOKEN = "seu_token_aqui"
-headers = {"Authorization": f"Bearer {TOKEN}"}
-
-# Exemplo: listar contas
-contas = requests.get(f"{BASE}/accounts", headers=headers)
-print(contas.json())`}
-          />
-        </div>
-
-        {/* ── Endpoint Sections ── */}
         <Accordion type="multiple" className="space-y-3">
           {sections.map((sec, i) => (
-            <AccordionItem
-              key={i}
-              value={`section-${i}`}
-              className="rounded-xl border border-border bg-card overflow-hidden"
-            >
+            <AccordionItem key={i} value={`section-${i}`} className="rounded-xl border border-border bg-card overflow-hidden">
               <AccordionTrigger className="px-5 py-4 hover:no-underline hover:bg-accent/30 [&[data-state=open]]:border-b [&[data-state=open]]:border-border">
                 <div className="flex items-center gap-3">
                   <span className="text-primary">{sec.icon}</span>
                   <span className="text-sm font-semibold text-foreground">{sec.title}</span>
-                  <span
-                    className="px-2 py-0.5 rounded-full text-[10px] font-bold"
-                    style={{ background: 'rgba(0,211,149,0.1)', color: '#00d395' }}
-                  >
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'rgba(0,211,149,0.1)', color: '#00d395' }}>
                     {sec.endpoints.length}
                   </span>
                 </div>
@@ -442,7 +298,6 @@ print(contas.json())`}
             </AccordionItem>
           ))}
         </Accordion>
-
       </div>
     </div>
   );
