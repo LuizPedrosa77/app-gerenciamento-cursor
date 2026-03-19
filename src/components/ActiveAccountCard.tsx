@@ -40,21 +40,23 @@ export function ActiveAccountCard() {
   const goalBarColor = goalPct >= 100 ? '#00d395' : goalPct >= 71 ? '#3b82f6' : goalPct >= 41 ? '#f59e0b' : '#ff4d4d';
 
   useEffect(() => {
+    let active = true;
     const load = async () => {
       const apiId = (activeAcc as any)._apiId;
       if (!apiId) {
-        setMonthTrades([]);
+        if (active) setMonthTrades([]);
         return;
       }
       try {
         const res = await tradeService.list(apiId, 0, 2000, state.activeYear, state.activeMonth + 1);
         const trades = (res.items || res).map(apiTradeToLocal);
-        setMonthTrades(trades);
+        if (active) setMonthTrades(trades);
       } catch (err) {
         console.error('Failed to load account trades for card', err);
       }
     };
     load();
+    return () => { active = false; };
   }, [activeAcc, state.activeYear, state.activeMonth, dataRefreshTick]);
 
   return (

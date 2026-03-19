@@ -196,6 +196,7 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
   const [accFilter, setAccFilter] = useState<string>(String(state.activeAccount));
   const now = new Date();
   const noteSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const monthLoadSeqRef = useRef(0);
 
   const [calYear, setCalYear] = useState(state.activeYear);
   const [calMonth, setCalMonth] = useState(state.activeMonth);
@@ -254,12 +255,19 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
   }, []);
 
   useEffect(() => {
+    return () => {
+      monthLoadSeqRef.current += 1;
+    };
+  }, []);
+
+  useEffect(() => {
     Object.values(noteSaveTimers.current).forEach(clearTimeout);
     noteSaveTimers.current = {};
   }, [selectedAccount]);
 
   // Month trades (from backend)
   const loadMonthData = useCallback(async () => {
+    const loadId = ++monthLoadSeqRef.current;
     setLoading(true);
     try {
       const accountIds = selectedApiIds;
@@ -281,6 +289,7 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
 
       const allByAccount = await Promise.all(accountIds.map(loadAccountMonthTrades));
       const allTrades = allByAccount.flat();
+      if (loadId !== monthLoadSeqRef.current) return;
       setMonthTrades(allTrades);
 
       const summaryAccountId = selectedApiIds.length === 1 ? selectedApiIds[0] : undefined;
@@ -288,24 +297,29 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
         calendarService.getMonthSummary(calYear, calMonth + 1, summaryAccountId),
         calendarService.getStreaks(calYear, calMonth + 1, summaryAccountId),
       ]);
+      if (loadId !== monthLoadSeqRef.current) return;
       setMonthSummary(summaryRes || null);
       setStreaks(streakRes || null);
 
       const noteAccountId = selectedAccount ? (selectedAccount as any)._apiId : null;
       if (noteAccountId) {
         const notes = await dailyNoteService.list(noteAccountId, calYear, calMonth + 1);
+        if (loadId !== monthLoadSeqRef.current) return;
         const noteMap: Record<string, { id?: string; note: string }> = {};
         notes.forEach(n => { noteMap[n.date] = { id: n.id, note: n.note }; });
         setDailyNotes(noteMap);
         setNoteDrafts(Object.fromEntries(Object.entries(noteMap).map(([d, v]) => [d, v.note])));
       } else {
+        if (loadId !== monthLoadSeqRef.current) return;
         setDailyNotes({});
         setNoteDrafts({});
       }
     } catch (err) {
       console.error('Failed to load calendar data', err);
     } finally {
-      setLoading(false);
+      if (loadId === monthLoadSeqRef.current) {
+        setLoading(false);
+      }
     }
   }, [selectedApiIds, calYear, calMonth, selectedAccount, dataRefreshTick]);
 

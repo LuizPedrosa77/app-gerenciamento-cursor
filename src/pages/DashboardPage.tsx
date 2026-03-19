@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { Wallet } from 'lucide-react';
 import { useGPFX, apiTradeToLocal } from '@/contexts/GPFXContext';
 import {
@@ -242,9 +242,11 @@ export default function DashboardPage() {
     accountSummary: [], weekTrades: [], weekPnlTotal: 0, wrSpark: [], monthlyPnls: []
   });
   const [weeklyTrades, setWeeklyTrades] = useState<Trade[]>([]);
+  const loadSeqRef = useRef(0);
 
   // Call the robust, scalable backend aggregation APIs!
   const loadData = async () => {
+    const loadId = ++loadSeqRef.current;
     setLoading(true);
     try {
       const filters: any = {};
@@ -330,9 +332,11 @@ export default function DashboardPage() {
           return (res.items || res).map(apiTradeToLocal);
         })
       );
+      if (loadId !== loadSeqRef.current) return;
       const weeklyAgg = weeklyChunks.flat();
       setWeeklyTrades(weeklyAgg);
 
+      if (loadId !== loadSeqRef.current) return;
       setStats({
         totalBalance: sum.current_balance || sum.total_balance || 0,
         totalPnl: sum.total_pnl || 0,
@@ -361,7 +365,9 @@ export default function DashboardPage() {
     } catch(err) {
       console.error('Dashboard fetch falhou', err);
     } finally {
-      setLoading(false);
+      if (loadId === loadSeqRef.current) {
+        setLoading(false);
+      }
     }
   };
 

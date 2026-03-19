@@ -41,6 +41,7 @@ export default function ContasAtivasPage({ onNavigatePlanilha }: ContasAtivasPro
   const [accountTrades, setAccountTrades] = useState<Record<string, Trade[]>>({});
 
   useEffect(() => {
+    let active = true;
     const loadTrades = async () => {
       const start = new Date(curYear, curMonth, 1).toISOString().split('T')[0];
       const end = new Date().toISOString().split('T')[0];
@@ -55,9 +56,12 @@ export default function ContasAtivasPage({ onNavigatePlanilha }: ContasAtivasPro
           console.error('Falha ao carregar trades da conta', err);
         }
       }
-      setAccountTrades(map);
+      if (active) {
+        setAccountTrades(map);
+      }
     };
     loadTrades();
+    return () => { active = false; };
   }, [state.accounts, curYear, curMonth, dataRefreshTick]);
 
   return (
