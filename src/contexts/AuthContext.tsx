@@ -2,33 +2,48 @@
  * Contexto de Autenticação
  */
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
-import { authService, LoginCredentials, RegisterData, AuthResponse } from '../services/authService';
+import {
+  authService,
+  LoginCredentials,
+  RegisterData,
+  AuthResponse,
+  AuthUser,
+  Workspace,
+} from '../services/authService';
+
+type ApiError = {
+  response?: {
+    data?: {
+      detail?: string;
+    };
+  };
+};
 
 // Estado da autenticação
 interface AuthState {
-  user: any | null;
+  user: AuthUser | null;
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  workspace: any | null;
+  workspace: Workspace | null;
   error: string | null;
 }
 
 // Ações do reducer
 type AuthAction =
   | { type: 'LOGIN_START' }
-  | { type: 'LOGIN_SUCCESS'; payload: { user: any; token: string } }
+  | { type: 'LOGIN_SUCCESS'; payload: { user: AuthUser; token: string } }
   | { type: 'LOGIN_FAILURE'; payload: string }
   | { type: 'LOGOUT' }
   | { type: 'REGISTER_START' }
-  | { type: 'REGISTER_SUCCESS'; payload: { user: any; token: string } }
+  | { type: 'REGISTER_SUCCESS'; payload: { user: AuthUser; token: string } }
   | { type: 'REGISTER_FAILURE'; payload: string }
   | { type: 'CHECK_AUTH_START' }
-  | { type: 'CHECK_AUTH_SUCCESS'; payload: { user: any; token: string } }
+  | { type: 'CHECK_AUTH_SUCCESS'; payload: { user: AuthUser; token: string } }
   | { type: 'CHECK_AUTH_FAILURE' }
   | { type: 'CLEAR_ERROR' }
-  | { type: 'SET_USER'; payload: any }
-  | { type: 'SET_WORKSPACE'; payload: any }
+  | { type: 'SET_USER'; payload: AuthUser | null }
+  | { type: 'SET_WORKSPACE'; payload: Workspace | null }
   | { type: 'REFRESH_TOKEN_SUCCESS'; payload: string };
 
 // Estado inicial
@@ -135,8 +150,8 @@ interface AuthContextType {
   checkAuth: () => Promise<void>;
   refreshToken: () => Promise<void>;
   clearError: () => void;
-  setUser: (user: any) => void;
-  setWorkspace: (workspace: any) => void;
+  setUser: (user: AuthUser | null) => void;
+  setWorkspace: (workspace: Workspace | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -171,8 +186,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           payload: response.user.workspaces[0],
         });
       }
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || 'Erro ao fazer login';
+    } catch (error: unknown) {
+      const errorMessage = (error as ApiError).response?.data?.detail || 'Erro ao fazer login';
       dispatch({ type: 'LOGIN_FAILURE', payload: errorMessage });
       throw error;
     }
@@ -192,8 +207,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           token: response.access_token,
         },
       });
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || 'Erro ao criar conta';
+    } catch (error: unknown) {
+      const errorMessage = (error as ApiError).response?.data?.detail || 'Erro ao criar conta';
       dispatch({ type: 'REGISTER_FAILURE', payload: errorMessage });
       throw error;
     }
@@ -269,12 +284,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   // Setar usuário
-  const setUser = (user: any): void => {
+  const setUser = (user: AuthUser | null): void => {
     dispatch({ type: 'SET_USER', payload: user });
   };
 
   // Setar workspace
-  const setWorkspace = (workspace: any): void => {
+  const setWorkspace = (workspace: Workspace | null): void => {
     dispatch({ type: 'SET_WORKSPACE', payload: workspace });
   };
 
@@ -338,13 +353,13 @@ export const useIsAuthenticated = (): boolean => {
 };
 
 // Hook para obter usuário atual
-export const useCurrentUser = (): any | null => {
+export const useCurrentUser = (): AuthUser | null => {
   const { state } = useAuth();
   return state.user;
 };
 
 // Hook para obter workspace atual
-export const useCurrentWorkspace = (): any | null => {
+export const useCurrentWorkspace = (): Workspace | null => {
   const { state } = useAuth();
   return state.workspace;
 };

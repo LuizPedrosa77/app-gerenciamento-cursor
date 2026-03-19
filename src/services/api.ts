@@ -14,7 +14,7 @@ if (!ENV_API_BASE && typeof window !== 'undefined') {
 }
 
 type ApiClient = AxiosInstance & {
-  upload: (url: string, file: File) => Promise<AxiosResponse<any>>;
+  upload: (url: string, file: File) => Promise<AxiosResponse<unknown>>;
 };
 
 type RetriableRequestConfig = {
@@ -44,7 +44,7 @@ api.interceptors.response.use(
     const status = error?.response?.status;
     const originalConfig = (error?.config || {}) as RetriableRequestConfig & {
       url?: string;
-      headers?: any;
+      headers?: Record<string, string>;
     };
     const url = originalConfig?.url || '';
 
@@ -74,7 +74,7 @@ api.interceptors.response.use(
         originalConfig.headers = { Authorization: `Bearer ${refreshed.access_token}` };
       }
 
-      return api(originalConfig as any);
+      return api(originalConfig);
     } catch (refreshError) {
       // Sessão inválida/expirada: volta para landing de forma controlada.
       if (!logoutPromise) {

@@ -5,6 +5,14 @@ import tradeService, { APITrade } from '@/services/tradeService';
 import { api } from '@/services/api';
 import { authService } from '@/services/authService';
 
+type AccountWithApiId = Account & { _apiId?: string };
+type UploadableScreenshot = { url?: string };
+type APITradeExtended = APITrade & {
+  screenshots?: UploadableScreenshot[];
+  screenshot_url?: string;
+  direction?: string;
+};
+
 interface GPFXContextType {
   state: GPFXState;
   activeAcc: Account & { _apiId?: string };
@@ -23,7 +31,7 @@ interface GPFXContextType {
   updateMonthlyGoal: (accIdx: number, val: number) => void;
   addTrade: (date?: string) => void;
   addNewDay: () => void;
-  updateTrade: (id: string, field: string, val: any) => void;
+  updateTrade: (id: string, field: string, val: unknown) => void;
   deleteTrade: (id: string) => void;
   resetAccount: () => void;
   switchYear: (y: number) => void;
@@ -50,7 +58,7 @@ function getWsUrl(): string {
 }
 
 /** Map backend account to local Account shape. Trades are loaded separately. */
-function apiAccToLocal(a: APIAccount, existingTrades: Trade[] = []): Account & { _apiId?: string } {
+function apiAccToLocal(a: APIAccount, existingTrades: Trade[] = []): AccountWithApiId {
   return {
     _apiId: a.id,
     name: a.name,
@@ -60,8 +68,8 @@ function apiAccToLocal(a: APIAccount, existingTrades: Trade[] = []): Account & {
     withdrawals: a.withdrawals || {},
     meta: a.meta,
     monthlyGoal: a.monthly_goal,
-    initialBalance: (a as any).initial_balance || a.balance,
-  } as any;
+    initialBalance: a.initial_balance || a.balance,
+  };
 }
 
 function normalizePair(value?: string): string {
@@ -80,13 +88,14 @@ function normalizePair(value?: string): string {
 }
 
 export function apiTradeToLocal(t: APITrade): Trade {
+  const trade = t as APITradeExtended;
   const rawDate = t.date ? t.date.toString() : '';
   const normalizedDate = rawDate.replace(/\./g, '-').substring(0, 10);
   const closeOrOpen = t.close_time || t.open_time || '';
   const timePart = closeOrOpen
     ? closeOrOpen.toString().replace('T', ' ').substring(11, 16)
     : (rawDate.length > 10 ? rawDate.replace(/\./g, '-').substring(11, 16) : '');
-  const firstScreenshot = (t as any).screenshots && (t as any).screenshots.length > 0 ? (t as any).screenshots[0] : null;
+  const firstScreenshot = trade.screenshots && trade.screenshots.length > 0 ? trade.screenshots[0] : null;
   const normalizedPair = t.symbol_normalized || normalizePair(t.pair || t.symbol_raw);
 
   return {
@@ -103,7 +112,7 @@ export function apiTradeToLocal(t: APITrade): Trade {
     symbolRaw: t.symbol_raw,
     symbolNormalized: normalizedPair,
     pair: normalizedPair || t.pair,
-    dir: (t as any).direction || t.dir || 'BUY',
+    dir: trade.direction || t.dir || 'BUY',
     lots: t.lots,
     result: t.result,
     pnl: t.pnl,
@@ -113,11 +122,11 @@ export function apiTradeToLocal(t: APITrade): Trade {
     vmPnl: t.vm_pnl || 0,
     screenshot: t.screenshot
       || (firstScreenshot?.url ? { data: firstScreenshot.url, caption: '' } : undefined)
-      || ((t as any).screenshot_url ? { data: (t as any).screenshot_url, caption: '' } : undefined),
+      || (trade.screenshot_url ? { data: trade.screenshot_url, caption: '' } : undefined),
   };
 }
 
-function getApiId(acc: any): string | undefined {
+function getApiId(acc: { _apiId?: string } | undefined): string | undefined {
   return acc?._apiId;
 }
 
@@ -138,7 +147,7 @@ function dataUrlToFile(dataUrl: string, filename: string): File | null {
   return new File([bytes], filename, { type: mime });
 }
 
-function fireAndForget(promise: Promise<any>) {
+function fireAndForget(promise: Promise<unknown>) {
   promise.catch(err => console.warn('[GPFX API]', err?.message || err));
 }
 
@@ -208,8 +217,8 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
           ...prev,
           accounts,
           activeAccount: (() => {
-            const prevApiId = (prev.accounts[prev.activeAccount] as any)?._apiId;
-            const idx = prevApiId ? accounts.findIndex((a: any) => (a as any)._apiId === prevApiId) : -1;
+            const prevApiId = (prev.accounts[prev.activeAccount] as AccountWithApiId)?._apiId;
+            const idx = prevApiId ? accounts.findIndex((a) => (a as AccountWithApiId)._apiId === prevApiId) : -1;
             if (idx >= 0) return idx;
             return Math.min(prev.activeAccount, accounts.length - 1);
           })(),
@@ -377,7 +386,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     addTrade();
   }, [addTrade]);
 
-  const updateTrade = useCallback((id: string, field: string, val: any) => {
+  const updateTrade = useCallback((id: string, field: string, val: unknown) => {
     if (!isAuthenticated()) return;
     const payload: Partial<APITrade> = {};
     const fieldMap: Record<string, string> = {
@@ -386,10 +395,11 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
       date: 'date', year: 'year', month: 'month',
     };
     if (fieldMap[field]) {
-      (payload as any)[fieldMap[field]] = val;
+      const payloadField = fieldMap[field] as keyof APITrade;
+      payload[payloadField] = val as never;
     }
     if (field === 'screenshot') {
-      const screenshotData = val?.data;
+      const screenshotData = (val as { data?: string } | undefined)?.data;
       if (screenshotData && typeof screenshotData === 'string' && !screenshotData.startsWith('http')) {
         const file = dataUrlToFile(screenshotData, `trade-${id}.png`);
         if (file) {
@@ -530,7 +540,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
   return (
     <GPFXContext.Provider value={{
       state,
-      activeAcc: activeAcc as any,
+      activeAcc: activeAcc as AccountWithApiId,
       accountsBootstrapped,
       accountsLoadError,
       dataRefreshTick,

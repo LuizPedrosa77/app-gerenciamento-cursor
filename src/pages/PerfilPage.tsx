@@ -17,6 +17,18 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
+function getErrorMessage(err: unknown): string {
+  if (
+    err &&
+    typeof err === 'object' &&
+    'response' in err &&
+    typeof (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail === 'string'
+  ) {
+    return (err as { response: { data: { detail: string } } }).response.data.detail;
+  }
+  return 'Tente novamente.';
+}
+
 // ─── Helpers ───
 const phoneMask = (v: string) => {
   const d = v.replace(/\D/g, '').slice(0, 11);
@@ -86,7 +98,7 @@ function TabPerfil() {
 
   const handleSave = async () => {
     if (!form.nome.trim() || !form.email.trim() || !form.telefone.trim() || !form.nascimento.trim() || !form.pais.trim() || !form.cidade.trim() || !form.endereco.trim()) {
-      toast({ title: 'Preencha todos os campos obrigat?rios', variant: 'destructive' });
+      toast({ title: 'Preencha todos os campos obrigatórios', variant: 'destructive' });
       return;
     }
     setSaving(true);
@@ -101,10 +113,10 @@ function TabPerfil() {
         address: form.endereco.trim(),
       });
       toast({ title: 'Perfil atualizado!' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({
         title: 'Erro ao salvar perfil',
-        description: err?.response?.data?.detail || 'Tente novamente.',
+        description: getErrorMessage(err),
         variant: 'destructive',
       });
     } finally {
@@ -116,21 +128,21 @@ function TabPerfil() {
     const f = e.target.files?.[0];
     if (!f) return;
     if (!['image/jpeg', 'image/png'].includes(f.type)) {
-      toast({ title: 'Formato inv?lido', description: 'Apenas JPG e PNG', variant: 'destructive' });
+      toast({ title: 'Formato inválido', description: 'Apenas JPG e PNG', variant: 'destructive' });
       return;
     }
     if (f.size > 5 * 1024 * 1024) {
-      toast({ title: 'Arquivo muito grande', description: 'M?ximo 5MB', variant: 'destructive' });
+      toast({ title: 'Arquivo muito grande', description: 'Máximo 5MB', variant: 'destructive' });
       return;
     }
     try {
       const { data } = await api.upload('/api/v1/profile/avatar', f);
       if (data?.avatar_url) setAvatar(data.avatar_url);
       toast({ title: 'Foto atualizada!' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({
         title: 'Erro ao enviar foto',
-        description: err?.response?.data?.detail || 'Tente novamente.',
+        description: getErrorMessage(err),
         variant: 'destructive',
       });
     } finally {
@@ -169,24 +181,24 @@ function TabPerfil() {
       <div className="gpfx-card p-6 space-y-4">
         <h4 className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--gpfx-text-muted)' }}>Dados Pessoais</h4>
         <div className="text-xs rounded p-2" style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.25)' }}>
-          CPF n?o edit?vel por regra de pagamento.
+          CPF não editável por regra de pagamento.
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Field label="Nome Completo" value={form.nome} onChange={v => set('nome', v)} icon={<UserCircle size={14} />} required />
           <Field label="E-mail" value={form.email} onChange={v => set('email', v)} icon={<Mail size={14} />} required />
-          <Field label="CPF (n?o edit?vel)" value={form.cpf} readOnly icon={<Shield size={14} />} />
+          <Field label="CPF (não editável)" value={form.cpf} readOnly icon={<Shield size={14} />} />
           <Field label="Telefone" value={form.telefone} onChange={v => set('telefone', phoneMask(v))} icon={<Phone size={14} />} placeholder="(00) 00000-0000" required />
           <Field label="Data de nascimento" value={form.nascimento} onChange={v => set('nascimento', v)} type="date" icon={<Calendar size={14} />} required />
           <div>
-            <label className="text-[11px] font-semibold uppercase tracking-wider mb-1 block" style={{ color: 'var(--gpfx-text-muted)' }}>Pa?s</label>
+            <label className="text-[11px] font-semibold uppercase tracking-wider mb-1 block" style={{ color: 'var(--gpfx-text-muted)' }}>País</label>
             <select value={form.pais} onChange={e => set('pais', e.target.value)}
               className="w-full h-10 rounded-lg px-3 text-sm outline-none"
               style={{ background: 'var(--gpfx-input-bg)', border: '1px solid var(--gpfx-border)', color: 'var(--gpfx-text-primary)' }}>
-              {['Brasil', 'Portugal', 'Estados Unidos', 'Reino Unido', 'Espanha', 'Alemanha', 'Fran?a', 'Jap?o', 'Outro'].map(p => <option key={p} value={p}>{p}</option>)}
+              {['Brasil', 'Portugal', 'Estados Unidos', 'Reino Unido', 'Espanha', 'Alemanha', 'França', 'Japão', 'Outro'].map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
           <Field label="Cidade" value={form.cidade} onChange={v => set('cidade', v)} icon={<MapPin size={14} />} required />
-          <Field label="Endere?o" value={form.endereco} onChange={v => set('endereco', v)} icon={<Globe size={14} />} required />
+          <Field label="Endereço" value={form.endereco} onChange={v => set('endereco', v)} icon={<Globe size={14} />} required />
         </div>
       </div>
 
@@ -240,7 +252,7 @@ function TabPerfil() {
         className="w-full md:w-auto px-8 h-11 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-opacity"
         style={{ background: 'var(--gpfx-green)', color: '#0d1117', opacity: saving ? 0.7 : 1 }}>
         {saving && <span className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full" />}
-        Salvar Altera??es
+        Salvar Alterações
       </button>
     </div>
   );

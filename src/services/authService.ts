@@ -34,8 +34,21 @@ export interface AuthResponse {
     plan: string;
     has_google: boolean;
     created_at: string;
+    workspaces?: Workspace[];
+    [key: string]: unknown;
   };
 }
+
+export interface Workspace {
+  id: string;
+  name: string;
+  [key: string]: unknown;
+}
+
+export type AuthUser = AuthResponse['user'] & {
+  workspaces?: Workspace[];
+  [key: string]: unknown;
+};
 
 export interface RefreshTokenResponse {
   access_token: string;
@@ -47,7 +60,7 @@ export interface RefreshTokenResponse {
 class AuthService {
   private accessToken: string | null = null;
   private refreshTokenValue: string | null = null;
-  private userData: any | null = null;
+  private userData: AuthUser | null = null;
   private readonly ACCESS_TOKEN_KEY = 'gpfx_access_token';
   private readonly REFRESH_TOKEN_KEY = 'gpfx_refresh_token';
   private readonly USER_DATA_KEY = 'gpfx_user_data';
@@ -204,9 +217,9 @@ class AuthService {
   /**
    * Obtém dados do usuário atual
    */
-  async getMe(): Promise<any> {
+  async getMe(): Promise<AuthUser> {
     try {
-      const response = await api.get('/api/v1/auth/me');
+      const response = await api.get<AuthUser>('/api/v1/auth/me');
       
       // Atualizar dados do usuário em memória
       this.userData = response.data;
@@ -229,14 +242,14 @@ class AuthService {
   /**
    * Obtém dados do usuário em memória
    */
-  getUserData(): any | null {
+  getUserData(): AuthUser | null {
     return this.userData;
   }
 
   /**
    * Atualiza dados do usuário em memória
    */
-  updateUserData(userData: any): void {
+  updateUserData(userData: AuthUser): void {
     this.userData = userData;
     this.persistSession();
   }

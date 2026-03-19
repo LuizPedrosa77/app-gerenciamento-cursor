@@ -1,11 +1,8 @@
-/**
- * Hook para gerenciar notificacoes de metas atingidas (sem storage local)
- */
 import { useState, useEffect, useCallback } from 'react';
 import { calendarService } from '../services/calendarService';
-import { accountService } from '../services/accountService';
+import { accountService, APIAccount } from '../services/accountService';
 
-interface GoalNotification {
+export interface GoalNotification {
   id: string;
   type: 'monthly' | 'biweekly';
   title: string;
@@ -29,26 +26,16 @@ const dismissedGoalsMemory = new Set<string>();
 export function useGoalNotification(): UseGoalNotificationReturn {
   const [notifications, setNotifications] = useState<GoalNotification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [accounts, setAccounts] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<APIAccount[]>([]);
 
-  useEffect(() => {
-    loadAccounts();
-  }, []);
-
-  useEffect(() => {
-    checkGoals();
-    const interval = setInterval(checkGoals, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [accounts]);
-
-  const loadAccounts = async () => {
+  const loadAccounts = useCallback(async () => {
     try {
       const accountsList = await accountService.listAccounts();
       setAccounts(accountsList);
     } catch (error) {
       console.error('Error loading accounts:', error);
     }
-  };
+  }, []);
 
   const checkGoals = useCallback(async () => {
     if (accounts.length === 0) return;
@@ -74,7 +61,7 @@ export function useGoalNotification(): UseGoalNotificationReturn {
               id: notificationId,
               type: 'monthly',
               title: 'Meta Mensal Atingida!',
-              message: `Parabens! Voce atingiu sua meta mensal de ${monthlyGoal.monthly.goal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+              message: `Parabéns! Você atingiu sua meta mensal de ${monthlyGoal.monthly.goal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
               amount: monthlyGoal.monthly.goal,
               percentage: monthlyGoal.monthly.percentage,
               achieved_at: new Date().toISOString(),
@@ -90,7 +77,7 @@ export function useGoalNotification(): UseGoalNotificationReturn {
               id: notificationId,
               type: 'biweekly',
               title: 'Meta Quinzenal Atingida!',
-              message: `Excelente! Voce atingiu sua meta quinzenal de ${monthlyGoal.biweekly.goal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+              message: `Excelente! Você atingiu sua meta quinzenal de ${monthlyGoal.biweekly.goal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
               amount: monthlyGoal.biweekly.goal,
               percentage: monthlyGoal.biweekly.percentage,
               achieved_at: new Date().toISOString(),
@@ -104,18 +91,30 @@ export function useGoalNotification(): UseGoalNotificationReturn {
     }
 
     if (newNotifications.length > 0) {
-      setNotifications(prev => [...prev, ...newNotifications]);
+      setNotifications((prev) => [...prev, ...newNotifications]);
       setShowNotifications(true);
     }
   }, [accounts]);
 
+  useEffect(() => {
+    void loadAccounts();
+  }, [loadAccounts]);
+
+  useEffect(() => {
+    void checkGoals();
+    const interval = setInterval(() => {
+      void checkGoals();
+    }, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [checkGoals]);
+
   const dismissNotification = useCallback((id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
     dismissedGoalsMemory.add(id);
   }, []);
 
   const dismissAllNotifications = useCallback(() => {
-    notifications.forEach(n => dismissedGoalsMemory.add(n.id));
+    notifications.forEach((n) => dismissedGoalsMemory.add(n.id));
     setNotifications([]);
     setShowNotifications(false);
   }, [notifications]);
@@ -127,114 +126,4 @@ export function useGoalNotification(): UseGoalNotificationReturn {
     dismissAllNotifications,
     checkGoals,
   };
-}
-
-/**
- * Componente para exibir banner de notificacao de meta
- */
-import React from 'react';
-import { X, Trophy } from 'lucide-react';
-
-interface GoalNotificationBannerProps {
-  notification: {
-    title: string;
-    message: string;
-    type: 'monthly' | 'biweekly';
-  };
-  onDismiss: () => void;
-}
-
-export function GoalNotificationBanner({
-  notification,
-  onDismiss
-}: GoalNotificationBannerProps) {
-  const bgColor = notification.type === 'monthly'
-    ? 'bg-green-50 border-green-200'
-    : 'bg-blue-50 border-blue-200';
-
-  const textColor = notification.type === 'monthly'
-    ? 'text-green-800'
-    : 'text-blue-800';
-
-  const iconColor = notification.type === 'monthly'
-    ? 'text-green-600'
-    : 'text-blue-600';
-
-  return (
-    <div className={`
-      fixed top-0 left-0 right-0 z-50
-      ${bgColor} border-b-2
-      px-4 py-3
-      flex items-center justify-between
-      shadow-lg
-    `}>
-      <div className="flex items-center space-x-3">
-        <div className={`p-2 rounded-full ${iconColor}`}>
-          <Trophy className="w-5 h-5" />
-        </div>
-        <div>
-          <h3 className={`font-bold ${textColor} text-sm`}>
-            {notification.title}
-          </h3>
-          <p className={`${textColor} text-xs mt-1`}>
-            {notification.message}
-          </p>
-        </div>
-      </div>
-      <button
-        onClick={onDismiss}
-        className={`
-          p-1 rounded-full hover:bg-black hover:bg-opacity-10
-          transition-colors
-        `}
-      >
-        <X className={`w-4 h-4 ${textColor}`} />
-      </button>
-    </div>
-  );
-}
-
-/**
- * Componente para exibir multiplos banners de notificacao
- */
-export function GoalNotificationBanners() {
-  const {
-    notifications,
-    showNotifications,
-    dismissNotification,
-    dismissAllNotifications
-  } = useGoalNotification();
-
-  if (!showNotifications || notifications.length === 0) {
-    return null;
-  }
-
-  return (
-    <>
-      {notifications.map((notification, index) => (
-        <div
-          key={notification.id}
-          style={{ top: `${index * 80}px` }}
-        >
-          <GoalNotificationBanner
-            notification={notification}
-            onDismiss={() => dismissNotification(notification.id)}
-          />
-        </div>
-      ))}
-      {notifications.length > 1 && (
-        <div
-          className="fixed top-4 right-4 z-50"
-          style={{ top: `${notifications.length * 80 + 20}px` }}
-        >
-          <button
-            onClick={dismissAllNotifications}
-            className="px-3 py-2 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 transition-colors"
-          >
-            Descartar Todas
-          </button>
-        </div>
-      )}
-    </>
-  );
 }

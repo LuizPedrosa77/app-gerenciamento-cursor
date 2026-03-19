@@ -13,11 +13,53 @@ import WeeklyReport from '@/components/WeeklyReport';
 import dashboardService from '@/services/dashboardService';
 import tradeService from '@/services/tradeService';
 
+type RectShapeProps = {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  payload?: {
+    pnl?: number;
+    name?: string;
+  };
+};
+
+type DashboardFilters = {
+  account_ids?: string[];
+  start_date?: string;
+  end_date?: string;
+};
+
+type DashboardStats = {
+  totalBalance: number;
+  totalPnl: number;
+  totalTrades: number;
+  winRate: number;
+  monthlyData: { name: string; pnl: number }[];
+  avgMonthly: number;
+  pnlVariation: number;
+  balCum: unknown[];
+  pairData: { name: string; pnl: number }[];
+  dowData: { name: string; pnl: number }[];
+  bestDow: { name: string; pnl: number };
+  weekData: { name: string; pnl: number }[];
+  distribution: { name: string; value: number }[];
+  balanceEvoSampled: { date: string; balance: number }[];
+  heatmapData: { year: number; months: number[] }[];
+  top5Best: Trade[];
+  top5Worst: Trade[];
+  accountSummary: { apiId: string; name: string; balance: number; pnl: number; winRate: number; trades: number }[];
+  weekTrades: Trade[];
+  weekPnlTotal: number;
+  wrSpark: number[];
+  monthlyPnls: number[];
+};
+
 function normalizeRectSize(value: number) {
   return Number.isFinite(value) ? Math.max(0, Math.abs(value)) : 0;
 }
 
-function buildSafeRect(props: any, fill: string, stroke?: string, strokeWidth?: number) {
+function buildSafeRect(props: RectShapeProps, fill: string, stroke?: string, strokeWidth?: number) {
   const x = Number(props?.x ?? 0);
   const y = Number(props?.y ?? 0);
   const rawWidth = Number(props?.width ?? 0);
@@ -97,7 +139,7 @@ function MonthlyGoalCard({ accFilter }: { accFilter: string }) {
   useEffect(() => {
     if (!acc || goal <= 0) return;
     const load = async () => {
-      const apiId = (acc as any)._apiId;
+      const apiId = (acc as { _apiId?: string })._apiId;
       if (!apiId) {
         setMonthPnl(0);
         setDaysOperated(0);
@@ -115,7 +157,7 @@ function MonthlyGoalCard({ accFilter }: { accFilter: string }) {
       }
     };
     load();
-  }, [acc, curYear, curMonth, dataRefreshTick]);
+  }, [acc, goal, curYear, curMonth, dataRefreshTick]);
 
   if (!acc || goal <= 0) return null;
 
@@ -236,7 +278,7 @@ export default function DashboardPage() {
   const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
   const [loading, setLoading] = useState(true);
 
-  const [stats, setStats] = useState<any>({
+  const [stats, setStats] = useState<DashboardStats>({
     totalBalance: 0, totalPnl: 0, totalTrades: 0, winRate: 0, monthlyData: [], avgMonthly: 0, pnlVariation: 0,
     balCum: [], pairData: [], dowData: [], bestDow: {name:'', pnl:0}, weekData: [], distribution: [],
     balanceEvoSampled: [], heatmapData: [], top5Best: [], top5Worst: [],
@@ -250,11 +292,12 @@ export default function DashboardPage() {
     const loadId = ++loadSeqRef.current;
     setLoading(true);
     try {
-      const filters: any = {};
+      const filters: DashboardFilters = {};
       if (accFilter !== 'all') {
         const acc = state.accounts[parseInt(accFilter)];
-        if (acc && (acc as any)._apiId) {
-          filters.account_ids = [(acc as any)._apiId];
+        const apiId = (acc as { _apiId?: string } | undefined)?._apiId;
+        if (acc && apiId) {
+          filters.account_ids = [apiId];
         }
       }
       if (dateRange.start) filters.start_date = dateRange.start;
@@ -272,32 +315,44 @@ export default function DashboardPage() {
         { name: 'LOSS', value: sum.loss_trades || 0 }
       ];
 
-      const pairData = (sum.pair_data || []).sort((a: any, b: any) => b.pnl - a.pnl);
+      const pairData = (sum.pair_data || [])
+        .map((row) => row as { name?: string; pnl?: number })
+        .sort((a, b) => Number(b.pnl || 0) - Number(a.pnl || 0))
+        .map((row) => ({ name: row.name || '', pnl: Number(row.pnl || 0) }));
       const dowDataSource = (sum.dow_data && sum.dow_data.length > 0) ? sum.dow_data : [];
       const dowDataParsed = dowDataSource
-        .map((d: any) => ({
-          weekday: Number(d.weekday),
-          name: d.weekday_name || d.name || '',
-          pnl: d.total_pnl ?? d.pnl ?? 0,
-        }))
-        .filter((d: any) => d.weekday !== 0 && d.weekday !== 6)
-        .map((d: any) => ({ name: d.name, pnl: d.pnl }));
+        .map((row) => {
+          const d = row as { weekday?: number | string; weekday_name?: string; name?: string; total_pnl?: number; pnl?: number };
+          return {
+            weekday: Number(d.weekday),
+            name: d.weekday_name || d.name || '',
+            pnl: Number(d.total_pnl ?? d.pnl ?? 0),
+          };
+        })
+        .filter((d) => d.weekday !== 0 && d.weekday !== 6)
+        .map((d) => ({ name: d.name, pnl: d.pnl }));
       const bestDowObj = dowDataParsed.length > 0
-        ? dowDataParsed.reduce((best: any, d: any) => d.pnl > best.pnl ? d : best, dowDataParsed[0])
+        ? dowDataParsed.reduce((best, d) => (d.pnl > best.pnl ? d : best), dowDataParsed[0])
         : { name: '', pnl: 0 };
 
       const heatmapData = [{
         year,
         months: MONTHS.map((_, mi) => {
-          const mData = (sum.monthly_data || []).find((m: any) => m.month === mi + 1);
-          return mData ? Number(mData.pnl || 0) : 0;
+          const mData = (sum.monthly_data || [])
+            .map((m) => m as { month?: number; pnl?: number })
+            .find((m) => m.month === mi + 1);
+          return Number(mData?.pnl || 0);
         })
       }];
 
       const evolutionMapped = evoRaw.map(e => ({ date: e.date, balance: e.cumulative }));
       const monthlyPnls = heatmapData[0].months;
-      const wrSpark = (sum.monthly_data || []).map((m: any) => Number(m.win_rate || 0));
-      const monthlyWithTrades = (sum.monthly_data || []).filter((m: any) => Number(m.trades || 0) > 0);
+      const wrSpark = (sum.monthly_data || [])
+        .map((m) => m as { win_rate?: number })
+        .map((m) => Number(m.win_rate || 0));
+      const monthlyWithTrades = (sum.monthly_data || [])
+        .map((m) => m as { trades?: number; pnl?: number })
+        .filter((m) => Number(m.trades || 0) > 0);
       const pnlVariation = monthlyWithTrades.length >= 2
         ? (() => {
             const current = Number(monthlyWithTrades[monthlyWithTrades.length - 1]?.pnl || 0);
@@ -307,19 +362,31 @@ export default function DashboardPage() {
           })()
         : 0;
 
-      const allAccountIds = state.accounts.map(a => (a as any)._apiId).filter(Boolean) as string[];
+      const allAccountIds = state.accounts
+        .map((a) => (a as { _apiId?: string })._apiId)
+        .filter((id): id is string => Boolean(id));
       const filteredAccountIds = (filters.account_ids && filters.account_ids.length > 0)
         ? filters.account_ids
         : allAccountIds;
 
-      const accountSummary = (sum.account_summary || []).map((a: any) => ({
-        apiId: a.account_id,
-        name: a.name,
-        balance: Number(a.balance || 0),
-        pnl: Number(a.pnl || 0),
-        winRate: Number(a.win_rate || 0),
-        trades: Number(a.trades || 0),
-      }));
+      const accountSummary = (sum.account_summary || []).map((row) => {
+        const a = row as {
+          account_id?: string;
+          name?: string;
+          balance?: number;
+          pnl?: number;
+          win_rate?: number;
+          trades?: number;
+        };
+        return {
+          apiId: a.account_id || '',
+          name: a.name || '',
+          balance: Number(a.balance || 0),
+          pnl: Number(a.pnl || 0),
+          winRate: Number(a.win_rate || 0),
+          trades: Number(a.trades || 0),
+        };
+      });
 
       // Weekly trades for report (last 90 days)
       const end = new Date();
@@ -343,14 +410,20 @@ export default function DashboardPage() {
         totalPnl: sum.total_pnl || 0,
         totalTrades: sum.total_trades || 0,
         winRate: sum.win_rate || 0,
-        monthlyData: (sum.monthly_data || []).map((m: any) => ({ name: m.name || MONTHS[m.month - 1] || 'Mes', pnl: Number(m.pnl || 0) })),
+        monthlyData: (sum.monthly_data || []).map((row) => {
+          const m = row as { name?: string; month?: number; pnl?: number };
+          return { name: m.name || MONTHS[(m.month || 1) - 1] || 'Mes', pnl: Number(m.pnl || 0) };
+        }),
         avgMonthly: sum.avg_monthly || 0,
         pnlVariation: Number.isFinite(pnlVariation) ? pnlVariation : 0,
         balCum: [],
         pairData,
         dowData: dowDataParsed,
         bestDow: bestDowObj,
-        weekData: (sum.week_data || []).map((w: any) => ({ name: w.name, pnl: Number(w.pnl || 0) })),
+        weekData: (sum.week_data || []).map((row) => {
+          const w = row as { name?: string; pnl?: number };
+          return { name: w.name || '', pnl: Number(w.pnl || 0) };
+        }),
         distribution: (sum.distribution && sum.distribution.length > 0) ? sum.distribution : dist,
         balanceEvoSampled: evolutionMapped,
         heatmapData,
@@ -375,7 +448,14 @@ export default function DashboardPage() {
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.accounts, state.activeAccount, accFilter, dateRange.start, dateRange.end, dataRefreshTick]);
+  }, [
+    state.accounts.length,
+    state.activeAccount,
+    accFilter,
+    dateRange.start,
+    dateRange.end,
+    dataRefreshTick,
+  ]);
 
   const weekTrades = useMemo(() => {
     const now = new Date();
@@ -393,9 +473,9 @@ export default function DashboardPage() {
   const weekPnlTotal = sumPnl(weekTrades);
 
   const selectedAcc = accFilter === 'all' ? null : state.accounts[parseInt(accFilter)];
-  const selectedAccApiId = selectedAcc ? (selectedAcc as any)._apiId : null;
+  const selectedAccApiId = selectedAcc ? (selectedAcc as { _apiId?: string })._apiId : null;
   const selectedAccSummary = selectedAcc
-    ? stats.accountSummary.find((a: any) => a.apiId === selectedAccApiId)
+    ? stats.accountSummary.find((a) => a.apiId === selectedAccApiId)
     : null;
   const totalBalanceDisplay = accFilter === 'all'
     ? stats.totalBalance
@@ -500,8 +580,7 @@ export default function DashboardPage() {
                 <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => ['$' + fmtNum(v), 'P&L']} />
                 <ReferenceLine y={stats.avgMonthly} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: 'Média', fill: '#f59e0b', fontSize: 10 }} />
                 <Bar dataKey="pnl" radius={[4, 4, 0, 0]}
-                  // @ts-ignore
-                  shape={(props: any) => {
+                  shape={(props: RectShapeProps) => {
                     const fill = props.payload?.pnl >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)';
                     return buildSafeRect(props, fill);
                   }}
@@ -524,8 +603,7 @@ export default function DashboardPage() {
                 <YAxis type="category" dataKey="pair" tick={{ fill: 'var(--gpfx-text-secondary)', fontSize: 11 }} axisLine={{ stroke: 'var(--gpfx-border)' }} width={70} />
                 <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => ['$' + fmtNum(v), 'P&L']} />
                 <Bar dataKey="pnl" radius={[0, 4, 4, 0]}
-                  // @ts-ignore
-                  shape={(props: any) => {
+                  shape={(props: RectShapeProps) => {
                     const fill = props.payload?.pnl >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)';
                     return buildSafeRect(props, fill);
                   }}
@@ -546,8 +624,7 @@ export default function DashboardPage() {
                 <YAxis tick={{ fill: 'var(--gpfx-text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--gpfx-border)' }} tickFormatter={v => '$' + fmtNum(v)} />
                 <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => ['$' + fmtNum(v), 'P&L']} />
                 <Bar dataKey="pnl" radius={[4, 4, 0, 0]}
-                  // @ts-ignore
-                  shape={(props: any) => {
+                  shape={(props: RectShapeProps) => {
                     const isBest = props.payload?.name === stats.bestDow?.name;
                     const fill = props.payload?.pnl >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)';
                     return buildSafeRect(props, fill, isBest ? '#00d395' : undefined, isBest ? 2 : 0);
@@ -569,8 +646,7 @@ export default function DashboardPage() {
                 <YAxis tick={{ fill: 'var(--gpfx-text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--gpfx-border)' }} tickFormatter={v => '$' + fmtNum(v)} />
                 <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => ['$' + fmtNum(v), 'P&L']} />
                 <Bar dataKey="pnl" radius={[4, 4, 0, 0]}
-                  // @ts-ignore
-                  shape={(props: any) => {
+                  shape={(props: RectShapeProps) => {
                     const fill = props.payload?.pnl >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)';
                     return buildSafeRect(props, fill);
                   }}

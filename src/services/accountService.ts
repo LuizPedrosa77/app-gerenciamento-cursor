@@ -30,7 +30,7 @@ const accountService = {
   },
 
   update: async (id: string, payload: Partial<APIAccount>): Promise<APIAccount> => {
-    const { withdrawals, ...rest } = payload as any;
+    const { withdrawals, ...rest } = payload;
     const { data } = await api.patch(`/api/v1/accounts/${id}`, rest);
     return data;
   },

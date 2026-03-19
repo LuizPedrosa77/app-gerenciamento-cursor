@@ -103,7 +103,7 @@ export interface Discount {
 
 class ProfileService {
   /**
-   * Obt??m perfil do usu??rio
+   * Obtém perfil do usuário
    */
   async getProfile(): Promise<UserProfile> {
     try {
@@ -116,7 +116,7 @@ class ProfileService {
   }
 
   /**
-   * Atualiza perfil do usu??rio
+   * Atualiza perfil do usuário
    */
   async updateProfile(data: UpdateProfileData): Promise<UserProfile> {
     try {
@@ -129,7 +129,7 @@ class ProfileService {
   }
 
   /**
-   * Obt??m prefer??ncias do usu??rio
+   * Obtém preferências do usuário
    */
   async getPreferences(): Promise<UserPreferences> {
     try {
@@ -142,7 +142,7 @@ class ProfileService {
   }
 
   /**
-   * Atualiza prefer??ncias do usu??rio
+   * Atualiza preferências do usuário
    */
   async updatePreferences(data: Partial<UserPreferences>): Promise<UserPreferences> {
     try {
