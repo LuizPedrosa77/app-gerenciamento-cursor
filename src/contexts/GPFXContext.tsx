@@ -248,7 +248,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     if (!isAuthenticated()) return;
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-      // Fallback de sincroniza?o quando n?o h? eventos em tempo real.
+      // Fallback de sincronizacao quando nao ha eventos em tempo real.
       if (wsConnected) return;
 
       const nowMs = Date.now();
