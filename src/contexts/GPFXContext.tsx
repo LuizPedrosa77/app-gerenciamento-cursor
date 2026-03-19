@@ -163,6 +163,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
   const fallbackSyncInFlightRef = useRef(false);
   const refreshAccountsQueuedRef = useRef(false);
   const refreshAccountsInFlightRef = useRef<Promise<void> | null>(null);
+  const shouldReconnectWsRef = useRef(true);
 
   const flash = useCallback(() => {
     setShowSaved(true);
@@ -431,6 +432,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
 
   const connectWebSocket = useCallback(() => {
     if (!isAuthenticated()) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     const token = getAuthToken();
     if (!token) return;
 
@@ -486,6 +488,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
 
     ws.onclose = () => {
       setWsConnected(false);
+      if (!shouldReconnectWsRef.current || !isAuthenticated()) return;
       console.log(`[GPFX WS] Desconectado. Reconectando em ${wsReconnectDelay.current}ms...`);
       wsReconnectTimer.current = setTimeout(() => {
         wsReconnectDelay.current = Math.min(wsReconnectDelay.current * 2, 30000);
@@ -496,6 +499,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isAuthenticated()) return;
+    shouldReconnectWsRef.current = true;
     connectWebSocket();
 
     const pingInterval = setInterval(() => {
@@ -504,8 +508,17 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
       }
     }, 25000);
 
+    const onOnline = () => {
+      if (wsRef.current?.readyState !== WebSocket.OPEN) {
+        connectWebSocket();
+      }
+    };
+    window.addEventListener('online', onOnline);
+
     return () => {
+      shouldReconnectWsRef.current = false;
       clearInterval(pingInterval);
+      window.removeEventListener('online', onOnline);
       clearTimeout(wsReconnectTimer.current);
       if (wsRef.current) {
         wsRef.current.onclose = null;
