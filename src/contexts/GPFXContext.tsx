@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
+﻿import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { GPFXState, Account, Trade, createAccount, uid } from '@/lib/gpfx-utils';
 import accountService, { APIAccount } from '@/services/accountService';
 import tradeService, { APITrade } from '@/services/tradeService';
@@ -159,6 +159,9 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
   const wsReconnectTimer = useRef<ReturnType<typeof setTimeout>>();
   const wsReconnectDelay = useRef(2000);
   const savedTimer = useRef<ReturnType<typeof setTimeout>>();
+  const fallbackSyncLastAtRef = useRef(0);
+  const fallbackSyncInFlightRef = useRef(false);
+  const refreshAccountsInFlightRef = useRef<Promise<void> | null>(null);
 
   const flash = useCallback(() => {
     setShowSaved(true);
@@ -170,40 +173,57 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     flash();
   }, [flash]);
 
+  const signalDataRefresh = useCallback(() => {
+    setDataRefreshTick(prev => prev + 1);
+  }, []);
+
   const refreshAccounts = useCallback(async () => {
     if (!isAuthenticated()) return;
-    try {
-      const apiAccounts = await accountService.list();
-      if (!apiAccounts || apiAccounts.length === 0) {
+    if (refreshAccountsInFlightRef.current) {
+      await refreshAccountsInFlightRef.current;
+      return;
+    }
+
+    refreshAccountsInFlightRef.current = (async () => {
+      try {
+        const apiAccounts = await accountService.list();
+        if (!apiAccounts || apiAccounts.length === 0) {
+          setState(prev => ({
+            ...prev,
+            accounts: [createAccount(0)],
+            activeAccount: 0,
+          }));
+          setAccountsLoadError(null);
+          setAccountsBootstrapped(true);
+          return;
+        }
+        const accounts: Account[] = [];
+        for (const apiAcc of apiAccounts) {
+          accounts.push(apiAccToLocal(apiAcc, []));
+        }
         setState(prev => ({
           ...prev,
-          accounts: [createAccount(0)],
-          activeAccount: 0,
+          accounts,
+          activeAccount: (() => {
+            const prevApiId = (prev.accounts[prev.activeAccount] as any)?._apiId;
+            const idx = prevApiId ? accounts.findIndex((a: any) => (a as any)._apiId === prevApiId) : -1;
+            if (idx >= 0) return idx;
+            return Math.min(prev.activeAccount, accounts.length - 1);
+          })(),
         }));
         setAccountsLoadError(null);
         setAccountsBootstrapped(true);
-        return;
+      } catch (err) {
+        setAccountsLoadError('Falha ao carregar contas do backend.');
+        setAccountsBootstrapped(true);
+        console.warn('[GPFX] Backend load failed', err);
       }
-      const accounts: Account[] = [];
-      for (const apiAcc of apiAccounts) {
-        accounts.push(apiAccToLocal(apiAcc, []));
-      }
-      setState(prev => ({
-        ...prev,
-        accounts,
-        activeAccount: (() => {
-          const prevApiId = (prev.accounts[prev.activeAccount] as any)?._apiId;
-          const idx = prevApiId ? accounts.findIndex((a: any) => (a as any)._apiId === prevApiId) : -1;
-          if (idx >= 0) return idx;
-          return Math.min(prev.activeAccount, accounts.length - 1);
-        })(),
-      }));
-      setAccountsLoadError(null);
-      setAccountsBootstrapped(true);
-    } catch (err) {
-      setAccountsLoadError('Falha ao carregar contas do backend.');
-      setAccountsBootstrapped(true);
-      console.warn('[GPFX] Backend load failed', err);
+    })();
+
+    try {
+      await refreshAccountsInFlightRef.current;
+    } finally {
+      refreshAccountsInFlightRef.current = null;
     }
   }, []);
 
@@ -228,20 +248,29 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     if (!isAuthenticated()) return;
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-      // Fallback de sincronização quando não há eventos em tempo real.
-      if (!wsConnected) {
-        signalDataRefresh();
-        void refreshAccounts();
-      }
+      // Fallback de sincroniza?o quando n?o h? eventos em tempo real.
+      if (wsConnected) return;
+
+      const nowMs = Date.now();
+      if (fallbackSyncInFlightRef.current) return;
+      if (nowMs - fallbackSyncLastAtRef.current < 60000) return;
+
+      fallbackSyncInFlightRef.current = true;
+      void (async () => {
+        try {
+          await refreshAccounts();
+          signalDataRefresh();
+        } finally {
+          fallbackSyncLastAtRef.current = Date.now();
+          fallbackSyncInFlightRef.current = false;
+        }
+      })();
     }, 20000);
 
     return () => clearInterval(interval);
   }, [wsConnected, refreshAccounts, signalDataRefresh]);
 
   const activeAcc = state.accounts[state.activeAccount] || state.accounts[0] || createAccount(0);
-  const signalDataRefresh = useCallback(() => {
-    setDataRefreshTick(prev => prev + 1);
-  }, []);
 
   const switchAccount = useCallback((i: number) => {
     setState(s => ({ ...s, activeAccount: i }));
@@ -426,7 +455,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
         if (type === 'pong') return;
 
         if (type === 'trade_synced') {
-          console.log(`[GPFX WS] trade_synced: ${imported} novos, ${updated} atualizados Â· ${account_name}`);
+          console.log(`[GPFX WS] trade_synced: ${imported} novos, ${updated} atualizados · ${account_name}`);
           signalDataRefresh();
           window.dispatchEvent(new CustomEvent('gpfx:trade_updated', { detail: { account_id } }));
           if (balance !== undefined) await refreshAccounts();
@@ -446,7 +475,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     };
 
     ws.onerror = () => {
-      console.warn('[GPFX WS] Erro de conexÃ£o');
+      console.warn('[GPFX WS] Erro de conexão');
     };
 
     ws.onclose = () => {
@@ -516,3 +545,4 @@ export function useGPFX() {
   if (!ctx) throw new Error('useGPFX must be used within GPFXProvider');
   return ctx;
 }
+

@@ -22,7 +22,7 @@ type RetriableRequestConfig = {
 };
 
 let refreshPromise: Promise<{ access_token: string }> | null = null;
-let logoutTriggered = false;
+let logoutPromise: Promise<void> | null = null;
 
 export const api = axios.create({
   baseURL: API_BASE,
@@ -77,16 +77,20 @@ api.interceptors.response.use(
       return api(originalConfig as any);
     } catch (refreshError) {
       // Sessão inválida/expirada: volta para landing de forma controlada.
-      if (!logoutTriggered) {
-        logoutTriggered = true;
-        try {
-          await authService.logout();
-        } catch {
-          if (typeof window !== 'undefined') {
-            window.location.href = '/';
+      if (!logoutPromise) {
+        logoutPromise = (async () => {
+          try {
+            await authService.logout();
+          } catch {
+            if (typeof window !== 'undefined') {
+              window.location.href = '/';
+            }
           }
-        }
+        })().finally(() => {
+          logoutPromise = null;
+        });
       }
+      await logoutPromise;
       return Promise.reject(refreshError);
     }
   }

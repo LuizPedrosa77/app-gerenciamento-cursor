@@ -92,11 +92,10 @@ function MonthlyGoalCard({ accFilter }: { accFilter: string }) {
   // If "all accounts", use active account's goal; otherwise use selected
   const accIdx = accFilter === 'all' ? state.activeAccount : parseInt(accFilter);
   const acc = state.accounts[accIdx];
-  if (!acc) return null;
-  const goal = acc.monthlyGoal || 0;
-  if (goal <= 0) return null;
+  const goal = acc?.monthlyGoal || 0;
 
   useEffect(() => {
+    if (!acc || goal <= 0) return;
     const load = async () => {
       const apiId = (acc as any)._apiId;
       if (!apiId) {
@@ -117,6 +116,8 @@ function MonthlyGoalCard({ accFilter }: { accFilter: string }) {
     };
     load();
   }, [acc, curYear, curMonth, dataRefreshTick]);
+
+  if (!acc || goal <= 0) return null;
 
   const pct = (monthPnl / goal) * 100;
   const clampedPct = Math.min(100, Math.max(0, pct));
