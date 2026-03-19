@@ -161,6 +161,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
   const savedTimer = useRef<ReturnType<typeof setTimeout>>();
   const fallbackSyncLastAtRef = useRef(0);
   const fallbackSyncInFlightRef = useRef(false);
+  const refreshAccountsQueuedRef = useRef(false);
   const refreshAccountsInFlightRef = useRef<Promise<void> | null>(null);
 
   const flash = useCallback(() => {
@@ -180,11 +181,12 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
   const refreshAccounts = useCallback(async () => {
     if (!isAuthenticated()) return;
     if (refreshAccountsInFlightRef.current) {
+      refreshAccountsQueuedRef.current = true;
       await refreshAccountsInFlightRef.current;
       return;
     }
 
-    refreshAccountsInFlightRef.current = (async () => {
+    const runOnce = async () => {
       try {
         const apiAccounts = await accountService.list();
         if (!apiAccounts || apiAccounts.length === 0) {
@@ -218,13 +220,17 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
         setAccountsBootstrapped(true);
         console.warn('[GPFX] Backend load failed', err);
       }
-    })();
+    };
 
-    try {
-      await refreshAccountsInFlightRef.current;
-    } finally {
-      refreshAccountsInFlightRef.current = null;
-    }
+    do {
+      refreshAccountsQueuedRef.current = false;
+      refreshAccountsInFlightRef.current = runOnce();
+      try {
+        await refreshAccountsInFlightRef.current;
+      } finally {
+        refreshAccountsInFlightRef.current = null;
+      }
+    } while (refreshAccountsQueuedRef.current);
   }, []);
 
   useEffect(() => {
