@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useGPFX, apiTradeToLocal } from '@/contexts/GPFXContext';
 import {
   MONTHS_FULL, WEEKDAYS, PAIRS, DIRECTIONS, RESULTS,
-  sumPnl, fmtNum, getWinRate, getTradePnl, Trade,
+  sumPnl, fmtNum, getWinRate, getTradePnl, Trade, Account,
 } from '@/lib/gpfx-utils';
 import {
   ChevronLeft, ChevronRight, Plus, Calendar, Camera,
@@ -191,6 +191,15 @@ interface CalendarioPageProps {
   onNavigateView: (view: string) => void;
 }
 
+type AccountWithApiId = Account & { _apiId?: string };
+
+interface CalendarMonthSummary {
+  total_trades?: number;
+  win_rate?: number;
+  total_pnl?: number;
+  trading_days?: number;
+}
+
 export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) {
   const { state, activeAcc, updateTrade, dataRefreshTick } = useGPFX();
   const [accFilter, setAccFilter] = useState<string>(String(state.activeAccount));
@@ -209,7 +218,7 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
   const [monthTrades, setMonthTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(false);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
-  const [monthSummary, setMonthSummary] = useState<any | null>(null);
+  const [monthSummary, setMonthSummary] = useState<CalendarMonthSummary | null>(null);
   const [streaks, setStreaks] = useState<{ current_streak: number; best_streak: number } | null>(null);
 
   const selectedAccounts = useMemo(() => {
@@ -217,7 +226,9 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
     return [state.accounts[parseInt(accFilter)]].filter(Boolean);
   }, [state.accounts, accFilter]);
   const selectedApiIds = useMemo(
-    () => selectedAccounts.map(a => (a as any)._apiId).filter(Boolean) as string[],
+    () => selectedAccounts
+      .map(a => (a as AccountWithApiId)._apiId)
+      .filter((id): id is string => Boolean(id)),
     [selectedAccounts]
   );
   const selectedAccount = accFilter === 'all' ? null : (selectedAccounts[0] || activeAcc);
@@ -232,7 +243,7 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
   });
 
   const saveNote = useCallback(async (date: string, text: string) => {
-    const accountId = selectedAccount ? (selectedAccount as any)._apiId : null;
+    const accountId = selectedAccount ? (selectedAccount as AccountWithApiId)._apiId : null;
     if (!accountId) return;
     const res = await dailyNoteService.upsert({ date, note: text, account_id: accountId });
     setDailyNotes(prev => ({ ...prev, [date]: { id: res.id, note: res.note } }));
@@ -301,7 +312,7 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
       setMonthSummary(summaryRes || null);
       setStreaks(streakRes || null);
 
-      const noteAccountId = selectedAccount ? (selectedAccount as any)._apiId : null;
+      const noteAccountId = selectedAccount ? (selectedAccount as AccountWithApiId)._apiId : null;
       if (noteAccountId) {
         const notes = await dailyNoteService.list(noteAccountId, calYear, calMonth + 1);
         if (loadId !== monthLoadSeqRef.current) return;
@@ -321,11 +332,15 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
         setLoading(false);
       }
     }
-  }, [selectedApiIds, calYear, calMonth, selectedAccount, dataRefreshTick]);
+  }, [selectedApiIds, calYear, calMonth, selectedAccount]);
 
   useEffect(() => {
     loadMonthData();
   }, [loadMonthData]);
+
+  useEffect(() => {
+    loadMonthData();
+  }, [dataRefreshTick, loadMonthData]);
 
   useEffect(() => {
     const today = new Date();
@@ -526,7 +541,7 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
   };
 
   const handleAddTrade = async (data: Partial<Trade>) => {
-    const apiId = selectedAccount ? (selectedAccount as any)._apiId : null;
+    const apiId = selectedAccount ? (selectedAccount as AccountWithApiId)._apiId : null;
     if (!apiId) {
       alert('Selecione uma conta específica para adicionar trade.');
       return;
