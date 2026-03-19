@@ -1,7 +1,13 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { authService } from './authService';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://api.painelzap.com';
+const ENV_API_BASE = import.meta.env.VITE_API_URL?.trim();
+const FALLBACK_API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
+const API_BASE = (ENV_API_BASE || FALLBACK_API_BASE).replace(/\/+$/, '');
+
+if (!ENV_API_BASE && typeof window !== 'undefined') {
+  console.warn('[API] VITE_API_URL não configurada. Usando fallback:', API_BASE);
+}
 
 type ApiClient = AxiosInstance & {
   upload: (url: string, file: File) => Promise<AxiosResponse<any>>;

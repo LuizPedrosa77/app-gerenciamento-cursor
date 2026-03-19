@@ -15,7 +15,9 @@ interface Section {
   endpoints: Endpoint[];
 }
 
-const API_ROOT = import.meta.env.VITE_API_URL || 'https://api.painelzap.com';
+const ENV_API_ROOT = import.meta.env.VITE_API_URL?.trim();
+const FALLBACK_API_ROOT = typeof window !== 'undefined' ? window.location.origin : '';
+const API_ROOT = (ENV_API_ROOT || FALLBACK_API_ROOT).replace(/\/+$/, '');
 const BASE_URL = `${API_ROOT}/api/v1`;
 const WS_BASE = API_ROOT.replace(/^http/, 'ws');
 

@@ -40,7 +40,9 @@ function getAuthToken(): string | null {
 }
 
 function getWsUrl(): string {
-  const apiBase = import.meta.env.VITE_API_URL || 'https://api.painelzap.com';
+  const envApiBase = import.meta.env.VITE_API_URL?.trim();
+  const fallbackApiBase = typeof window !== 'undefined' ? window.location.origin : '';
+  const apiBase = (envApiBase || fallbackApiBase).replace(/\/+$/, '');
   return apiBase.replace(/^http/, 'ws') + '/ws/trades';
 }
 
