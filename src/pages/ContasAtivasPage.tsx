@@ -31,7 +31,7 @@ function Sparkline({ trades }: { trades: Account['trades'] }) {
 }
 
 export default function ContasAtivasPage({ onNavigatePlanilha }: ContasAtivasProps) {
-  const { state, switchAccount, updateMonthlyGoal } = useGPFX();
+  const { state, switchAccount, updateMonthlyGoal, dataRefreshTick } = useGPFX();
   const now = new Date();
   const curYear = now.getFullYear();
   const curMonth = now.getMonth();
@@ -58,7 +58,7 @@ export default function ContasAtivasPage({ onNavigatePlanilha }: ContasAtivasPro
       setAccountTrades(map);
     };
     loadTrades();
-  }, [state.accounts, curYear, curMonth]);
+  }, [state.accounts, curYear, curMonth, dataRefreshTick]);
 
   return (
     <>

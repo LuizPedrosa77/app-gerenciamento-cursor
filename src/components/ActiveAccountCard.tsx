@@ -30,7 +30,7 @@ function Sparkline({ trades }: SparklineProps) {
 }
 
 export function ActiveAccountCard() {
-  const { state, activeAcc } = useGPFX();
+  const { state, activeAcc, dataRefreshTick } = useGPFX();
   const [monthTrades, setMonthTrades] = useState<Trade[]>([]);
   const balance = activeAcc.balance || 0;
   const monthPnl = sumPnl(monthTrades);
@@ -55,7 +55,7 @@ export function ActiveAccountCard() {
       }
     };
     load();
-  }, [activeAcc, state.activeYear, state.activeMonth]);
+  }, [activeAcc, state.activeYear, state.activeMonth, dataRefreshTick]);
 
   return (
     <div className="mx-3 p-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>

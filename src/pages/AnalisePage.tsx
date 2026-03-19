@@ -57,7 +57,7 @@ function Section({ title, children, fullWidth }: { title: string; children: Reac
 }
 
 export default function AnalisePage() {
-  const { state } = useGPFX();
+  const { state, dataRefreshTick } = useGPFX();
   const [accFilter, setAccFilter] = useState<string>('all');
   const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
   const [fetchedTrades, setFetchedTrades] = useState<Trade[]>([]);
@@ -120,7 +120,7 @@ export default function AnalisePage() {
     };
     loadAllParams();
     return () => { active = false; };
-  }, [state.accounts, accFilter, dateRange.start, dateRange.end]);
+  }, [state.accounts, accFilter, dateRange.start, dateRange.end, dataRefreshTick]);
 
   const filteredTrades = fetchedTrades;
 

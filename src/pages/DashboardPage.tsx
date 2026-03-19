@@ -81,7 +81,7 @@ function KpiCard({ label, value, color, sparkData, variation }: {
 
 /* ── Monthly Goal Card ── */
 function MonthlyGoalCard({ accFilter }: { accFilter: string }) {
-  const { state } = useGPFX();
+  const { state, dataRefreshTick } = useGPFX();
   const [monthPnl, setMonthPnl] = useState(0);
   const [daysOperated, setDaysOperated] = useState(0);
   const now = new Date();
@@ -116,7 +116,7 @@ function MonthlyGoalCard({ accFilter }: { accFilter: string }) {
       }
     };
     load();
-  }, [acc, curYear, curMonth]);
+  }, [acc, curYear, curMonth, dataRefreshTick]);
 
   const pct = (monthPnl / goal) * 100;
   const clampedPct = Math.min(100, Math.max(0, pct));
@@ -230,7 +230,7 @@ function MonthlyGoalCard({ accFilter }: { accFilter: string }) {
 }
 
 export default function DashboardPage() {
-  const { state, wsConnected } = useGPFX();
+  const { state, wsConnected, dataRefreshTick } = useGPFX();
   const [accFilter, setAccFilter] = useState<string>('all');
   const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null });
   const [loading, setLoading] = useState(true);
@@ -368,7 +368,7 @@ export default function DashboardPage() {
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.accounts, state.activeAccount, accFilter, dateRange.start, dateRange.end]);
+  }, [state.accounts, state.activeAccount, accFilter, dateRange.start, dateRange.end, dataRefreshTick]);
 
   const weekTrades = useMemo(() => {
     const now = new Date();

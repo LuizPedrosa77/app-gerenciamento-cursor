@@ -192,7 +192,7 @@ interface CalendarioPageProps {
 }
 
 export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) {
-  const { state, activeAcc, updateTrade } = useGPFX();
+  const { state, activeAcc, updateTrade, dataRefreshTick } = useGPFX();
   const [accFilter, setAccFilter] = useState<string>(String(state.activeAccount));
   const now = new Date();
   const noteSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -307,7 +307,7 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
     } finally {
       setLoading(false);
     }
-  }, [selectedApiIds, calYear, calMonth, selectedAccount]);
+  }, [selectedApiIds, calYear, calMonth, selectedAccount, dataRefreshTick]);
 
   useEffect(() => {
     loadMonthData();

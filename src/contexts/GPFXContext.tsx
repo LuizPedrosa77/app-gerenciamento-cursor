@@ -10,6 +10,7 @@ interface GPFXContextType {
   activeAcc: Account & { _apiId?: string };
   accountsBootstrapped: boolean;
   accountsLoadError: string | null;
+  dataRefreshTick: number;
   setState: React.Dispatch<React.SetStateAction<GPFXState>>;
   save: () => void;
   switchAccount: (i: number) => void;
@@ -153,6 +154,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
   const [wsConnected, setWsConnected] = useState(false);
   const [accountsBootstrapped, setAccountsBootstrapped] = useState(false);
   const [accountsLoadError, setAccountsLoadError] = useState<string | null>(null);
+  const [dataRefreshTick, setDataRefreshTick] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const wsReconnectTimer = useRef<ReturnType<typeof setTimeout>>();
   const wsReconnectDelay = useRef(2000);
@@ -223,6 +225,9 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
   }, [refreshAccounts]);
 
   const activeAcc = state.accounts[state.activeAccount] || state.accounts[0] || createAccount(0);
+  const signalDataRefresh = useCallback(() => {
+    setDataRefreshTick(prev => prev + 1);
+  }, []);
 
   const switchAccount = useCallback((i: number) => {
     setState(s => ({ ...s, activeAccount: i }));
@@ -312,10 +317,11 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
         vm_result: newTrade.vmResult,
         vm_pnl: newTrade.vmPnl,
       }).then(() => {
+        signalDataRefresh();
         window.dispatchEvent(new CustomEvent('gpfx:trade_updated', { detail: { account_id: apiId } }));
       })
     );
-  }, [state]);
+  }, [state, signalDataRefresh]);
 
   const addNewDay = useCallback(() => {
     addTrade();
@@ -342,26 +348,29 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
       }
     }
     fireAndForget(tradeService.update(id, payload).then(() => {
+      signalDataRefresh();
       window.dispatchEvent(new CustomEvent('gpfx:trade_updated', { detail: { trade_id: id } }));
     }));
-  }, []);
+  }, [signalDataRefresh]);
 
   const deleteTrade = useCallback((id: string) => {
     if (!isAuthenticated()) return;
     fireAndForget(tradeService.remove(id).then(() => {
+      signalDataRefresh();
       window.dispatchEvent(new CustomEvent('gpfx:trade_updated', { detail: { trade_id: id } }));
     }));
-  }, []);
+  }, [signalDataRefresh]);
 
   const resetAccount = useCallback(() => {
     const acc = state.accounts[state.activeAccount];
     const apiId = getApiId(acc);
     if (isAuthenticated() && apiId) {
       fireAndForget(tradeService.bulkDelete(apiId).then(() => {
+        signalDataRefresh();
         window.dispatchEvent(new CustomEvent('gpfx:trade_updated', { detail: { account_id: apiId } }));
       }));
     }
-  }, [state.accounts, state.activeAccount]);
+  }, [state.accounts, state.activeAccount, signalDataRefresh]);
 
   const switchYear = useCallback((y: number) => {
     setState(s => ({ ...s, activeYear: y }));
@@ -404,6 +413,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
 
         if (type === 'trade_synced') {
           console.log(`[GPFX WS] trade_synced: ${imported} novos, ${updated} atualizados Â· ${account_name}`);
+          signalDataRefresh();
           window.dispatchEvent(new CustomEvent('gpfx:trade_updated', { detail: { account_id } }));
           if (balance !== undefined) await refreshAccounts();
           return;
@@ -411,6 +421,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
 
         if (type === 'trade_closed') {
           console.log(`[GPFX WS] trade_closed: ticket=${ticket} ${symbol} ${result} PnL=${pnl}`);
+          signalDataRefresh();
           window.dispatchEvent(new CustomEvent('gpfx:trade_updated', { detail: { account_id, trade } }));
           if (new_balance !== undefined) await refreshAccounts();
           return;
@@ -432,7 +443,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
         connectWebSocket();
       }, wsReconnectDelay.current);
     };
-  }, [refreshAccounts]);
+  }, [refreshAccounts, signalDataRefresh]);
 
   useEffect(() => {
     if (!isAuthenticated()) return;
@@ -460,6 +471,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
       activeAcc: activeAcc as any,
       accountsBootstrapped,
       accountsLoadError,
+      dataRefreshTick,
       setState,
       save,
       switchAccount,

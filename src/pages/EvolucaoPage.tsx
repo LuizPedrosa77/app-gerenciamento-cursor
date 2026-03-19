@@ -36,7 +36,7 @@ function buildSafeRect(props: any, fill: string) {
 }
 
 export default function EvolucaoPage() {
-  const { state } = useGPFX();
+  const { state, dataRefreshTick } = useGPFX();
   const [accFilter, setAccFilter] = useState<string>('all');
   const [yearFilter, setYearFilter] = useState<string>('all');
   const [tab, setTab] = useState<'overview' | 'monthly'>('overview');
@@ -101,7 +101,7 @@ export default function EvolucaoPage() {
     };
     loadAllTrades();
     return () => { active = false; };
-  }, [state.accounts, accFilter, dateRange.start, dateRange.end]);
+  }, [state.accounts, accFilter, dateRange.start, dateRange.end, dataRefreshTick]);
 
   const data = useMemo(() => {
     const isAll = accFilter === 'all';
