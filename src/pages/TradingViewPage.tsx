@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useGPFX, apiTradeToLocal } from '@/contexts/GPFXContext';
-import { Trade, getTradePnl, fmtNum, sumPnl, getWinRate } from '@/lib/gpfx-utils';
+import { Trade, getTradePnl, fmtNum, sumPnl, getWinRate, Account } from '@/lib/gpfx-utils';
 import { ChevronDown, ChevronUp, MapPin, Camera, Play, Pause, SkipBack, SkipForward, RotateCcw } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Lightbox } from '@/components/Lightbox';
@@ -57,10 +57,20 @@ const HEADER_PERIODS = [
 ];
 
 declare global {
+  interface TradingViewWidgetInstance {
+    remove: () => void;
+  }
+
+  interface TradingViewGlobal {
+    widget: new (config: Record<string, unknown>) => TradingViewWidgetInstance;
+  }
+
   interface Window {
-    TradingView: any;
+    TradingView: TradingViewGlobal;
   }
 }
+
+type AccountWithApiId = Account & { _apiId?: string };
 
 function getPairFromSymbol(symbol: string): string {
   const found = SYMBOLS.find(s => s.value === symbol);
@@ -186,7 +196,7 @@ export default function TradingViewPage() {
 
   useEffect(() => {
     if (!replayEnabled) return;
-    setReplayIndex(Math.max(0, Math.min(replayTimeline.length - 1, replayIndex)));
+    setReplayIndex((prev) => Math.max(0, Math.min(replayTimeline.length - 1, prev)));
   }, [replayTimeline.length, replayEnabled]);
 
   useEffect(() => {
@@ -307,8 +317,11 @@ export default function TradingViewPage() {
         </select>
         <select value={accountFilter} onChange={e => setAccountFilter(e.target.value)} style={selectStyle}>
           <option value="all">📊 Todas as contas</option>
-          {state.accounts.filter(a => (a as any)._apiId).map((a, i) => (
-            <option key={i} value={(a as any)._apiId}>{a.name}</option>
+          {state.accounts
+            .map((a) => a as AccountWithApiId)
+            .filter((a) => Boolean(a._apiId))
+            .map((a, i) => (
+            <option key={i} value={a._apiId}>{a.name}</option>
           ))}
         </select>
         <select value={headerPeriod} onChange={e => setHeaderPeriod(e.target.value)} style={selectStyle}>

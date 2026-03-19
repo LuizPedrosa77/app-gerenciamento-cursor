@@ -6,6 +6,15 @@ import { BarChart, Bar, ResponsiveContainer } from 'recharts';
 import { Target, Plug } from 'lucide-react';
 import { ConnectBrokerModal } from '@/components/ConnectBrokerModal';
 
+type AccountWithApiId = Account & { _apiId?: string };
+type RectShapeProps = {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  payload?: { pnl?: number };
+};
+
 interface ContasAtivasProps {
   onNavigatePlanilha: (accountIndex: number) => void;
 }
@@ -19,9 +28,13 @@ function Sparkline({ trades }: { trades: Account['trades'] }) {
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
           <Bar dataKey="pnl" radius={[2, 2, 0, 0]}
-            shape={(props: any) => {
+            shape={(props: RectShapeProps) => {
               const { x, y, width, height } = props;
-              return <rect x={x} y={y} width={width} height={Math.abs(height)} fill={props.payload.pnl >= 0 ? '#00d395' : '#ff4d4d'} rx={2} />;
+              const safeWidth = Number.isFinite(width || 0) ? Math.max(0, Math.abs(width || 0)) : 0;
+              const safeHeight = Number.isFinite(height || 0) ? Math.max(0, Math.abs(height || 0)) : 0;
+              const safeX = (width || 0) < 0 ? (x || 0) + (width || 0) : (x || 0);
+              const safeY = (height || 0) < 0 ? (y || 0) + (height || 0) : (y || 0);
+              return <rect x={safeX} y={safeY} width={safeWidth} height={safeHeight} fill={(props.payload?.pnl || 0) >= 0 ? '#00d395' : '#ff4d4d'} rx={2} />;
             }}
           />
         </BarChart>
@@ -47,7 +60,7 @@ export default function ContasAtivasPage({ onNavigatePlanilha }: ContasAtivasPro
       const end = new Date().toISOString().split('T')[0];
       const map: Record<string, Trade[]> = {};
       for (const acc of state.accounts) {
-        const apiId = (acc as any)._apiId;
+        const apiId = (acc as AccountWithApiId)._apiId;
         if (!apiId) continue;
         try {
           const res = await tradeService.list(apiId, 0, 2000, undefined, undefined, start, end);
@@ -73,7 +86,7 @@ export default function ContasAtivasPage({ onNavigatePlanilha }: ContasAtivasPro
         {state.accounts.map((acc, i) => {
           const isActive = i === state.activeAccount;
           const balance = acc.balance || 0;
-          const apiId = (acc as any)._apiId;
+          const apiId = (acc as AccountWithApiId)._apiId;
           const trades = apiId ? (accountTrades[apiId] || []) : [];
           const monthPnl = sumPnl(trades);
           const hasGoal = (acc.monthlyGoal || 0) > 0;

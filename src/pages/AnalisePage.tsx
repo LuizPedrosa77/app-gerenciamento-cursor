@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useGPFX, apiTradeToLocal } from '@/contexts/GPFXContext';
-import { MONTHS_FULL, WEEKDAYS, Trade, sumPnl, fmtNum, getWinRate, getTradePnl, getWeekOfMonth } from '@/lib/gpfx-utils';
+import { MONTHS_FULL, WEEKDAYS, Trade, sumPnl, fmtNum, getWinRate, getTradePnl, getWeekOfMonth, Account } from '@/lib/gpfx-utils';
 import tradeService from '@/services/tradeService';
 import { AccountSelector, DateRangeFilter, DateRange } from '@/components/GPFXFilters';
 import {
@@ -15,10 +15,20 @@ const BLUE = '#60a5fa';
 
 const tooltipStyle = { background: '#0f172a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, color: '#e6edf3' };
 
+type RectShapeProps = {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  payload?: { pnl?: number };
+};
+
+type AccountWithApiId = Account & { _apiId?: string };
+
 function pnlColor(v: number) { return v >= 0 ? GREEN : RED; }
 function pnlSign(v: number) { return (v >= 0 ? '+$' : '-$') + fmtNum(Math.abs(v)); }
 
-function buildSafeRect(props: any, fill: string) {
+function buildSafeRect(props: RectShapeProps, fill: string) {
   const x = Number(props?.x ?? 0);
   const y = Number(props?.y ?? 0);
   const rawWidth = Number(props?.width ?? 0);
@@ -31,7 +41,7 @@ function buildSafeRect(props: any, fill: string) {
 }
 
 // ── Reusable bar shape that colors by pnl ──
-function PnlBarShape(props: any) {
+function PnlBarShape(props: RectShapeProps) {
   return buildSafeRect(props, pnlColor(props.payload?.pnl || 0));
 }
 
@@ -88,12 +98,12 @@ export default function AnalisePage() {
         const fetchAccIds: string[] = [];
         if (accFilter === 'all') {
           state.accounts.forEach(a => {
-            const apiId = (a as any)._apiId;
+            const apiId = (a as AccountWithApiId)._apiId;
             if (apiId) fetchAccIds.push(apiId);
           });
         } else {
           const acc = state.accounts[parseInt(accFilter)];
-          const apiId = acc ? (acc as any)._apiId : null;
+          const apiId = acc ? (acc as AccountWithApiId)._apiId : null;
           if (apiId) fetchAccIds.push(apiId);
         }
 
@@ -331,7 +341,7 @@ export default function AnalisePage() {
                   <YAxis type="category" dataKey="name" tick={{ fill: '#8b949e', fontSize: 10 }} axisLine={{ stroke: '#21262d' }} width={100} />
                   <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [pnlSign(v), 'P&L']} />
                   <Bar dataKey="pnl" radius={[0, 4, 4, 0]}
-                    shape={(props: any) => {
+                    shape={(props: RectShapeProps) => {
                       return buildSafeRect(props, pnlColor(props.payload?.pnl || 0));
                     }}
                   />
@@ -385,7 +395,7 @@ export default function AnalisePage() {
                       <YAxis type="category" dataKey="pair" tick={{ fill: '#8b949e', fontSize: 10 }} axisLine={{ stroke: '#21262d' }} width={80} />
                       <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [pnlSign(v), 'P&L']} />
                       <Bar dataKey="pnl" radius={[0, 4, 4, 0]}
-                        shape={(props: any) => {
+                        shape={(props: RectShapeProps) => {
                           return buildSafeRect(props, pnlColor(props.payload?.pnl || 0));
                         }}
                       />

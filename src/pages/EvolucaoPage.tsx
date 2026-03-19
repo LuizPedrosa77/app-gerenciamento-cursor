@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useGPFX, apiTradeToLocal } from '@/contexts/GPFXContext';
-import { MONTHS, YEARS, sumPnl, fmtNum, Trade } from '@/lib/gpfx-utils';
+import { MONTHS, YEARS, sumPnl, fmtNum, Trade, Account } from '@/lib/gpfx-utils';
 import tradeService from '@/services/tradeService';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -22,7 +22,17 @@ function normalizeRectSize(value: number) {
   return Number.isFinite(value) ? Math.max(0, Math.abs(value)) : 0;
 }
 
-function buildSafeRect(props: any, fill: string) {
+type RectShapeProps = {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  payload?: { pnl?: number; pct?: number };
+};
+
+type AccountWithApiId = Account & { _apiId?: string };
+
+function buildSafeRect(props: RectShapeProps, fill: string) {
   const x = Number(props?.x ?? 0);
   const y = Number(props?.y ?? 0);
   const rawWidth = Number(props?.width ?? 0);
@@ -69,12 +79,12 @@ export default function EvolucaoPage() {
         const fetchAccIds: string[] = [];
         if (accFilter === 'all') {
           state.accounts.forEach(a => {
-            const apiId = (a as any)._apiId;
+            const apiId = (a as AccountWithApiId)._apiId;
             if (apiId) fetchAccIds.push(apiId);
           });
         } else {
           const acc = state.accounts[parseInt(accFilter)];
-          const apiId = acc ? (acc as any)._apiId : null;
+          const apiId = acc ? (acc as AccountWithApiId)._apiId : null;
           if (apiId) fetchAccIds.push(apiId);
         }
 
@@ -107,7 +117,7 @@ export default function EvolucaoPage() {
     const isAll = accFilter === 'all';
     const accounts = isAll ? state.accounts : [state.accounts[parseInt(accFilter)]].filter(Boolean);
     const allTrades = fetchedTrades;
-    const baseBalance = accounts.reduce((s, a) => s + Number((a as any).initialBalance || 0), 0);
+    const baseBalance = accounts.reduce((s, a) => s + Number(a.initialBalance || 0), 0);
 
     const filterYear = yearFilter === 'all' ? null : parseInt(yearFilter);
     const trades = filterYear ? allTrades.filter(t => t.year === filterYear) : allTrades;
@@ -267,8 +277,7 @@ export default function EvolucaoPage() {
                   <YAxis tick={{ fill: 'var(--gpfx-text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--gpfx-border)' }} tickFormatter={v => v + '%'} />
                   <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [v + '%', 'P&L']} />
                   <Bar dataKey="pct" radius={[4, 4, 0, 0]}
-                    // @ts-ignore
-                    shape={(props: any) => {
+                    shape={(props: RectShapeProps) => {
                       const fill = props.payload?.pct >= 0 ? 'rgba(0,211,149,0.75)' : 'rgba(255,77,77,0.75)';
                       return buildSafeRect(props, fill);
                     }}
@@ -352,8 +361,7 @@ export default function EvolucaoPage() {
                   <YAxis tick={{ fill: 'var(--gpfx-text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--gpfx-border)' }} tickFormatter={v => '$' + fmtNum(v)} />
                   <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => ['$' + fmtNum(v), 'P&L']} />
                   <Bar dataKey="pnl" radius={[4, 4, 0, 0]}
-                    // @ts-ignore
-                    shape={(props: any) => {
+                    shape={(props: RectShapeProps) => {
                       const fill = props.payload?.pnl >= 0 ? 'rgba(0,211,149,0.75)' : 'rgba(255,77,77,0.75)';
                       return buildSafeRect(props, fill);
                     }}

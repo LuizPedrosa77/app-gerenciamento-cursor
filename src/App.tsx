@@ -751,6 +751,14 @@ function LoginModal({
   onClose: ()=>void;
   onLoginSuccess: ()=>void;
 }) {
+  type ApiError = {
+    response?: {
+      data?: {
+        detail?: string;
+      };
+    };
+  };
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -765,8 +773,8 @@ function LoginModal({
       await authService.login({ email, password });
       onClose();
       onLoginSuccess();
-    } catch (err: any) {
-      const message = err?.response?.data?.detail || "Email ou senha incorretos.";
+    } catch (err: unknown) {
+      const message = (err as ApiError).response?.data?.detail || "Email ou senha incorretos.";
       setError(message);
     } finally {
       setLoading(false);
