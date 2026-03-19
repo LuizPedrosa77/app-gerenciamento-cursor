@@ -6,7 +6,11 @@ const FALLBACK_API_BASE = typeof window !== 'undefined' ? window.location.origin
 const API_BASE = (ENV_API_BASE || FALLBACK_API_BASE).replace(/\/+$/, '');
 
 if (!ENV_API_BASE && typeof window !== 'undefined') {
-  console.warn('[API] VITE_API_URL não configurada. Usando fallback:', API_BASE);
+  if (import.meta.env.PROD) {
+    console.error('[API] VITE_API_URL não configurada em produção. Usando fallback:', API_BASE);
+  } else {
+    console.warn('[API] VITE_API_URL não configurada. Usando fallback:', API_BASE);
+  }
 }
 
 type ApiClient = AxiosInstance & {
@@ -16,6 +20,9 @@ type ApiClient = AxiosInstance & {
 type RetriableRequestConfig = {
   _retry?: boolean;
 };
+
+let refreshPromise: Promise<{ access_token: string }> | null = null;
+let logoutTriggered = false;
 
 export const api = axios.create({
   baseURL: API_BASE,
@@ -54,19 +61,31 @@ api.interceptors.response.use(
     originalConfig._retry = true;
 
     try {
-      const refreshed = await authService.refreshToken();
+      if (!refreshPromise) {
+        refreshPromise = authService.refreshToken().finally(() => {
+          refreshPromise = null;
+        });
+      }
+
+      const refreshed = await refreshPromise;
       if (originalConfig.headers) {
         originalConfig.headers.Authorization = `Bearer ${refreshed.access_token}`;
       } else {
         originalConfig.headers = { Authorization: `Bearer ${refreshed.access_token}` };
       }
+
       return api(originalConfig as any);
     } catch (refreshError) {
       // Sessão inválida/expirada: volta para landing de forma controlada.
-      try {
-        await authService.logout();
-      } catch {
-        window.location.href = '/';
+      if (!logoutTriggered) {
+        logoutTriggered = true;
+        try {
+          await authService.logout();
+        } catch {
+          if (typeof window !== 'undefined') {
+            window.location.href = '/';
+          }
+        }
       }
       return Promise.reject(refreshError);
     }

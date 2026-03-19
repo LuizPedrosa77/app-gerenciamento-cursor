@@ -8,6 +8,8 @@ import { authService } from '@/services/authService';
 interface GPFXContextType {
   state: GPFXState;
   activeAcc: Account & { _apiId?: string };
+  accountsBootstrapped: boolean;
+  accountsLoadError: string | null;
   setState: React.Dispatch<React.SetStateAction<GPFXState>>;
   save: () => void;
   switchAccount: (i: number) => void;
@@ -149,11 +151,12 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
   });
   const [showSaved, setShowSaved] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
+  const [accountsBootstrapped, setAccountsBootstrapped] = useState(false);
+  const [accountsLoadError, setAccountsLoadError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const wsReconnectTimer = useRef<ReturnType<typeof setTimeout>>();
   const wsReconnectDelay = useRef(2000);
   const savedTimer = useRef<ReturnType<typeof setTimeout>>();
-  const initialLoadDone = useRef(false);
 
   const flash = useCallback(() => {
     setShowSaved(true);
@@ -169,7 +172,16 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     if (!isAuthenticated()) return;
     try {
       const apiAccounts = await accountService.list();
-      if (!apiAccounts || apiAccounts.length === 0) return;
+      if (!apiAccounts || apiAccounts.length === 0) {
+        setState(prev => ({
+          ...prev,
+          accounts: [createAccount(0)],
+          activeAccount: 0,
+        }));
+        setAccountsLoadError(null);
+        setAccountsBootstrapped(true);
+        return;
+      }
       const accounts: Account[] = [];
       for (const apiAcc of apiAccounts) {
         accounts.push(apiAccToLocal(apiAcc, []));
@@ -177,17 +189,37 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
       setState(prev => ({
         ...prev,
         accounts,
-        activeAccount: Math.min(prev.activeAccount, accounts.length - 1),
+        activeAccount: (() => {
+          const prevApiId = (prev.accounts[prev.activeAccount] as any)?._apiId;
+          const idx = prevApiId ? accounts.findIndex((a: any) => (a as any)._apiId === prevApiId) : -1;
+          if (idx >= 0) return idx;
+          return Math.min(prev.activeAccount, accounts.length - 1);
+        })(),
       }));
+      setAccountsLoadError(null);
+      setAccountsBootstrapped(true);
     } catch (err) {
+      setAccountsLoadError('Falha ao carregar contas do backend.');
+      setAccountsBootstrapped(true);
       console.warn('[GPFX] Backend load failed', err);
     }
   }, []);
 
   useEffect(() => {
-    if (initialLoadDone.current || !isAuthenticated()) return;
-    initialLoadDone.current = true;
+    if (!isAuthenticated()) return;
     refreshAccounts();
+  }, [refreshAccounts]);
+
+  useEffect(() => {
+    if (!isAuthenticated()) return;
+    const onFocus = () => { void refreshAccounts(); };
+    const onOnline = () => { void refreshAccounts(); };
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('online', onOnline);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('online', onOnline);
+    };
   }, [refreshAccounts]);
 
   const activeAcc = state.accounts[state.activeAccount] || state.accounts[0] || createAccount(0);
@@ -371,7 +403,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
         if (type === 'pong') return;
 
         if (type === 'trade_synced') {
-          console.log(`[GPFX WS] trade_synced: ${imported} novos, ${updated} atualizados ? ${account_name}`);
+          console.log(`[GPFX WS] trade_synced: ${imported} novos, ${updated} atualizados Â· ${account_name}`);
           window.dispatchEvent(new CustomEvent('gpfx:trade_updated', { detail: { account_id } }));
           if (balance !== undefined) await refreshAccounts();
           return;
@@ -389,7 +421,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     };
 
     ws.onerror = () => {
-      console.warn('[GPFX WS] Erro de conex?o');
+      console.warn('[GPFX WS] Erro de conexÃ£o');
     };
 
     ws.onclose = () => {
@@ -426,6 +458,8 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     <GPFXContext.Provider value={{
       state,
       activeAcc: activeAcc as any,
+      accountsBootstrapped,
+      accountsLoadError,
       setState,
       save,
       switchAccount,
