@@ -224,6 +224,20 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     };
   }, [refreshAccounts]);
 
+  useEffect(() => {
+    if (!isAuthenticated()) return;
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      // Fallback de sincronização quando não há eventos em tempo real.
+      if (!wsConnected) {
+        signalDataRefresh();
+        void refreshAccounts();
+      }
+    }, 20000);
+
+    return () => clearInterval(interval);
+  }, [wsConnected, refreshAccounts, signalDataRefresh]);
+
   const activeAcc = state.accounts[state.activeAccount] || state.accounts[0] || createAccount(0);
   const signalDataRefresh = useCallback(() => {
     setDataRefreshTick(prev => prev + 1);
