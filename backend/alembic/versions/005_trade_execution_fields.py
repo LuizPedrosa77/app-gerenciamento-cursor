@@ -1,7 +1,7 @@
 """add trade execution fields for chart/replay foundation
 
 Revision ID: 005_trade_execution_fields
-Revises: 004_user_profile_fields
+Revises: 004
 Create Date: 2026-03-17 11:40:00.000000
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = "005_trade_execution_fields"
-down_revision = "004_user_profile_fields"
+down_revision = "004"
 branch_labels = None
 depends_on = None
 
