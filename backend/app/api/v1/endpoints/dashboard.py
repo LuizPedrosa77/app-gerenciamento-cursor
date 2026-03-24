@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.models.trade import Trade
 from app.models.account import Account
+from app.models.open_position import OpenPosition
 from app.models.workspace import Workspace
 from app.schemas.dashboard import (
     DashboardSummary,
@@ -44,6 +45,46 @@ WEEKDAY_NAMES_PT = {
     5: "Sexta",
     6: "Sábado",
 }
+
+
+@router.get("/open-positions")
+def get_open_positions(
+    db: DbSession,
+    current_user: User = Depends(get_current_user),
+    account_id: Optional[str] = Query(None),
+):
+    workspace = db.query(Workspace).filter(Workspace.owner_id == current_user.id).first()
+    if not workspace:
+        return {"items": [], "open_positions_count": 0, "floating_pnl_total": 0.0}
+
+    query = db.query(OpenPosition).join(Account, Account.id == OpenPosition.account_id).filter(
+        OpenPosition.workspace_id == workspace.id
+    )
+    if account_id:
+        query = query.filter(OpenPosition.account_id == account_id)
+
+    positions = query.order_by(OpenPosition.updated_at.desc()).all()
+    items = [
+        {
+            "account_id": str(p.account_id),
+            "ticket": p.ticket,
+            "symbol": p.symbol_normalized or p.symbol_raw,
+            "symbol_raw": p.symbol_raw,
+            "direction": p.direction,
+            "lots": float(p.lots or 0),
+            "open_time": p.open_time.isoformat() if p.open_time else None,
+            "open_price": float(p.open_price) if p.open_price is not None else None,
+            "floating_pnl": float(p.floating_pnl or 0),
+            "updated_at": p.updated_at.isoformat() if p.updated_at else None,
+        }
+        for p in positions
+    ]
+
+    return {
+        "items": items,
+        "open_positions_count": len(items),
+        "floating_pnl_total": sum(item["floating_pnl"] for item in items),
+    }
 
 
 def get_account_ids_query(db: Session, workspace_id: str, account_id: Optional[str] = None):

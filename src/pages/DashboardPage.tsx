@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { Wallet } from 'lucide-react';
 import { useGPFX, apiTradeToLocal } from '@/contexts/GPFXContext';
 import {
@@ -53,6 +53,16 @@ type DashboardStats = {
   weekPnlTotal: number;
   wrSpark: number[];
   monthlyPnls: number[];
+};
+
+type OpenPosition = {
+  account_id: string;
+  ticket: string;
+  symbol: string;
+  direction?: string;
+  lots: number;
+  floating_pnl: number;
+  updated_at?: string | null;
 };
 
 function normalizeRectSize(value: number) {
@@ -285,7 +295,38 @@ export default function DashboardPage() {
     accountSummary: [], weekTrades: [], weekPnlTotal: 0, wrSpark: [], monthlyPnls: []
   });
   const [weeklyTrades, setWeeklyTrades] = useState<Trade[]>([]);
+  const [openPositions, setOpenPositions] = useState<OpenPosition[]>([]);
+  const [openPositionsSummary, setOpenPositionsSummary] = useState({
+    count: 0,
+    floatingPnl: 0,
+  });
   const loadSeqRef = useRef(0);
+
+  const applyOpenPositions = useCallback((positions: OpenPosition[]) => {
+    setOpenPositions(positions);
+    setOpenPositionsSummary({
+      count: positions.length,
+      floatingPnl: positions.reduce((acc, item) => acc + Number(item.floating_pnl || 0), 0),
+    });
+  }, []);
+
+  const loadOpenPositions = useCallback(async () => {
+    try {
+      const filters: DashboardFilters = {};
+      if (accFilter !== 'all') {
+        const acc = state.accounts[parseInt(accFilter)];
+        const apiId = (acc as { _apiId?: string } | undefined)?._apiId;
+        if (acc && apiId) {
+          filters.account_ids = [apiId];
+        }
+      }
+      const data = await dashboardService.getOpenPositions(filters);
+      applyOpenPositions((data.items || []) as OpenPosition[]);
+    } catch (err) {
+      console.warn('Falha ao carregar operacoes abertas', err);
+      applyOpenPositions([]);
+    }
+  }, [accFilter, state.accounts, applyOpenPositions]);
 
   // Call the robust, scalable backend aggregation APIs!
   const loadData = async () => {
@@ -457,6 +498,34 @@ export default function DashboardPage() {
     dataRefreshTick,
   ]);
 
+  useEffect(() => {
+    loadOpenPositions();
+  }, [loadOpenPositions, dataRefreshTick]);
+
+  useEffect(() => {
+    const onPositionsUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        account_id?: string;
+        positions?: OpenPosition[];
+      }>;
+      const payload = customEvent.detail;
+      const positions = Array.isArray(payload?.positions) ? payload.positions : [];
+      if (accFilter !== 'all') {
+        const selectedAcc = state.accounts[parseInt(accFilter)];
+        const selectedApiId = (selectedAcc as { _apiId?: string } | undefined)?._apiId;
+        if (selectedApiId) {
+          applyOpenPositions(positions.filter((pos) => pos.account_id === selectedApiId));
+          return;
+        }
+      }
+      applyOpenPositions(positions);
+    };
+    window.addEventListener('gpfx:positions_updated', onPositionsUpdated as EventListener);
+    return () => {
+      window.removeEventListener('gpfx:positions_updated', onPositionsUpdated as EventListener);
+    };
+  }, [accFilter, state.accounts, applyOpenPositions]);
+
   const weekTrades = useMemo(() => {
     const now = new Date();
     const monday = new Date(now);
@@ -558,6 +627,56 @@ export default function DashboardPage() {
         <KpiCard label="P&L Total" value={(stats.totalPnl >= 0 ? '+' : '') + '$' + fmtNum(stats.totalPnl)} color={stats.totalPnl >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)'} sparkData={stats.monthlyPnls.slice(-7)} variation={{ pct: stats.pnlVariation, label: 'vs mês ant.' }} />
         <KpiCard label="Win Rate Geral" value={stats.winRate + '%'} color="var(--gpfx-amber)" sparkData={stats.wrSpark} variation={{ pct: stats.wrSpark.length >= 2 ? stats.wrSpark[stats.wrSpark.length - 1] - stats.wrSpark[stats.wrSpark.length - 2] : 0, label: 'vs mês ant.' }} />
         <KpiCard label="Total de Trades" value={String(stats.totalTrades)} color="#60a5fa" />
+      </div>
+
+      {/* Operacoes Abertas */}
+      <div className="gpfx-card">
+        <div className="gpfx-card-header flex items-center justify-between">
+          <span className="gpfx-card-title">Operacoes abertas</span>
+          <div className="flex items-center gap-3 text-xs font-bold">
+            <span style={{ color: 'var(--gpfx-text-muted)' }}>Qtd: {openPositionsSummary.count}</span>
+            <span style={{ color: openPositionsSummary.floatingPnl >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)' }}>
+              Flutuante: {openPositionsSummary.floatingPnl >= 0 ? '+' : ''}${fmtNum(openPositionsSummary.floatingPnl)}
+            </span>
+          </div>
+        </div>
+        <div className="gpfx-card-body overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ color: 'var(--gpfx-text-muted)' }}>
+                <th className="text-left py-2 text-xs font-bold uppercase">Ticket</th>
+                <th className="text-left py-2 text-xs font-bold uppercase">Ativo</th>
+                <th className="text-left py-2 text-xs font-bold uppercase">Direcao</th>
+                <th className="text-left py-2 text-xs font-bold uppercase">Lotes</th>
+                <th className="text-right py-2 text-xs font-bold uppercase">P&L Flutuante</th>
+              </tr>
+            </thead>
+            <tbody>
+              {openPositions.map((position) => (
+                <tr key={`${position.account_id}-${position.ticket}`} style={{ borderBottom: '1px solid var(--gpfx-border)' }}>
+                  <td className="py-2 text-xs" style={{ color: 'var(--gpfx-text-muted)' }}>{position.ticket}</td>
+                  <td className="py-2 text-xs font-bold" style={{ color: 'var(--gpfx-text-primary)' }}>{position.symbol}</td>
+                  <td className="py-2">
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${position.direction === 'BUY' ? 'dir-buy' : 'dir-sell'}`}>
+                      {position.direction || '-'}
+                    </span>
+                  </td>
+                  <td className="py-2 text-xs" style={{ color: 'var(--gpfx-text-secondary)' }}>{fmtNum(position.lots)}</td>
+                  <td className="py-2 text-right text-xs font-bold" style={{ color: position.floating_pnl >= 0 ? 'var(--gpfx-green)' : 'var(--gpfx-red)' }}>
+                    {position.floating_pnl >= 0 ? '+' : ''}${fmtNum(position.floating_pnl)}
+                  </td>
+                </tr>
+              ))}
+              {openPositions.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-6 text-center text-xs" style={{ color: 'var(--gpfx-text-muted)' }}>
+                    Nenhuma operacao aberta no momento.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Weekly Report */}

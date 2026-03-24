@@ -464,7 +464,7 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
     ws.onmessage = async (event) => {
       try {
         const msg = JSON.parse(event.data);
-        const { type, account_id, account_name, imported, updated, balance, pnl, result, ticket, symbol, new_balance, trade } = msg;
+        const { type, account_id, account_name, imported, updated, balance, pnl, result, ticket, symbol, new_balance, trade, positions, open_positions_count, floating_pnl_total } = msg;
 
         if (type === 'connected') {
           console.log('[GPFX WS] Handshake OK, user_id:', msg.user_id);
@@ -485,6 +485,18 @@ export function GPFXProvider({ children }: { children: React.ReactNode }) {
           signalDataRefresh();
           window.dispatchEvent(new CustomEvent('gpfx:trade_updated', { detail: { account_id, trade } }));
           if (new_balance !== undefined) await refreshAccounts();
+          return;
+        }
+
+        if (type === 'positions_update') {
+          window.dispatchEvent(new CustomEvent('gpfx:positions_updated', {
+            detail: {
+              account_id,
+              positions: Array.isArray(positions) ? positions : [],
+              open_positions_count: open_positions_count ?? 0,
+              floating_pnl_total: floating_pnl_total ?? 0,
+            },
+          }));
           return;
         }
       } catch (err) {

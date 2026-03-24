@@ -64,6 +64,25 @@ export interface WeeklyReport {
   week_trades_count: number;
 }
 
+export interface OpenPosition {
+  account_id: string;
+  ticket: string;
+  symbol: string;
+  symbol_raw?: string;
+  direction?: string;
+  lots: number;
+  open_time?: string | null;
+  open_price?: number | null;
+  floating_pnl: number;
+  updated_at?: string | null;
+}
+
+export interface OpenPositionsResponse {
+  items: OpenPosition[];
+  open_positions_count: number;
+  floating_pnl_total: number;
+}
+
 class DashboardService {
   /**
    * Obtém resumo completo do dashboard
@@ -483,6 +502,22 @@ class DashboardService {
       return response.data;
     } catch (error) {
       console.error('Get risk metrics error:', error);
+      throw error;
+    }
+  }
+
+  async getOpenPositions(filters?: DashboardFilters): Promise<OpenPositionsResponse> {
+    try {
+      const params = new URLSearchParams();
+      const accountId = filters?.account_ids?.[0];
+      if (accountId) {
+        params.append('account_id', accountId);
+      }
+
+      const response = await api.get<OpenPositionsResponse>(`/api/v1/dashboard/open-positions?${params}`);
+      return response.data;
+    } catch (error) {
+      console.error('Get open positions error:', error);
       throw error;
     }
   }
