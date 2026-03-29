@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Index from "./pages/Index";
+import authService from "./services/authService";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 interface Stat        { value: string; label: string; color?: string }
@@ -101,6 +103,12 @@ function useCustomCursor() {
 // ─── ATOMS ───────────────────────────────────────────────────────────────────
 const Eyebrow  = ({children}:{children:React.ReactNode}) => <span className="eyebrow">{children}</span>;
 const SecTitle = ({children}:{children:React.ReactNode}) => <h2 className="sec-title">{children}</h2>;
+
+function getApiErrorMessage(error: unknown, fallback: string) {
+  const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+  if (typeof detail === "string" && detail.trim()) return detail;
+  return fallback;
+}
 
 // ─── WHATSAPP ─────────────────────────────────────────────────────────────────
 function WhatsAppBtn() {
@@ -426,10 +434,10 @@ function PwdStrength({password}:{password:string}) {
 }
 
 // ─── LOGIN VIEW ───────────────────────────────────────────────────────────────
-function LoginView({setView}:{setView:(v:AuthView)=>void}) {
+function LoginView({setView,onAuthSuccess}:{setView:(v:AuthView)=>void;onAuthSuccess:()=>void}) {
   const [email,setEmail]=useState(""); const [password,setPassword]=useState(""); const [loading,setLoading]=useState(false); const [errors,setErrors]=useState<Record<string,string>>({});
   const validate=()=>{const e:Record<string,string>={};if(!email)e.email="Informe seu e-mail";else if(!/\S+@\S+\.\S+/.test(email))e.email="E-mail inválido";if(!password)e.password="Informe sua senha";else if(password.length<6)e.password="Mínimo 6 caracteres";setErrors(e);return Object.keys(e).length===0;};
-  const handleSubmit=(e:React.FormEvent)=>{e.preventDefault();if(!validate())return;setLoading(true);setTimeout(()=>setLoading(false),2000);};
+  const handleSubmit=async (e:React.FormEvent)=>{e.preventDefault();if(!validate())return;setLoading(true);try{await authService.login({email,password});onAuthSuccess();}catch(err){setErrors(prev=>({...prev,password:getApiErrorMessage(err,"Não foi possível entrar. Verifique seus dados.")}));}finally{setLoading(false);}};
   return (
     <div className="av-wrap" key="login">
       <div className="av-header"><div className="av-eyebrow">Bem-vindo de volta</div><h1 className="av-title">Entrar na <b>plataforma</b></h1><p className="av-sub">Acesse seu dashboard e continue evoluindo.</p></div>
@@ -480,7 +488,7 @@ function validateCPF(cpf: string): boolean {
 }
 
 // ─── REGISTER VIEW — multi-step ───────────────────────────────────────────────
-function RegisterView({setView}:{setView:(v:AuthView)=>void}) {
+function RegisterView({setView,onAuthSuccess}:{setView:(v:AuthView)=>void;onAuthSuccess:()=>void}) {
   const [step, setStep] = useState<1|2>(1);
 
   // ── Step 1 — obrigatórios
@@ -524,18 +532,31 @@ function RegisterView({setView}:{setView:(v:AuthView)=>void}) {
   };
 
   // ── Valida step 2 e envia
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const e2: Record<string,string> = {};
     if (!terms) e2.terms = "Aceite os termos para continuar";
     setErrors(e2);
     if (Object.keys(e2).length > 0) return;
     setLoading(true);
-    // TODO: chamar POST /api/v1/auth/register com os dados abaixo:
-    // { full_name: name, email, cpf: cpf.replace(/\D/g,""),
-    //   password, phone, birth_date: birthDate,
-    //   country, city, address }
-    setTimeout(() => setLoading(false), 2000);
+    try {
+      await authService.register({
+        name,
+        email,
+        cpf: cpf.replace(/\D/g, ""),
+        password,
+        phone: phone ? phone.replace(/\D/g, "") : undefined,
+        birth_date: birthDate || undefined,
+        country: country || undefined,
+        city: city || undefined,
+        address: address || undefined,
+      });
+      onAuthSuccess();
+    } catch (err) {
+      setErrors(prev => ({ ...prev, terms: getApiErrorMessage(err, "Não foi possível criar a conta.") }));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -699,7 +720,7 @@ function RegisterView({setView}:{setView:(v:AuthView)=>void}) {
 // ─── RECOVER VIEW ─────────────────────────────────────────────────────────────
 function RecoverView({setView}:{setView:(v:AuthView)=>void}) {
   const [email,setEmail]=useState(""); const [loading,setLoading]=useState(false); const [error,setError]=useState("");
-  const handleSubmit=(e:React.FormEvent)=>{e.preventDefault();if(!email){setError("Informe seu e-mail");return;}if(!/\S+@\S+\.\S+/.test(email)){setError("E-mail inválido");return;}setError("");setLoading(true);setTimeout(()=>{setLoading(false);setView("recover-sent");},1800);};
+  const handleSubmit=async (e:React.FormEvent)=>{e.preventDefault();if(!email){setError("Informe seu e-mail");return;}if(!/\S+@\S+\.\S+/.test(email)){setError("E-mail inválido");return;}setError("");setLoading(true);try{await authService.forgotPassword(email);setView("recover-sent");}catch(err){setError(getApiErrorMessage(err,"Não foi possível enviar o e-mail de recuperação."));}finally{setLoading(false);}};
   return (
     <div className="av-wrap" key="recover">
       <button className="av-back" onClick={()=>setView("login")}><IconArrowLeft/> Voltar ao login</button>
@@ -728,7 +749,7 @@ function RecoverSentView({setView}:{setView:(v:AuthView)=>void}) {
 }
 
 // ─── AUTH ROOT ────────────────────────────────────────────────────────────────
-function AuthRoot({initialView,goSite}:{initialView:AuthView;goSite:()=>void}) {
+function AuthRoot({initialView,goSite,onAuthSuccess}:{initialView:AuthView;goSite:()=>void;onAuthSuccess:()=>void}) {
   const [view,setView]=useState<AuthView>(initialView);
   useEffect(()=>{ setView(initialView); },[initialView]);
   const showTabs = view==="login"||view==="register";
@@ -759,8 +780,8 @@ function AuthRoot({initialView,goSite}:{initialView:AuthView;goSite:()=>void}) {
             </div>
           )}
 
-          {view==="login"        && <LoginView       setView={setView}/>}
-          {view==="register"     && <RegisterView    setView={setView}/>}
+          {view==="login"        && <LoginView       setView={setView} onAuthSuccess={onAuthSuccess}/>}
+          {view==="register"     && <RegisterView    setView={setView} onAuthSuccess={onAuthSuccess}/>}
           {view==="recover"      && <RecoverView     setView={setView}/>}
           {view==="recover-sent" && <RecoverSentView setView={setView}/>}
         </div>
@@ -1316,6 +1337,7 @@ footer p{font-size:12px;color:var(--t4);font-style:italic}
 
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function App() {
+  const [authenticated, setAuthenticated] = useState(() => authService.isAuthenticated());
   const [rootView, setRootView] = useState<RootView>("home");
   const [authView, setAuthView] = useState<AuthView>("login");
   const { curRef, ringRef } = useCustomCursor();
@@ -1323,6 +1345,7 @@ export default function App() {
   const go = (p: Page) => { setRootView(p); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const goAuth = (v: AuthView) => { setAuthView(v); setRootView("auth"); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const goSite = () => { setRootView("home"); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const onAuthSuccess = () => setAuthenticated(true);
 
   const isAuth = rootView === "auth";
 
@@ -1332,10 +1355,12 @@ export default function App() {
       case "precos":          return <PrecosPage  goAuth={goAuth}/>;
       case "faq":             return <FAQPage/>;
       case "empresa":         return <EmpresaPage/>;
-      case "auth":            return <AuthRoot initialView={authView} goSite={goSite}/>;
+      case "auth":            return <AuthRoot initialView={authView} goSite={goSite} onAuthSuccess={onAuthSuccess}/>;
       default:                return <HomePage   go={go} goAuth={goAuth}/>;
     }
   };
+
+  if (authenticated) return <Index />;
 
   return (
     <>
