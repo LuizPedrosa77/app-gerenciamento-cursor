@@ -2,12 +2,21 @@ import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { authService } from './authService';
 
 const ENV_API_BASE = import.meta.env.VITE_API_URL?.trim();
-const FALLBACK_API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
+const PROD_DEFAULT_API_BASE = 'https://api.painelzap.com';
+const isBrowser = typeof window !== 'undefined';
+const browserOrigin = isBrowser ? window.location.origin : '';
+const inferredProdBase =
+  isBrowser && browserOrigin.includes('//fx.')
+    ? browserOrigin.replace('//fx.', '//api.')
+    : PROD_DEFAULT_API_BASE;
+const FALLBACK_API_BASE = import.meta.env.PROD
+  ? inferredProdBase
+  : (browserOrigin || 'http://localhost:8000');
 const API_BASE = (ENV_API_BASE || FALLBACK_API_BASE).replace(/\/+$/, '');
 
-if (!ENV_API_BASE && typeof window !== 'undefined') {
+if (!ENV_API_BASE && isBrowser) {
   if (import.meta.env.PROD) {
-    console.error('[API] VITE_API_URL não configurada em produção. Usando fallback:', API_BASE);
+    console.warn('[API] VITE_API_URL não configurada em produção. Usando fallback seguro:', API_BASE);
   } else {
     console.warn('[API] VITE_API_URL não configurada. Usando fallback:', API_BASE);
   }

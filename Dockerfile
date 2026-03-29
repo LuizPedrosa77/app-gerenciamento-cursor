@@ -3,6 +3,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . .
+ARG VITE_API_URL=https://api.painelzap.com
+ENV VITE_API_URL=${VITE_API_URL}
 RUN node node_modules/vite/bin/vite.js build
 FROM nginx:alpine AS production
 RUN rm /etc/nginx/conf.d/default.conf
