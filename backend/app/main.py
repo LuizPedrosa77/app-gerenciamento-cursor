@@ -60,8 +60,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://localhost:3000",
-        "https://fx.painelzap.com",
-        "https://fx.painelzap.com",
+        "https://fx.testedev.online",
+        "https://fx.testedev.online",
     ],
     allow_credentials=True,
     allow_methods=["*"],

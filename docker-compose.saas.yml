@@ -13,7 +13,7 @@ services:
           - node.role == manager
       labels:
         - traefik.enable=true
-        - traefik.http.routers.gpfx.rule=Host(`fx.painelzap.com`)
+        - traefik.http.routers.gpfx.rule=Host(`fx.testedev.online`)
         - traefik.http.routers.gpfx.entrypoints=websecure
         - traefik.http.services.gpfx.loadbalancer.server.port=80
         - traefik.http.routers.gpfx.service=gpfx
@@ -29,13 +29,13 @@ services:
       - SECRET_KEY=gpfx-secret-key-2026-production
       - INTERNAL_API_KEY=gpfx-internal-key-2026
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - MINIO_ENDPOINT=s3.painelzap.com
+      - MINIO_ENDPOINT=s3.testedev.online
       - MINIO_ACCESS_KEY=574184765162
       - MINIO_SECRET_KEY=8332bdeca11c80fe91685492
       - MINIO_BUCKET=appgerenciamentofx
       - MINIO_USE_SSL=true
       - REDIS_URL=redis://redis:6379/5
-      - N8N_WEBHOOK_URL=https://n8n.painelzap.com/webhook
+      - N8N_WEBHOOK_URL=https://n8n.testedev.online/webhook
       - ACCESS_TOKEN_EXPIRE_MINUTES=480
       - REFRESH_TOKEN_EXPIRE_DAYS=30
       - MTCONNECT_API_KEY=FfDghn2d9it8Mesmo2uVYh2YXdYgDAAm
@@ -47,7 +47,7 @@ services:
           - node.role == manager
       labels:
         - traefik.enable=true
-        - traefik.http.routers.gpfx-api.rule=Host(`api.painelzap.com`)
+        - traefik.http.routers.gpfx-api.rule=Host(`api.testedev.online`)
         - traefik.http.routers.gpfx-api.entrypoints=websecure
         - traefik.http.services.gpfx-api.loadbalancer.server.port=8000
         - traefik.http.routers.gpfx-api.service=gpfx-api

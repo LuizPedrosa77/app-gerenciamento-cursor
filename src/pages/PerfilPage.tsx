@@ -268,7 +268,7 @@ function TabPlano() {
     { nome: 'Carlos Souza', data: '10/01/2026', status: 'Cancelado', desconto: '—' },
   ];
 
-  const shareMsg = encodeURIComponent(`Use meu código ${code} e ganhe desconto no Gustavo Pedrosa FX! Acesse: fx.painelzap.com`);
+  const shareMsg = encodeURIComponent(`Use meu código ${code} e ganhe desconto no Gustavo Pedrosa FX! Acesse: fx.testedev.online`);
   const copyCode = () => { navigator.clipboard.writeText(code); toast({ title: 'Código copiado!' }); };
 
   const plans = [
@@ -364,8 +364,8 @@ function TabPlano() {
           <div className="flex gap-2 flex-wrap">
             <ShareBtn label="WhatsApp" bg="#25D366" href={`https://wa.me/?text=${shareMsg}`} />
             <ShareBtn label="𝕏 Twitter" bg="rgba(255,255,255,0.1)" textColor="var(--gpfx-text-secondary)" href={`https://twitter.com/intent/tweet?text=${shareMsg}`} />
-            <ShareBtn label="Telegram" bg="#0088cc" href={`https://t.me/share/url?url=fx.painelzap.com&text=${shareMsg}`} />
-            <button onClick={() => { navigator.clipboard.writeText(`fx.painelzap.com?ref=${code}`); toast({ title: 'Link copiado!' }); }}
+            <ShareBtn label="Telegram" bg="#0088cc" href={`https://t.me/share/url?url=fx.testedev.online&text=${shareMsg}`} />
+            <button onClick={() => { navigator.clipboard.writeText(`fx.testedev.online?ref=${code}`); toast({ title: 'Link copiado!' }); }}
               className="px-3 h-8 rounded text-xs font-semibold flex items-center gap-1"
               style={{ background: 'rgba(255,255,255,0.1)', color: 'var(--gpfx-text-secondary)' }}>
               <Copy size={12} /> Copiar link

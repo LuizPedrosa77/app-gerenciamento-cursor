@@ -2,7 +2,7 @@ import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { authService } from './authService';
 
 const ENV_API_BASE = import.meta.env.VITE_API_URL?.trim();
-const PROD_DEFAULT_API_BASE = 'https://api.painelzap.com';
+const PROD_DEFAULT_API_BASE = 'https://api.testedev.online';
 const isBrowser = typeof window !== 'undefined';
 const browserOrigin = isBrowser ? window.location.origin : '';
 const inferredProdBase =

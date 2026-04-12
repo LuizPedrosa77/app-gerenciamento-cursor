@@ -182,7 +182,7 @@ function StatCard({ label, value, color }: { label: string; value: string; color
   );
 }
 
-const WEBHOOK_URL = 'https://webhook.painelzap.com/webhook/app-gerenciamento-fx';
+const WEBHOOK_URL = 'https://webhook.testedev.online/webhook/app-gerenciamento-fx';
 
 const SUGGESTIONS = [
   'Analise meu desempenho este mês',

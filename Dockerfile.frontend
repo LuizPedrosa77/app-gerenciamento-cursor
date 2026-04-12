@@ -14,7 +14,7 @@ RUN npm ci --only=production
 COPY . .
 
 # Build-time API endpoint (Vite reads envs during build)
-ARG VITE_API_URL=https://api.painelzap.com
+ARG VITE_API_URL=https://api.testedev.online
 ENV VITE_API_URL=${VITE_API_URL}
 
 # Build the application

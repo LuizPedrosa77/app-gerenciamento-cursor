@@ -139,7 +139,7 @@ async def upload_avatar(
             length=len(file_content),
             content_type=file.content_type,
         )
-        avatar_url = f"https://{os.getenv('MINIO_ENDPOINT', 's3.painelzap.com')}/{bucket_name}/{object_name}"
+        avatar_url = f"https://{os.getenv('MINIO_ENDPOINT', 's3.testedev.online')}/{bucket_name}/{object_name}"
         current_user.avatar_url = avatar_url
         db.commit()
         db.refresh(current_user)

@@ -3,6 +3,7 @@ from datetime import datetime, date
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, extract, case
+from sqlalchemy.exc import ProgrammingError
 
 from app.dependencies import DbSession, get_current_user
 from app.core.database import get_db
@@ -63,7 +64,14 @@ def get_open_positions(
     if account_id:
         query = query.filter(OpenPosition.account_id == account_id)
 
-    positions = query.order_by(OpenPosition.updated_at.desc()).all()
+    try:
+        positions = query.order_by(OpenPosition.updated_at.desc()).all()
+    except ProgrammingError as exc:
+        # Compatibilidade durante rollout: se a migration da tabela open_positions
+        # ainda não foi aplicada no ambiente, devolve vazio ao invés de 500.
+        if 'open_positions' in str(exc).lower():
+            return {"items": [], "open_positions_count": 0, "floating_pnl_total": 0.0}
+        raise
     items = [
         {
             "account_id": str(p.account_id),

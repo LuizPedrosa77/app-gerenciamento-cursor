@@ -21,7 +21,7 @@ services:
         max_attempts: 3
       labels:
         - traefik.enable=true
-        - traefik.http.routers.gustavo-pedrosa-fx.rule=Host(`fx.painelzap.com`)
+        - traefik.http.routers.gustavo-pedrosa-fx.rule=Host(`fx.testedev.online`)
         - traefik.http.routers.gustavo-pedrosa-fx.entrypoints=websecure
         - traefik.http.services.gustavo-pedrosa-fx.loadbalancer.server.port=80
         - traefik.http.routers.gustavo-pedrosa-fx.service=gustavo-pedrosa-fx
