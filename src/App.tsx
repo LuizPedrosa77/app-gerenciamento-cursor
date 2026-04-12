@@ -435,19 +435,20 @@ function PwdStrength({password}:{password:string}) {
 
 // ─── LOGIN VIEW ───────────────────────────────────────────────────────────────
 function LoginView({setView,onAuthSuccess}:{setView:(v:AuthView)=>void;onAuthSuccess:()=>void}) {
-  const [email,setEmail]=useState(""); const [password,setPassword]=useState(""); const [loading,setLoading]=useState(false); const [errors,setErrors]=useState<Record<string,string>>({});
+  const [email,setEmail]=useState(""); const [password,setPassword]=useState(""); const [loading,setLoading]=useState(false); const [errors,setErrors]=useState<Record<string,string>>({}); const [formError,setFormError]=useState("");
   const validate=()=>{const e:Record<string,string>={};if(!email)e.email="Informe seu e-mail";else if(!/\S+@\S+\.\S+/.test(email))e.email="E-mail inválido";if(!password)e.password="Informe sua senha";else if(password.length<6)e.password="Mínimo 6 caracteres";setErrors(e);return Object.keys(e).length===0;};
-  const handleSubmit=async (e:React.FormEvent)=>{e.preventDefault();if(!validate())return;setLoading(true);try{await authService.login({email,password});onAuthSuccess();}catch(err){setErrors(prev=>({...prev,password:getApiErrorMessage(err,"Não foi possível entrar. Verifique seus dados.")}));}finally{setLoading(false);}};
+  const handleSubmit=async (e:React.FormEvent)=>{e.preventDefault();setFormError("");if(!validate())return;setLoading(true);try{await authService.login({email,password});if(!authService.isAuthenticated())throw new Error("Sessão não persistida");onAuthSuccess();}catch(err){setFormError(getApiErrorMessage(err,"Não foi possível entrar. Verifique seus dados."));}finally{setLoading(false);}};
   return (
     <div className="av-wrap" key="login">
       <div className="av-header"><div className="av-eyebrow">Bem-vindo de volta</div><h1 className="av-title">Entrar na <b>plataforma</b></h1><p className="av-sub">Acesse seu dashboard e continue evoluindo.</p></div>
       <form className="av-form" onSubmit={handleSubmit} noValidate>
-        <AuthInput label="E-mail" type="email" placeholder="seu@email.com" value={email} onChange={setEmail} icon={<IconMail/>} error={errors.email} autoComplete="email"/>
-        <AuthInput label="Senha" placeholder="Sua senha" value={password} onChange={setPassword} icon={<IconLock/>} error={errors.password} showToggle autoComplete="current-password"/>
+        <AuthInput label="E-mail" type="email" placeholder="seu@email.com" value={email} onChange={v=>{setEmail(v);setFormError("");if(errors.email)setErrors(prev=>({...prev,email:""}));}} icon={<IconMail/>} error={errors.email} autoComplete="email"/>
+        <AuthInput label="Senha" placeholder="Sua senha" value={password} onChange={v=>{setPassword(v);setFormError("");if(errors.password)setErrors(prev=>({...prev,password:""}));}} icon={<IconLock/>} error={errors.password} showToggle autoComplete="current-password"/>
         <div className="av-row">
           <label className="av-check-label"><input type="checkbox" className="av-check-hidden"/><span className="av-check-box"/><span>Lembrar de mim</span></label>
           <button type="button" className="av-link" onClick={()=>setView("recover")}>Esqueci minha senha</button>
         </div>
+        {formError&&<span className="ai-err">{formError}</span>}
         <button className={`av-submit${loading?" loading":""}`} type="submit">{loading?<span className="av-spinner"/>:"Entrar na plataforma"}</button>
       </form>
       <div className="av-divider"><span>ou</span></div>
@@ -508,6 +509,7 @@ function RegisterView({setView,onAuthSuccess}:{setView:(v:AuthView)=>void;onAuth
   const [terms,   setTerms]   = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors,  setErrors]  = useState<Record<string,string>>({});
+  const [formError,setFormError]=useState("");
 
   // ── Valida step 1
   const validateStep1 = () => {
@@ -537,6 +539,7 @@ function RegisterView({setView,onAuthSuccess}:{setView:(v:AuthView)=>void;onAuth
     const e2: Record<string,string> = {};
     if (!terms) e2.terms = "Aceite os termos para continuar";
     setErrors(e2);
+    setFormError("");
     if (Object.keys(e2).length > 0) return;
     setLoading(true);
     try {
@@ -551,9 +554,10 @@ function RegisterView({setView,onAuthSuccess}:{setView:(v:AuthView)=>void;onAuth
         city: city || undefined,
         address: address || undefined,
       });
+      if(!authService.isAuthenticated()) throw new Error("Sessão não persistida");
       onAuthSuccess();
     } catch (err) {
-      setErrors(prev => ({ ...prev, terms: getApiErrorMessage(err, "Não foi possível criar a conta.") }));
+      setFormError(getApiErrorMessage(err, "Não foi possível criar a conta."));
     } finally {
       setLoading(false);
     }
@@ -588,14 +592,14 @@ function RegisterView({setView,onAuthSuccess}:{setView:(v:AuthView)=>void;onAuth
           <AuthInput
             label="Nome completo *"
             placeholder="Seu nome completo"
-            value={name} onChange={setName}
+            value={name} onChange={v=>{setName(v);setFormError("");}}
             icon={<IconUser/>} error={errors.name}
             autoComplete="name"
           />
           <AuthInput
             label="E-mail *"
             type="email" placeholder="seu@email.com"
-            value={email} onChange={setEmail}
+            value={email} onChange={v=>{setEmail(v);setFormError("");}}
             icon={<IconMail/>} error={errors.email}
             autoComplete="email"
           />
@@ -603,14 +607,14 @@ function RegisterView({setView,onAuthSuccess}:{setView:(v:AuthView)=>void;onAuth
             label="CPF *"
             placeholder="000.000.000-00"
             value={cpf}
-            onChange={v => setCpf(maskCPF(v))}
+            onChange={v => {setCpf(maskCPF(v));setFormError("");}}
             icon={<IconCPF/>} error={errors.cpf}
             autoComplete="off"
           />
           <AuthInput
             label="Senha * (mín. 6 caracteres)"
             placeholder="Mínimo 6 caracteres"
-            value={password} onChange={setPassword}
+            value={password} onChange={v=>{setPassword(v);setFormError("");}}
             icon={<IconLock/>} error={errors.password}
             showToggle autoComplete="new-password"
           />
@@ -618,7 +622,7 @@ function RegisterView({setView,onAuthSuccess}:{setView:(v:AuthView)=>void;onAuth
           <AuthInput
             label="Confirmar senha *"
             placeholder="Repita a senha"
-            value={confirm} onChange={setConfirm}
+            value={confirm} onChange={v=>{setConfirm(v);setFormError("");}}
             icon={<IconLock/>} error={errors.confirm}
             showToggle autoComplete="new-password"
           />
@@ -641,7 +645,7 @@ function RegisterView({setView,onAuthSuccess}:{setView:(v:AuthView)=>void;onAuth
             label="Telefone"
             placeholder="(00) 00000-0000"
             value={phone}
-            onChange={v => setPhone(maskPhone(v))}
+            onChange={v => {setPhone(maskPhone(v));setFormError("");}}
             icon={<IconPhone/>}
             autoComplete="tel"
           />
@@ -653,7 +657,7 @@ function RegisterView({setView,onAuthSuccess}:{setView:(v:AuthView)=>void;onAuth
                 className="ai-input"
                 type="date"
                 value={birthDate}
-                onChange={e => setBirthDate(e.target.value)}
+                onChange={e => {setBirthDate(e.target.value);setFormError("");}}
                 autoComplete="bday"
               />
             </div>
@@ -661,21 +665,21 @@ function RegisterView({setView,onAuthSuccess}:{setView:(v:AuthView)=>void;onAuth
           <AuthInput
             label="País"
             placeholder="Ex: Brasil"
-            value={country} onChange={setCountry}
+            value={country} onChange={v=>{setCountry(v);setFormError("");}}
             icon={<IconGlobe/>}
             autoComplete="country-name"
           />
           <AuthInput
             label="Cidade"
             placeholder="Ex: São Paulo"
-            value={city} onChange={setCity}
+            value={city} onChange={v=>{setCity(v);setFormError("");}}
             icon={<IconCity/>}
             autoComplete="address-level2"
           />
           <AuthInput
             label="Endereço"
             placeholder="Rua, número, bairro"
-            value={address} onChange={setAddress}
+            value={address} onChange={v=>{setAddress(v);setFormError("");}}
             icon={<IconMap/>}
             autoComplete="street-address"
           />
@@ -691,6 +695,7 @@ function RegisterView({setView,onAuthSuccess}:{setView:(v:AuthView)=>void;onAuth
             </span>
           </label>
           {errors.terms && <span className="ai-err">{errors.terms}</span>}
+          {formError && <span className="ai-err">{formError}</span>}
 
           {/* Botões */}
           <div className="reg-btn-row">

@@ -17,7 +17,11 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except Exception:
+        # Hash inválido/corrompido não deve derrubar login com 500.
+        return False
 
 
 def create_access_token(data: dict) -> str:
