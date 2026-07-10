@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { calendarService } from '../services/calendarService';
-import { accountService, APIAccount } from '../services/accountService';
+import accountService, { APIAccount } from '../services/accountService';
 
 export interface GoalNotification {
   id: string;
