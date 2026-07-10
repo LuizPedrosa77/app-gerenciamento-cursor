@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import Index from "./pages/Index";
 import authService from "./services/authService";
+import { useAuth } from "./contexts/AuthContext";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 interface Stat        { value: string; label: string; color?: string }
@@ -1342,15 +1344,30 @@ footer p{font-size:12px;color:var(--t4);font-style:italic}
 
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [authenticated, setAuthenticated] = useState(() => authService.isAuthenticated());
+  const navigate = useNavigate();
+  const { state: authState, logout } = useAuth();
+  const [authenticated, setAuthenticated] = useState(
+    () => authState.isAuthenticated || authService.isAuthenticated()
+  );
   const [rootView, setRootView] = useState<RootView>("home");
   const [authView, setAuthView] = useState<AuthView>("login");
   const { curRef, ringRef } = useCustomCursor();
+
+  useEffect(() => {
+    setAuthenticated(authState.isAuthenticated || authService.isAuthenticated());
+  }, [authState.isAuthenticated]);
 
   const go = (p: Page) => { setRootView(p); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const goAuth = (v: AuthView) => { setAuthView(v); setRootView("auth"); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const goSite = () => { setRootView("home"); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const onAuthSuccess = () => setAuthenticated(true);
+  const handleLogout = async () => {
+    await logout();
+    setAuthenticated(false);
+    setRootView("home");
+    setAuthView("login");
+    navigate("/", { replace: true });
+  };
 
   const isAuth = rootView === "auth";
 
@@ -1365,19 +1382,32 @@ export default function App() {
     }
   };
 
-  if (authenticated) return <Index />;
-
   return (
-    <>
-      <link rel="preconnect" href="https://fonts.googleapis.com"/>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet"/>
-      <style dangerouslySetInnerHTML={{ __html: STYLES }}/>
-      <div id="cur"      ref={curRef}/>
-      <div id="cur-ring" ref={ringRef}/>
-      {!isAuth && <Nav cur={rootView as Page} go={go} goAuth={goAuth}/>}
-      {renderPage()}
-      {!isAuth && <Footer go={go}/>}
-      {!isAuth && <WhatsAppBtn/>}
-    </>
+    <Routes>
+      <Route
+        path="/app"
+        element={authenticated ? <Index onLogout={handleLogout} /> : <Navigate to="/" replace />}
+      />
+      <Route
+        path="/*"
+        element={
+          authenticated ? (
+            <Navigate to="/app" replace />
+          ) : (
+            <>
+              <link rel="preconnect" href="https://fonts.googleapis.com"/>
+              <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet"/>
+              <style dangerouslySetInnerHTML={{ __html: STYLES }}/>
+              <div id="cur"      ref={curRef}/>
+              <div id="cur-ring" ref={ringRef}/>
+              {!isAuth && <Nav cur={rootView as Page} go={go} goAuth={goAuth}/>}
+              {renderPage()}
+              {!isAuth && <Footer go={go}/>}
+              {!isAuth && <WhatsAppBtn/>}
+            </>
+          )
+        }
+      />
+    </Routes>
   );
 }

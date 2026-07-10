@@ -1,8 +1,10 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { GPFXProvider, useGPFX } from '@/contexts/GPFXContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import OnboardingWizard, { shouldShowOnboarding } from '@/components/OnboardingWizard';
 import { AppSidebar } from '@/components/GPFXSidebar';
+import { GoalNotificationBanners } from '@/components/GoalNotificationBanners';
 import DashboardPage from '@/pages/DashboardPage';
 import EvolucaoPage from '@/pages/EvolucaoPage';
 import CalendarioPage from '@/pages/CalendarioPage';
@@ -13,12 +15,16 @@ import TradingViewPage from '@/pages/TradingViewPage';
 import IADoTradePage from '@/pages/IADoTradePage';
 import APIsPage from '@/pages/APIsPage';
 import PerfilPage from '@/pages/PerfilPage';
+import GpScorePage from '@/pages/GpScorePage';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useAuth } from '@/contexts/AuthContext';
 import { authService } from '@/services/authService';
 
-function AppLayout({ onLogout }: { onLogout: () => void }) {
+function AppLayout({ onLogout }: { onLogout: () => Promise<void> | void }) {
   const { state } = useGPFX();
-  const [activeView, setActiveView] = useState('planilha');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeView = searchParams.get('view') || 'planilha';
+  const setActiveView = (view: string) => setSearchParams({ view });
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => shouldShowOnboarding(state.accounts));
   const isMobile = useIsMobile();
@@ -49,8 +55,10 @@ function AppLayout({ onLogout }: { onLogout: () => void }) {
         return <IADoTradePage />;
       case 'apis':
         return <APIsPage />;
+      case 'gpscore':
+        return <GpScorePage />;
       case 'perfil':
-        return <PerfilPage />;
+        return <PerfilPage onLogout={onLogout} />;
       default:
         return <PlanilhaPage />;
     }
@@ -75,6 +83,7 @@ function AppLayout({ onLogout }: { onLogout: () => void }) {
           transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       >
+        <GoalNotificationBanners />
         {renderPage()}
       </main>
       {showOnboarding && (
@@ -137,21 +146,26 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-export default function Index() {
-  const [authenticated, setAuthenticated] = useState(() => authService.isAuthenticated());
+export default function Index({ onLogout }: { onLogout?: () => Promise<void> | void } = {}) {
+  const navigate = useNavigate();
+  const { state, logout } = useAuth();
 
   useEffect(() => {
-    if (!authenticated) {
-      window.location.replace('/');
+    if (!state.isLoading && !state.isAuthenticated) {
+      navigate('/', { replace: true });
     }
-  }, [authenticated]);
+  }, [state.isAuthenticated, state.isLoading, navigate]);
 
-  const handleLogout = () => {
-    authService.logout();
-    setAuthenticated(false);
+  const handleLogout = async () => {
+    if (onLogout) {
+      await onLogout();
+    } else {
+      await logout();
+      navigate('/', { replace: true });
+    }
   };
 
-  if (!authenticated) {
+  if (!state.isLoading && !state.isAuthenticated) {
     return null;
   }
 

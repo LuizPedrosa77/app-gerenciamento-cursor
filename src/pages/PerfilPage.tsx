@@ -3,6 +3,8 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/services/api';
+import authService from '@/services/authService';
+import profileService from '@/services/profileService';
 import {
   UserCircle, Camera, Mail, Lock, Phone, MapPin, Globe, Calendar,
   Copy, Eye, EyeOff, QrCode, Monitor, Smartphone, Trash2,
@@ -416,9 +418,39 @@ function TabPreferencias() {
   const { theme, toggleTheme } = useTheme();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
-  const [prefs, setPrefs] = useState({ idioma: 'pt-BR', fuso: 'UTC-3', moeda: 'USD' });
+  const [loading, setLoading] = useState(true);
+  const [prefs, setPrefs] = useState({ idioma: 'pt-BR', fuso: 'America/Sao_Paulo', moeda: 'USD' });
 
-  const handleSave = () => { setSaving(true); setTimeout(() => { setSaving(false); toast({ title: 'Preferências salvas!' }); }, 1000); };
+  useEffect(() => {
+    profileService.getPreferences().then((data) => {
+      setPrefs({
+        idioma: data.language || 'pt-BR',
+        fuso: data.timezone || 'America/Sao_Paulo',
+        moeda: data.currency || 'USD',
+      });
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await profileService.updatePreferences({
+        language: prefs.idioma,
+        timezone: prefs.fuso,
+        currency: prefs.moeda,
+        theme: theme === 'dark' ? 'dark' : 'light',
+      });
+      toast({ title: 'Preferências salvas!' });
+    } catch (err: unknown) {
+      toast({ title: 'Erro ao salvar', description: getErrorMessage(err), variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="gpfx-card p-6 text-sm" style={{ color: 'var(--gpfx-text-muted)' }}>Carregando preferências...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -447,14 +479,52 @@ function TabPreferencias() {
 }
 
 // ─── Tab: Segurança ───
-function TabSeguranca() {
+function TabSeguranca({ onLogout }: { onLogout?: () => void }) {
   const { toast } = useToast();
   const [showPw, setShowPw] = useState({ current: false, new_: false, confirm: false });
   const [pw, setPw] = useState({ current: '', new_: '', confirm: '' });
+  const [changingPw, setChangingPw] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [twofa, setTwofa] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const str = passwordStrength(pw.new_);
+
+  const handleChangePassword = async () => {
+    if (!pw.current || !pw.new_ || pw.new_ !== pw.confirm) {
+      toast({ title: 'Verifique os campos de senha', variant: 'destructive' });
+      return;
+    }
+    setChangingPw(true);
+    try {
+      await authService.changePassword(pw.current, pw.new_);
+      toast({ title: 'Senha alterada!' });
+      setPw({ current: '', new_: '', confirm: '' });
+    } catch (err: unknown) {
+      toast({ title: 'Erro ao alterar senha', description: getErrorMessage(err), variant: 'destructive' });
+    } finally {
+      setChangingPw(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirm !== 'EXCLUIR') return;
+    setDeleting(true);
+    try {
+      await profileService.deleteAccount();
+      toast({ title: 'Conta excluída' });
+      if (onLogout) {
+        await onLogout();
+      } else {
+        await authService.logout();
+      }
+    } catch (err: unknown) {
+      toast({ title: 'Erro ao excluir conta', description: getErrorMessage(err), variant: 'destructive' });
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
+    }
+  };
 
   const sessions = [
     { device: 'Chrome · Windows', local: 'Recife, BR', time: 'Agora', icon: <Monitor size={16} /> },
@@ -479,9 +549,9 @@ function TabSeguranca() {
           )}
         </div>
         <PwField label="Confirmar Nova Senha" value={pw.confirm} onChange={v => setPw(p => ({ ...p, confirm: v }))} show={showPw.confirm} toggle={() => setShowPw(p => ({ ...p, confirm: !p.confirm }))} />
-        <button onClick={() => toast({ title: 'Senha alterada!' })}
-          className="w-full md:w-auto px-6 h-10 rounded-lg font-semibold text-sm" style={{ background: 'var(--gpfx-green)', color: '#0d1117' }}>
-          Alterar Senha
+        <button onClick={handleChangePassword} disabled={changingPw}
+          className="w-full md:w-auto px-6 h-10 rounded-lg font-semibold text-sm" style={{ background: 'var(--gpfx-green)', color: '#0d1117', opacity: changingPw ? 0.7 : 1 }}>
+          {changingPw ? 'Alterando...' : 'Alterar Senha'}
         </button>
       </div>
 
@@ -542,7 +612,10 @@ function TabSeguranca() {
               style={{ background: 'var(--gpfx-input-bg)', border: '1px solid var(--gpfx-border)', color: 'var(--gpfx-text-primary)' }} />
             <div className="flex gap-2">
               <button onClick={() => setShowDeleteModal(false)} className="flex-1 h-10 rounded-lg text-sm font-semibold" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--gpfx-text-secondary)' }}>Cancelar</button>
-              <button disabled={deleteConfirm !== 'EXCLUIR'} className="flex-1 h-10 rounded-lg text-sm font-semibold disabled:opacity-30" style={{ background: '#ff4d4d', color: '#fff' }}>Confirmar</button>
+              <button onClick={handleDeleteAccount} disabled={deleteConfirm !== 'EXCLUIR' || deleting}
+                className="flex-1 h-10 rounded-lg text-sm font-semibold disabled:opacity-30" style={{ background: '#ff4d4d', color: '#fff' }}>
+                {deleting ? 'Excluindo...' : 'Confirmar'}
+              </button>
             </div>
           </div>
         </div>
@@ -628,7 +701,7 @@ function ShareBtn({ label, bg, href, textColor }: { label: string; bg: string; h
 }
 
 // ─── Main Page ───
-export default function PerfilPage() {
+export default function PerfilPage({ onLogout }: { onLogout?: () => Promise<void> | void }) {
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState('perfil');
 
@@ -673,7 +746,7 @@ export default function PerfilPage() {
       {activeTab === 'perfil' && <TabPerfil />}
       {activeTab === 'plano' && <TabPlano />}
       {activeTab === 'preferencias' && <TabPreferencias />}
-      {activeTab === 'seguranca' && <TabSeguranca />}
+      {activeTab === 'seguranca' && <TabSeguranca onLogout={onLogout} />}
     </div>
   );
 }
