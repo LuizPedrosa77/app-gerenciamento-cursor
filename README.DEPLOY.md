@@ -115,7 +115,7 @@ INTERNAL_API_KEY=$(openssl rand -hex 32)
 MINIO_SECRET_KEY=$(openssl rand -base64 32)
 
 # Configurar
-DATABASE_URL=postgresql://postgres:hub123nexusai@postgres:5432/saas_gerenciamento_fx
+DATABASE_URL=postgresql://postgres:CHANGE_ME@postgres:5432/saas_gerenciamento_fx
 OPENAI_API_KEY=sk-proj-sua-chave-aqui
 ```
 

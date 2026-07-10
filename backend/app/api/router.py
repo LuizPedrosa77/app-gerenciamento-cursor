@@ -132,6 +132,13 @@ api_router.include_router(
     tags=["mt5-ea"]
 )
 
+from app.api.v1.endpoints import workspace
+api_router.include_router(
+    workspace.router,
+    prefix="/workspace",
+    tags=["workspace"]
+)
+
 
 # Add endpoint routers here when they are created
 # Example:

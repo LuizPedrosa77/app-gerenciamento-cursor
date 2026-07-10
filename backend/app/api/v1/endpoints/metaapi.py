@@ -17,7 +17,7 @@ from app.core.mtconnect import (
     parse_deal_to_trade,
     get_last_ticket
 )
-import re
+from app.core.credentials import encrypt_credential, decrypt_credential
 import uuid
 
 router = APIRouter()
@@ -72,7 +72,7 @@ def connect_mt_account(
         broker_type=request.platform.upper(),
         broker_login=request.login,
         broker_server=request.server,
-        investor_password=request.investor_password,
+        investor_password=encrypt_credential(request.investor_password),
         is_active=True,
         balance=0,
         initial_balance=0
@@ -156,10 +156,16 @@ def sync_mt_history(
             status_code=400,
             detail="Investor password não configurada. Reconecte a conta."
         )
-    if re.match(r"^\$2[aby]\$", str(account.investor_password)):
+
+    try:
+        plain_password = decrypt_credential(account.investor_password)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if not plain_password:
         raise HTTPException(
             status_code=400,
-            detail="Investor password criptografada. Reconecte a conta para sincronizar."
+            detail="Investor password não configurada. Reconecte a conta."
         )
 
     last_ticket = int(account.mt_last_ticket) if account.mt_last_ticket else 0
@@ -167,7 +173,7 @@ def sync_mt_history(
     try:
         deals = fetch_trade_history(
             login=account.broker_login,
-            investor_password=account.investor_password,
+            investor_password=plain_password,
             server=account.broker_server,
             platform=account.broker_type or "MT5",
             last_ticket=last_ticket

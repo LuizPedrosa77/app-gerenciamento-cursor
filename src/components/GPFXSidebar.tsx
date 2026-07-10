@@ -28,6 +28,7 @@ const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'evolucao', label: 'Evolução da Conta', icon: TrendingUp },
   { id: 'analise', label: 'Análise das Operações', icon: BarChart3 },
+  { id: 'gpscore', label: 'GP Score', icon: CheckCircle },
   { id: 'calendario', label: 'Calendário', icon: CalendarDays },
   { id: 'planilha', label: 'Trade Log', icon: ClipboardList },
   { id: 'tradingview', label: 'TradingView Chart', icon: LineChart },

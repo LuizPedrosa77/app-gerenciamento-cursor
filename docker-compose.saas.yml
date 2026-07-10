@@ -25,20 +25,22 @@ services:
       - digital_network
       - traefik_public
     environment:
-      - DATABASE_URL=postgresql://postgres:hub123nexusai@postgres:5432/saas_gerenciamento_fx
-      - SECRET_KEY=gpfx-secret-key-2026-production
-      - INTERNAL_API_KEY=gpfx-internal-key-2026
+      - DATABASE_URL=${DATABASE_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - MINIO_ENDPOINT=s3.testedev.online
-      - MINIO_ACCESS_KEY=574184765162
-      - MINIO_SECRET_KEY=8332bdeca11c80fe91685492
-      - MINIO_BUCKET=appgerenciamentofx
-      - MINIO_USE_SSL=true
-      - REDIS_URL=redis://redis:6379/5
-      - N8N_WEBHOOK_URL=https://n8n.testedev.online/webhook
-      - ACCESS_TOKEN_EXPIRE_MINUTES=480
-      - REFRESH_TOKEN_EXPIRE_DAYS=30
-      - MTCONNECT_API_KEY=FfDghn2d9it8Mesmo2uVYh2YXdYgDAAm
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET=${MINIO_BUCKET}
+      - MINIO_USE_SSL=${MINIO_USE_SSL:-true}
+      - REDIS_URL=${REDIS_URL}
+      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
+      - MTCONNECT_API_KEY=${MTCONNECT_API_KEY}
+      - BROKER_CREDENTIALS_KEY=${BROKER_CREDENTIALS_KEY}
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-480}
+      - REFRESH_TOKEN_EXPIRE_DAYS=${REFRESH_TOKEN_EXPIRE_DAYS:-30}
     deploy:
       mode: replicated
       replicas: 1

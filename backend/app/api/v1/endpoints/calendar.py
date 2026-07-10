@@ -10,8 +10,8 @@ from app.models.workspace import Workspace
 
 router = APIRouter()
 
-# In-memory calendar events (minimal functional implementation)
-_calendar_events = []
+# Per-user calendar events (in-memory; scoped by user id)
+_calendar_events: dict[str, list] = {}
 
 def get_workspace(db: Session, user: User) -> Workspace:
     return db.query(Workspace).filter(Workspace.owner_id == user.id).first()
@@ -291,11 +291,13 @@ def check_goals(
 
 @router.get("/events")
 def get_calendar_events(
+    current_user: User = Depends(get_current_user),
     year: Optional[int] = Query(default=None),
     month: Optional[int] = Query(default=None),
     account_id: Optional[str] = Query(default=None)
 ):
-    events = _calendar_events
+    user_id = str(current_user.id)
+    events = list(_calendar_events.get(user_id, []))
     if account_id:
         events = [e for e in events if e.get("account_id") == account_id]
     if year:
@@ -306,17 +308,27 @@ def get_calendar_events(
 
 
 @router.post("/events")
-def create_calendar_event(event: dict):
-    event_id = str(event.get("id") or f"evt_{len(_calendar_events) + 1}")
-    payload = {**event, "id": event_id}
-    _calendar_events.append(payload)
+def create_calendar_event(
+    event: dict,
+    current_user: User = Depends(get_current_user)
+):
+    user_id = str(current_user.id)
+    if user_id not in _calendar_events:
+        _calendar_events[user_id] = []
+    event_id = str(event.get("id") or f"evt_{len(_calendar_events[user_id]) + 1}")
+    payload = {**event, "id": event_id, "user_id": user_id}
+    _calendar_events[user_id].append(payload)
     return payload
 
 
 @router.delete("/events/{event_id}")
-def delete_calendar_event(event_id: str):
-    global _calendar_events
-    _calendar_events = [e for e in _calendar_events if e.get("id") != event_id]
+def delete_calendar_event(
+    event_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    user_id = str(current_user.id)
+    events = _calendar_events.get(user_id, [])
+    _calendar_events[user_id] = [e for e in events if e.get("id") != event_id]
     return {"message": "Evento removido"}
 
 

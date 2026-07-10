@@ -276,135 +276,6 @@ def bulk_delete_trades(
     return {"message": f"{deleted} trades removidos", "deleted": deleted}
 
 
-@router.get("/{trade_id}", response_model=TradeResponse)
-def get_trade(
-    trade_id: str,
-    current_user: CurrentUser,
-    db: DbSession
-):
-    """Get specific trade."""
-    # Get user's workspace
-    workspace = db.query(Workspace).filter(Workspace.owner_id == current_user.id).first()
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace não encontrado"
-        )
-    
-    # Find trade
-    trade = db.query(Trade).filter(
-        and_(
-            Trade.id == trade_id,
-            Trade.workspace_id == workspace.id
-        )
-    ).first()
-    
-    if not trade:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Trade não encontrado"
-        )
-    
-    return create_trade_response(trade)
-
-
-@router.patch("/{trade_id}", response_model=TradeResponse)
-def update_trade(
-    trade_id: str,
-    trade_data: TradeUpdate,
-    current_user: CurrentUser,
-    db: DbSession
-):
-    """Update trade."""
-    # Get user's workspace
-    workspace = db.query(Workspace).filter(Workspace.owner_id == current_user.id).first()
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace não encontrado"
-        )
-    
-    # Find trade
-    trade = db.query(Trade).filter(
-        and_(
-            Trade.id == trade_id,
-            Trade.workspace_id == workspace.id
-        )
-    ).first()
-    
-    if not trade:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Trade não encontrado"
-        )
-    
-    # Store old PnL to check if balance needs recalculation
-    old_pnl = float(trade.pnl)
-    old_vm_pnl = float(trade.vm_pnl) if trade.vm_pnl else 0.0
-    
-    # Update fields
-    update_data = trade_data.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(trade, field, value)
-    
-    # Update year/month if date changed
-    if update_data.get("date"):
-        trade.year = trade.date.year
-        trade.month = trade.date.month
-    
-    trade.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(trade)
-    
-    # Check if PnL changed and recalculate balance
-    new_pnl = float(trade.pnl)
-    new_vm_pnl = float(trade.vm_pnl) if trade.vm_pnl else 0.0
-    
-    if old_pnl != new_pnl or old_vm_pnl != new_vm_pnl:
-        update_account_balance(db, str(trade.account_id))
-    
-    return create_trade_response(trade)
-
-
-@router.delete("/{trade_id}")
-def delete_trade(
-    trade_id: str,
-    current_user: CurrentUser,
-    db: DbSession
-):
-    """Delete trade."""
-    # Get user's workspace
-    workspace = db.query(Workspace).filter(Workspace.owner_id == current_user.id).first()
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace não encontrado"
-        )
-    
-    # Find trade
-    trade = db.query(Trade).filter(
-        and_(
-            Trade.id == trade_id,
-            Trade.workspace_id == workspace.id
-        )
-    ).first()
-    
-    if not trade:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Trade não encontrado"
-        )
-    
-    account_id = str(trade.account_id)
-    db.delete(trade)
-    db.commit()
-    
-    # Update account balance
-    update_account_balance(db, account_id)
-    
-    return {"message": "Trade removido"}
-
-
 @router.delete("")
 def delete_trades(
     trade_ids: dict,
@@ -672,15 +543,122 @@ def get_worst_trades(
     )
     if account_id:
         query = query.filter(Trade.account_id == account_id)
-    trades = query.order_by(Trade.pnl.asc()).limit(limit).all()
-    return [
-        {
-            "id": str(t.id),
-            "date": str(t.date),
-            "pair": t.pair,
-            "direction": t.direction,
-            "pnl": round(float(t.pnl or 0), 2),
-            "result": t.result
-        }
         for t in trades
     ]
+
+
+@router.get("/{trade_id}", response_model=TradeResponse)
+def get_trade(
+    trade_id: str,
+    current_user: CurrentUser,
+    db: DbSession
+):
+    """Get specific trade."""
+    workspace = db.query(Workspace).filter(Workspace.owner_id == current_user.id).first()
+    if not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace não encontrado"
+        )
+
+    trade = db.query(Trade).filter(
+        and_(
+            Trade.id == trade_id,
+            Trade.workspace_id == workspace.id
+        )
+    ).first()
+
+    if not trade:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trade não encontrado"
+        )
+
+    return create_trade_response(trade)
+
+
+@router.patch("/{trade_id}", response_model=TradeResponse)
+def update_trade(
+    trade_id: str,
+    trade_data: TradeUpdate,
+    current_user: CurrentUser,
+    db: DbSession
+):
+    """Update trade."""
+    workspace = db.query(Workspace).filter(Workspace.owner_id == current_user.id).first()
+    if not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace não encontrado"
+        )
+
+    trade = db.query(Trade).filter(
+        and_(
+            Trade.id == trade_id,
+            Trade.workspace_id == workspace.id
+        )
+    ).first()
+
+    if not trade:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trade não encontrado"
+        )
+
+    old_pnl = float(trade.pnl)
+    old_vm_pnl = float(trade.vm_pnl) if trade.vm_pnl else 0.0
+
+    update_data = trade_data.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(trade, field, value)
+
+    if update_data.get("date"):
+        trade.year = trade.date.year
+        trade.month = trade.date.month
+
+    trade.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(trade)
+
+    new_pnl = float(trade.pnl)
+    new_vm_pnl = float(trade.vm_pnl) if trade.vm_pnl else 0.0
+
+    if old_pnl != new_pnl or old_vm_pnl != new_vm_pnl:
+        update_account_balance(db, str(trade.account_id))
+
+    return create_trade_response(trade)
+
+
+@router.delete("/{trade_id}")
+def delete_trade(
+    trade_id: str,
+    current_user: CurrentUser,
+    db: DbSession
+):
+    """Delete trade."""
+    workspace = db.query(Workspace).filter(Workspace.owner_id == current_user.id).first()
+    if not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace não encontrado"
+        )
+
+    trade = db.query(Trade).filter(
+        and_(
+            Trade.id == trade_id,
+            Trade.workspace_id == workspace.id
+        )
+    ).first()
+
+    if not trade:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trade não encontrado"
+        )
+
+    account_id = str(trade.account_id)
+    db.delete(trade)
+    db.commit()
+    update_account_balance(db, account_id)
+
+    return {"message": "Trade removido"}

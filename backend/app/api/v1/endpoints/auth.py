@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -13,6 +14,7 @@ from app.core.security import (
     hash_password, verify_password, 
     create_access_token, create_refresh_token, decode_token
 )
+from app.core.token_blacklist import blacklist_token
 from app.dependencies import DbSession, CurrentUser
 from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember
@@ -23,6 +25,7 @@ from app.schemas.auth import (
 )
 
 router = APIRouter()
+security = HTTPBearer(auto_error=False)
 
 
 def create_user_response(user: User) -> UserResponse:
@@ -271,8 +274,12 @@ def get_me(current_user: CurrentUser):
 
 
 @router.post("/logout")
-def logout():
-    """Logout user."""
+def logout(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Logout user and blacklist the current access token."""
+    if credentials and credentials.credentials:
+        payload = decode_token(credentials.credentials)
+        exp = payload.get("exp") if payload else None
+        blacklist_token(credentials.credentials, exp)
     return {"message": "logout realizado"}
 
 

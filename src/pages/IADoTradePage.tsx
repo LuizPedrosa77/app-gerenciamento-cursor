@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect, useCallback, KeyboardEvent, ChangeEvent } from 'react';
-import { Bot, Send, Paperclip, X, Target, Zap, Brain, AlertTriangle, TrendingUp, Trophy, BarChart2, CheckCircle2 } from 'lucide-react';
+import { Bot, Send, Paperclip, X, Target, Zap, Brain, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import aiService from '@/services/aiService';
+import dashboardService from '@/services/dashboardService';
+import calendarService from '@/services/calendarService';
 
 /* ───── Types ───── */
 interface Message {
@@ -182,8 +185,6 @@ function StatCard({ label, value, color }: { label: string; value: string; color
   );
 }
 
-const WEBHOOK_URL = 'https://webhook.testedev.online/webhook/app-gerenciamento-fx';
-
 const SUGGESTIONS = [
   'Analise meu desempenho este mês',
   'Quais são meus melhores pares?',
@@ -205,6 +206,12 @@ export default function IADoTradePage() {
   const [input, setInput] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [metrics, setMetrics] = useState({
+    winRate: '—',
+    pnl: '—',
+    trades: '—',
+    streak: '—',
+  });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -223,6 +230,22 @@ export default function IADoTradePage() {
     ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
   }, [input]);
 
+  useEffect(() => {
+    Promise.all([
+      dashboardService.getSummary(),
+      calendarService.getStreaks(),
+    ]).then(([summary, streaks]) => {
+      setMetrics({
+        winRate: summary.win_rate != null ? `${summary.win_rate.toFixed(1)}%` : '—',
+        pnl: summary.total_pnl != null
+          ? `${summary.total_pnl >= 0 ? '+' : ''}$${summary.total_pnl.toFixed(0)}`
+          : '—',
+        trades: summary.total_trades != null ? String(summary.total_trades) : '—',
+        streak: streaks?.current_streak != null ? `${streaks.current_streak}W` : '—',
+      });
+    }).catch(() => {});
+  }, []);
+
   const sendMessage = useCallback(async (text: string, attachment?: File | null) => {
     if (!text.trim() && !attachment) return;
     const userMsg: Message = { id: crypto.randomUUID(), role: 'user', text: text.trim(), fileName: attachment?.name, timestamp: new Date() };
@@ -232,17 +255,27 @@ export default function IADoTradePage() {
     setLoading(true);
 
     try {
-      const formData = new FormData();
-      formData.append('message', text.trim());
-      formData.append('timestamp', new Date().toISOString());
-      if (attachment) formData.append('file', attachment);
-
-      const res = await fetch(WEBHOOK_URL, { method: 'POST', body: formData });
-      const data = await res.json();
-      const aiText = data.response || data.message || 'Sem resposta do servidor.';
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'ai', text: aiText, timestamp: new Date() }]);
+      const result = await aiService.analyze({
+        analysis_type: 'general',
+        question: text.trim() || (attachment ? `Analise o arquivo anexo: ${attachment.name}` : ''),
+      });
+      const aiText = result.analysis || 'Sem resposta da IA.';
+      const suggestions = result.suggestions?.length
+        ? `\n\nSugestões:\n${result.suggestions.map((s) => `• ${s}`).join('\n')}`
+        : '';
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        role: 'ai',
+        text: aiText + suggestions,
+        timestamp: new Date(),
+      }]);
     } catch {
-      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'ai', text: 'Não consegui conectar ao servidor. Verifique o webhook do n8n.', timestamp: new Date() }]);
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        role: 'ai',
+        text: 'Não consegui processar sua pergunta. Tente novamente.',
+        timestamp: new Date(),
+      }]);
     } finally {
       setLoading(false);
     }
@@ -281,10 +314,10 @@ export default function IADoTradePage() {
         </div>
         {/* quick metrics */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <StatCard label="Win Rate" value="68%" color="#00ffb4" />
-          <StatCard label="P&L Mensal" value="+$2.340" color="#00c8ff" />
-          <StatCard label="Trades" value="47" color="#a78bfa" />
-          <StatCard label="Streak" value="5W" color="#f5c842" />
+          <StatCard label="Win Rate" value={metrics.winRate} color="#00ffb4" />
+          <StatCard label="P&L Mensal" value={metrics.pnl} color="#00c8ff" />
+          <StatCard label="Trades" value={metrics.trades} color="#a78bfa" />
+          <StatCard label="Streak" value={metrics.streak} color="#f5c842" />
         </div>
       </header>
 
@@ -391,10 +424,10 @@ export default function IADoTradePage() {
           <div>
             <p className="text-[11px] uppercase tracking-wider mb-2 font-semibold" style={{ color: 'rgba(255,255,255,0.35)' }}>Métricas Rápidas</p>
             <div className="grid grid-cols-2 gap-2">
-              <MiniStat label="Win Rate" value="68%" color="#00ffb4" />
-              <MiniStat label="P&L" value="+$2.3k" color="#00c8ff" />
-              <MiniStat label="Sequência" value="5W" color="#f5c842" />
-              <MiniStat label="Trades" value="47" color="#a78bfa" />
+              <MiniStat label="Win Rate" value={metrics.winRate} color="#00ffb4" />
+              <MiniStat label="P&L" value={metrics.pnl} color="#00c8ff" />
+              <MiniStat label="Sequência" value={metrics.streak} color="#f5c842" />
+              <MiniStat label="Trades" value={metrics.trades} color="#a78bfa" />
             </div>
           </div>
 
@@ -422,7 +455,7 @@ export default function IADoTradePage() {
           <div className="mt-auto rounded-xl p-3" style={{ background: 'rgba(0,255,180,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <div className="flex items-center gap-2 text-xs" style={{ color: '#00ffb4' }}>
               <CheckCircle2 size={14} />
-              <span>n8n Conectado</span>
+              <span>IA Backend Conectada</span>
             </div>
           </div>
         </aside>

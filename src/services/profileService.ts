@@ -153,6 +153,10 @@ class ProfileService {
       throw error;
     }
   }
+
+  async deleteAccount(): Promise<void> {
+    await api.delete('/api/v1/profile');
+  }
 }
 
 export const profileService = new ProfileService();

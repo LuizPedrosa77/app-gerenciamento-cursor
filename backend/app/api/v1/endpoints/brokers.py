@@ -98,6 +98,38 @@ def connect_broker(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.get("/available")
+def get_available_brokers():
+    """Retorna lista de corretoras disponíveis"""
+    return [
+        {
+            "type": "MT4",
+            "name": "MetaTrader 4",
+            "description": "Plataforma clássica de trading"
+        },
+        {
+            "type": "MT5",
+            "name": "MetaTrader 5",
+            "description": "Plataforma avançada de trading"
+        },
+        {
+            "type": "cTrader",
+            "name": "cTrader",
+            "description": "Plataforma ECN profissional"
+        },
+        {
+            "type": "Tradovate",
+            "name": "Tradovate",
+            "description": "Plataforma de futuros"
+        },
+        {
+            "type": "NinjaTrader",
+            "name": "NinjaTrader",
+            "description": "Plataforma avançada de futuros"
+        }
+    ]
+
+
 @router.get("/{account_id}")
 def get_broker_connection(
     account_id: str,
@@ -220,35 +252,3 @@ def disconnect_broker(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.get("/available")
-def get_available_brokers():
-    """Retorna lista de corretoras disponíveis"""
-    return [
-        {
-            "type": "MT4",
-            "name": "MetaTrader 4",
-            "description": "Plataforma clássica de trading"
-        },
-        {
-            "type": "MT5",
-            "name": "MetaTrader 5",
-            "description": "Plataforma avançada de trading"
-        },
-        {
-            "type": "cTrader",
-            "name": "cTrader",
-            "description": "Plataforma ECN profissional"
-        },
-        {
-            "type": "Tradovate",
-            "name": "Tradovate",
-            "description": "Plataforma de futuros"
-        },
-        {
-            "type": "NinjaTrader",
-            "name": "NinjaTrader",
-            "description": "Plataforma avançada de futuros"
-        }
-    ]

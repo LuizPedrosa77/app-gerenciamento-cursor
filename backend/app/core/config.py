@@ -17,10 +17,20 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://redis:6379/0"
     N8N_WEBHOOK_URL: str = ""
     MTCONNECT_API_KEY: str = ""
+    BROKER_CREDENTIALS_KEY: str = ""
+    CORS_ORIGINS: str = (
+        "http://localhost:5173,http://localhost:3000,http://localhost:8080,"
+        "https://fx.testedev.online,https://www.fx.testedev.online"
+    )
+    RATE_LIMIT_PER_MINUTE: int = 100
+    RATE_LIMIT_PER_HOUR: int = 1000
 
     class Config:
         env_file = ".env"
         extra = "ignore"
+
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
 
 settings = Settings()

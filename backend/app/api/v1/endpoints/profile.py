@@ -341,3 +341,42 @@ def disconnect_google(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Failed to disconnect Google account"
         )
+
+
+@router.delete("")
+def delete_account(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Permanently delete the user account and associated workspace data."""
+    from app.models.workspace import Workspace, WorkspaceMember
+    from app.models.account import Account
+    from app.models.trade import Trade
+    from app.models.withdrawal import Withdrawal
+    from app.models.daily_note import DailyNote
+    from app.models.open_position import OpenPosition
+
+    try:
+        workspaces = db.query(Workspace).filter(Workspace.owner_id == current_user.id).all()
+        for workspace in workspaces:
+            account_ids = [
+                str(a.id) for a in db.query(Account).filter(Account.workspace_id == workspace.id).all()
+            ]
+            if account_ids:
+                db.query(OpenPosition).filter(OpenPosition.account_id.in_(account_ids)).delete(synchronize_session=False)
+                db.query(Trade).filter(Trade.workspace_id == workspace.id).delete(synchronize_session=False)
+                db.query(Withdrawal).filter(Withdrawal.account_id.in_(account_ids)).delete(synchronize_session=False)
+                db.query(DailyNote).filter(DailyNote.account_id.in_(account_ids)).delete(synchronize_session=False)
+                db.query(Account).filter(Account.workspace_id == workspace.id).delete(synchronize_session=False)
+            db.query(WorkspaceMember).filter(WorkspaceMember.workspace_id == workspace.id).delete(synchronize_session=False)
+            db.delete(workspace)
+
+        db.delete(current_user)
+        db.commit()
+        return {"message": "Conta excluída permanentemente"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Falha ao excluir conta: {str(e)}"
+        )

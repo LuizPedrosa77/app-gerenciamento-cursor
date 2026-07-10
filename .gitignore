@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+dist/
+.vite/
+
+# Environment & secrets
+.env
+.env.local
+.env.production
+.env.*.local
+backend/.env
+backend/.env.production
+backend/.env.local
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Keys & credentials
+*.pem
+*.key
+*.p12
+credentials.json
+secrets/
+
+# Test scripts with sensitive data
+test_api_key*.py
+test_goat*.py
+test_password_types.py
+
+# Build artifacts
+*.log
+coverage/

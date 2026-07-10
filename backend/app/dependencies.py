@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import decode_token
+from app.core.token_blacklist import is_token_blacklisted
 from app.models.user import User
 
 
@@ -23,8 +24,15 @@ def get_current_user(
     """
     Get current authenticated user from Bearer token.
     """
-    # Decode token
-    payload = decode_token(credentials.credentials)
+    token = credentials.credentials
+    if is_token_blacklisted(token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token revogado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    payload = decode_token(token)
     if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

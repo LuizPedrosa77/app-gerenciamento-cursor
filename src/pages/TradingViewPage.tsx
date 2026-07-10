@@ -6,6 +6,7 @@ import { ChevronDown, ChevronUp, MapPin, Camera, Play, Pause, SkipBack, SkipForw
 import { toast } from '@/hooks/use-toast';
 import { Lightbox } from '@/components/Lightbox';
 import { ScreenshotModal } from '@/components/ScreenshotModal';
+import ReplayPanel from '@/components/ReplayPanel';
 import tradeService from '@/services/tradeService';
 import { getChartGoto, clearChartGoto } from '@/lib/chart-goto';
 
@@ -399,6 +400,8 @@ export default function TradingViewPage() {
           </>
         )}
       </div>
+
+      <ReplayPanel />
 
       {/* Stats Bar */}
       <div

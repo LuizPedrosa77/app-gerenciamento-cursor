@@ -221,6 +221,21 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
   const [monthSummary, setMonthSummary] = useState<CalendarMonthSummary | null>(null);
   const [streaks, setStreaks] = useState<{ current_streak: number; best_streak: number } | null>(null);
 
+  const handleExportCalendar = async () => {
+    try {
+      const accountId = accFilter !== 'all' ? state.accounts[parseInt(accFilter)]?._apiId : undefined;
+      const blob = await calendarService.exportCalendarData(calYear, 'csv', accountId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `calendario_${calYear}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('Falha ao exportar calendário.');
+    }
+  };
+
   const selectedAccounts = useMemo(() => {
     if (accFilter === 'all') return state.accounts;
     return [state.accounts[parseInt(accFilter)]].filter(Boolean);
@@ -638,7 +653,11 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
           </span>
           <span className="text-xs" style={{ color: 'var(--gpfx-text-muted)' }}>{daysOperated} dias operados</span>
         </div>
-        <button className="btn-gpfx btn-gpfx-primary text-xs" onClick={() => {
+        <div className="flex items-center gap-2">
+          <button className="btn-gpfx btn-gpfx-ghost text-xs" onClick={handleExportCalendar}>
+            Exportar CSV
+          </button>
+          <button className="btn-gpfx btn-gpfx-primary text-xs" onClick={() => {
           if (isAllAccounts) {
             alert('Selecione uma conta específica para adicionar trade.');
             return;
@@ -653,6 +672,7 @@ export default function CalendarioPage({ onNavigateView }: CalendarioPageProps) 
         >
           <Plus size={14} /> Novo Trade
         </button>
+        </div>
       </div>
 
       {/* Main grid: Calendar + Right column */}
