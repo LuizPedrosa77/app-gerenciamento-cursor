@@ -33,8 +33,8 @@ uvicorn app.main:app --reload --port 8000
 ## Docker
 
 ```bash
-docker build -t gpfx-backend .
-docker run -p 8000:8000 --env-file .env gpfx-backend
+docker build -f backend/Dockerfile -t gpfx-backend .
+docker run -p 8000:8000 --env-file backend/.env gpfx-backend
 ```
 
 ## Migrations
