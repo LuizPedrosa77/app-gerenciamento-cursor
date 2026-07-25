@@ -1,4 +1,8 @@
-import requests
+try:
+    import httpx as http_client
+except ImportError:
+    import requests as http_client
+
 from datetime import datetime
 from typing import Optional
 from app.core.config import settings
@@ -40,7 +44,7 @@ def fetch_trade_history(
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
     }
-    response = requests.get(url, params=params, headers=headers, timeout=60)
+    response = http_client.get(url, params=params, headers=headers, timeout=60)
     response.raise_for_status()
 
     text = response.text.strip()
