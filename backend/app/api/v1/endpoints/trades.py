@@ -543,6 +543,16 @@ def get_worst_trades(
     )
     if account_id:
         query = query.filter(Trade.account_id == account_id)
+    trades = query.order_by(Trade.pnl.asc()).limit(limit).all()
+    return [
+        {
+            "id": str(t.id),
+            "date": str(t.date),
+            "pair": t.pair,
+            "direction": t.direction,
+            "pnl": round(float(t.pnl or 0), 2),
+            "result": t.result
+        }
         for t in trades
     ]
 
