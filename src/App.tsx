@@ -437,9 +437,10 @@ function PwdStrength({password}:{password:string}) {
 
 // ─── LOGIN VIEW ───────────────────────────────────────────────────────────────
 function LoginView({setView,onAuthSuccess}:{setView:(v:AuthView)=>void;onAuthSuccess:()=>void}) {
+  const { login } = useAuth();
   const [email,setEmail]=useState(""); const [password,setPassword]=useState(""); const [loading,setLoading]=useState(false); const [errors,setErrors]=useState<Record<string,string>>({}); const [formError,setFormError]=useState("");
   const validate=()=>{const e:Record<string,string>={};if(!email)e.email="Informe seu e-mail";else if(!/\S+@\S+\.\S+/.test(email))e.email="E-mail inválido";if(!password)e.password="Informe sua senha";else if(password.length<6)e.password="Mínimo 6 caracteres";setErrors(e);return Object.keys(e).length===0;};
-  const handleSubmit=async (e:React.FormEvent)=>{e.preventDefault();setFormError("");if(!validate())return;setLoading(true);try{await authService.login({email,password});if(!authService.isAuthenticated())throw new Error("Sessão não persistida");onAuthSuccess();}catch(err){setFormError(getApiErrorMessage(err,"Não foi possível entrar. Verifique seus dados."));}finally{setLoading(false);}};
+  const handleSubmit=async (e:React.FormEvent)=>{e.preventDefault();setFormError("");if(!validate())return;setLoading(true);try{await login({email,password});if(!authService.isAuthenticated())throw new Error("Sessão não persistida");onAuthSuccess();}catch(err){setFormError(getApiErrorMessage(err,"Não foi possível entrar. Verifique seus dados."));}finally{setLoading(false);}};
   return (
     <div className="av-wrap" key="login">
       <div className="av-header"><div className="av-eyebrow">Bem-vindo de volta</div><h1 className="av-title">Entrar na <b>plataforma</b></h1><p className="av-sub">Acesse seu dashboard e continue evoluindo.</p></div>
@@ -492,6 +493,7 @@ function validateCPF(cpf: string): boolean {
 
 // ─── REGISTER VIEW — multi-step ───────────────────────────────────────────────
 function RegisterView({setView,onAuthSuccess}:{setView:(v:AuthView)=>void;onAuthSuccess:()=>void}) {
+  const { register } = useAuth();
   const [step, setStep] = useState<1|2>(1);
 
   // ── Step 1 — obrigatórios
@@ -545,7 +547,7 @@ function RegisterView({setView,onAuthSuccess}:{setView:(v:AuthView)=>void;onAuth
     if (Object.keys(e2).length > 0) return;
     setLoading(true);
     try {
-      await authService.register({
+      await register({
         name,
         email,
         cpf: cpf.replace(/\D/g, ""),

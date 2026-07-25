@@ -149,12 +149,13 @@ class ErrorBoundary extends React.Component<
 export default function Index({ onLogout }: { onLogout?: () => Promise<void> | void } = {}) {
   const navigate = useNavigate();
   const { state, logout } = useAuth();
+  const isAuth = state.isAuthenticated || authService.isAuthenticated();
 
   useEffect(() => {
-    if (!state.isLoading && !state.isAuthenticated) {
+    if (!state.isLoading && !isAuth) {
       navigate('/', { replace: true });
     }
-  }, [state.isAuthenticated, state.isLoading, navigate]);
+  }, [isAuth, state.isLoading, navigate]);
 
   const handleLogout = async () => {
     if (onLogout) {
@@ -165,7 +166,7 @@ export default function Index({ onLogout }: { onLogout?: () => Promise<void> | v
     }
   };
 
-  if (!state.isLoading && !state.isAuthenticated) {
+  if (!state.isLoading && !isAuth) {
     return null;
   }
 
