@@ -1,8 +1,9 @@
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "postgresql://user:password@localhost/dbname"
+    DATABASE_URL: str = "postgresql://postgres:postgres@gpfx-postgres:5432/gpfx"
     SECRET_KEY: str = "dev-secret-key"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
@@ -28,6 +29,13 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         extra = "ignore"
+
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def validate_database_url(cls, v: str | None) -> str:
+        if not v or not str(v).strip():
+            return "postgresql://postgres:postgres@gpfx-postgres:5432/gpfx"
+        return str(v).strip()
 
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
