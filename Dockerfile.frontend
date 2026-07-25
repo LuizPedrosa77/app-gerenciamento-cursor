@@ -8,17 +8,20 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci && chmod +x -R node_modules/.bin
+RUN npm ci
 
 # Copy source code
 COPY . .
+
+# Ensure binary execution permissions
+RUN chmod -R +x node_modules/.bin 2>/dev/null || true
 
 # Build-time API endpoint (Vite reads envs during build)
 ARG VITE_API_URL=https://api.testedev.online
 ENV VITE_API_URL=${VITE_API_URL}
 
-# Build the application
-RUN npm run build
+# Build the application directly via Node
+RUN node ./node_modules/vite/bin/vite.js build
 
 # Production stage
 FROM nginx:alpine
