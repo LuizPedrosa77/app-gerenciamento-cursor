@@ -32,3 +32,4 @@ class Account(Base):
     trades = relationship("Trade", back_populates="account")
     withdrawals = relationship("Withdrawal", back_populates="account")
     daily_notes = relationship("DailyNote", back_populates="account")
+    calendar_events = relationship("CalendarEvent", backref="account")

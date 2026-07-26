@@ -44,3 +44,4 @@ class User(Base):
     # Relationships
     workspaces = relationship("Workspace", back_populates="owner")
     workspace_members = relationship("WorkspaceMember", back_populates="user")
+    calendar_events = relationship("CalendarEvent", backref="user")

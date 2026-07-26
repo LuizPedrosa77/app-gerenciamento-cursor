@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query, Response, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime, timedelta, date
@@ -7,11 +7,9 @@ from app.models.user import User
 from app.models.trade import Trade
 from app.models.account import Account
 from app.models.workspace import Workspace
+from app.models.calendar_event import CalendarEvent
 
 router = APIRouter()
-
-# Per-user calendar events (in-memory; scoped by user id)
-_calendar_events: dict[str, list] = {}
 
 def get_workspace(db: Session, user: User) -> Workspace:
     return db.query(Workspace).filter(Workspace.owner_id == user.id).first()
@@ -291,44 +289,94 @@ def check_goals(
 
 @router.get("/events")
 def get_calendar_events(
+    db: DbSession,
     current_user: User = Depends(get_current_user),
     year: Optional[int] = Query(default=None),
     month: Optional[int] = Query(default=None),
     account_id: Optional[str] = Query(default=None)
 ):
-    user_id = str(current_user.id)
-    events = list(_calendar_events.get(user_id, []))
+    query = db.query(CalendarEvent).filter(CalendarEvent.user_id == current_user.id)
+    
     if account_id:
-        events = [e for e in events if e.get("account_id") == account_id]
+        query = query.filter(CalendarEvent.account_id == account_id)
     if year:
-        events = [e for e in events if e.get("date", "").startswith(f"{year:04d}-")]
+        query = query.filter(CalendarEvent.event_date >= date(year, 1, 1), CalendarEvent.event_date <= date(year, 12, 31))
     if month and year:
-        events = [e for e in events if e.get("date", "").startswith(f"{year:04d}-{month:02d}")]
-    return events
+        if month == 12:
+            query = query.filter(CalendarEvent.event_date >= date(year, month, 1), CalendarEvent.event_date < date(year + 1, 1, 1))
+        else:
+            query = query.filter(CalendarEvent.event_date >= date(year, month, 1), CalendarEvent.event_date < date(year, month + 1, 1))
+    
+    events = query.order_by(CalendarEvent.event_date.asc()).all()
+    
+    return [
+        {
+            "id": str(event.id),
+            "title": event.title,
+            "description": event.description,
+            "date": event.event_date.isoformat(),
+            "event_type": event.event_type,
+            "account_id": str(event.account_id) if event.account_id else None,
+        }
+        for event in events
+    ]
 
 
 @router.post("/events")
 def create_calendar_event(
     event: dict,
+    db: DbSession,
     current_user: User = Depends(get_current_user)
 ):
-    user_id = str(current_user.id)
-    if user_id not in _calendar_events:
-        _calendar_events[user_id] = []
-    event_id = str(event.get("id") or f"evt_{len(_calendar_events[user_id]) + 1}")
-    payload = {**event, "id": event_id, "user_id": user_id}
-    _calendar_events[user_id].append(payload)
-    return payload
+    try:
+        new_event = CalendarEvent(
+            user_id=current_user.id,
+            account_id=event.get("account_id"),
+            title=event.get("title"),
+            description=event.get("description"),
+            event_date=datetime.fromisoformat(event.get("date")).date() if event.get("date") else None,
+            event_type=event.get("event_type", "reminder")
+        )
+        db.add(new_event)
+        db.commit()
+        db.refresh(new_event)
+        
+        return {
+            "id": str(new_event.id),
+            "title": new_event.title,
+            "description": new_event.description,
+            "date": new_event.event_date.isoformat(),
+            "event_type": new_event.event_type,
+            "account_id": str(new_event.account_id) if new_event.account_id else None,
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to create event: {str(e)}"
+        )
 
 
 @router.delete("/events/{event_id}")
 def delete_calendar_event(
     event_id: str,
+    db: DbSession,
     current_user: User = Depends(get_current_user)
 ):
-    user_id = str(current_user.id)
-    events = _calendar_events.get(user_id, [])
-    _calendar_events[user_id] = [e for e in events if e.get("id") != event_id]
+    event = db.query(CalendarEvent).filter(
+        CalendarEvent.id == event_id,
+        CalendarEvent.user_id == current_user.id
+    ).first()
+    
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Evento não encontrado"
+        )
+    
+    db.delete(event)
+    db.commit()
+    
     return {"message": "Evento removido"}
 
 

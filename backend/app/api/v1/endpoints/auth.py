@@ -15,6 +15,8 @@ from app.core.security import (
     create_access_token, create_refresh_token, decode_token
 )
 from app.core.token_blacklist import blacklist_token
+from app.core.logging_config import get_logger
+from app.core.validators import validate_cpf_format
 from app.dependencies import DbSession, CurrentUser
 from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember
@@ -26,6 +28,7 @@ from app.schemas.auth import (
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
+logger = get_logger(__name__)
 
 
 def create_user_response(user: User) -> UserResponse:
@@ -53,9 +56,12 @@ def register(
     db: DbSession
 ):
     """Register new user."""
+    logger.info(f"Registration attempt for email: {user_data.email}")
+    
     # Check if email already exists
     existing_user = db.query(User).filter(User.email == user_data.email).first()
     if existing_user:
+        logger.warning(f"Registration failed: email already exists - {user_data.email}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email já cadastrado"
@@ -63,8 +69,17 @@ def register(
     
     # Check if CPF already exists
     if user_data.cpf:
+        # Validate CPF format
+        if not validate_cpf_format(user_data.cpf):
+            logger.warning(f"Registration failed: invalid CPF format - {user_data.cpf}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="CPF inválido"
+            )
+        
         existing_cpf = db.query(User).filter(User.cpf == user_data.cpf).first()
         if existing_cpf:
+            logger.warning(f"Registration failed: CPF already exists - {user_data.cpf}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="CPF já cadastrado"
@@ -84,15 +99,18 @@ def register(
             if response.status_code == 200:
                 google_data = response.json()
                 google_id = google_data.get("sub")
+                logger.info(f"Google token validated for user: {user_data.email}")
                 
                 # Check if Google ID already exists
                 existing_google = db.query(User).filter(User.google_id == google_id).first()
                 if existing_google:
+                    logger.warning(f"Registration failed: Google ID already linked - {google_id}")
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="Conta Google já vinculada a outro usuário"
                     )
-        except Exception:
+        except Exception as e:
+            logger.error(f"Google token validation failed for {user_data.email}: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Token Google inválido"
@@ -114,6 +132,7 @@ def register(
     db.add(user)
     db.commit()
     db.refresh(user)
+    logger.info(f"User registered successfully: {user.email} (ID: {user.id})")
     
     # Create default workspace
     workspace = Workspace(
@@ -123,6 +142,7 @@ def register(
     db.add(workspace)
     db.commit()
     db.refresh(workspace)
+    logger.info(f"Default workspace created for user {user.id}: {workspace.id}")
 
     # Add owner as workspace member for permission checks
     member = WorkspaceMember(
@@ -132,6 +152,7 @@ def register(
     )
     db.add(member)
     db.commit()
+    logger.info(f"Workspace member added: user {user.id} as owner of workspace {workspace.id}")
     
     # Create tokens
     access_token = create_access_token({"sub": str(user.id)})
@@ -150,9 +171,12 @@ def login(
     db: DbSession
 ):
     """Login user."""
+    logger.info(f"Login attempt for email: {login_data.email}")
+    
     # Find user by email
     user = db.query(User).filter(User.email == login_data.email).first()
     if not user:
+        logger.warning(f"Login failed: user not found - {login_data.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciais inválidas"
@@ -160,14 +184,19 @@ def login(
     
     # Verify password
     if not verify_password(login_data.password, user.hashed_password):
+        logger.warning(f"Login failed: invalid password - {login_data.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciais inválidas"
         )
     
+    logger.info(f"Login successful: {user.email} (ID: {user.id})")
+    
     # Create tokens
     access_token = create_access_token({"sub": str(user.id)})
     refresh_token = create_refresh_token({"sub": str(user.id)})
+    
+    logger.info(f"Tokens created for user: {user.id}")
     
     return TokenResponse(
         access_token=access_token,
