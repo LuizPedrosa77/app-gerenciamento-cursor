@@ -87,6 +87,8 @@ function normalizePair(value?: string): string {
   return raw;
 }
 
+import { parseISO, format, isValid } from 'date-fns';
+
 export function apiTradeToLocal(t: APITrade): Trade {
   const trade = t as APITradeExtended;
   const rawDate = t.date ? t.date.toString() : '';
