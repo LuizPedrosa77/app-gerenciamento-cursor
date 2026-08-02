@@ -167,7 +167,7 @@ class AuthService {
   /**
    * Faz logout do usuário
    */
-  async logout(options: { redirect?: boolean } = {}): Promise<void> {
+  async logout(): Promise<void> {
     try {
       const refreshToken = this.refreshTokenValue;
       
@@ -182,10 +182,8 @@ class AuthService {
       // Limpar dados locais
       this.clearSession();
       
-      // Redirecionar para landing apenas quando solicitado
-      if (options.redirect !== false && typeof window !== 'undefined') {
-        window.location.replace('/');
-      }
+      // Redirecionar para login
+      window.location.href = '/';
     }
   }
 

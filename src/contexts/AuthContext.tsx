@@ -217,7 +217,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Logout
   const logout = async (): Promise<void> => {
     try {
-      await authService.logout({ redirect: false });
+      await authService.logout();
       dispatch({ type: 'LOGOUT' });
     } catch (error) {
       console.error('Logout error:', error);

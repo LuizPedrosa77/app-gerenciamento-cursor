@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Routes, Route, Navigate, useNavigate, Outlet, useLocation } from "react-router-dom";
+
+import { useState, useEffect, useRef } from "react";
+>>>>>>> parent of 57ed6b50 (Fix session logout flow)
 import Index from "./pages/Index";
 import authService from "./services/authService";
-import { useAuth } from "./contexts/AuthContext";
 
 import { HomePage, FuncPage, PrecosPage, FAQPage, EmpresaPage, Nav, Footer, useCustomCursor } from './pages/Landing';
 import { AuthRoot } from './pages/Auth';
@@ -49,46 +49,44 @@ function LandingLayout() {
 }
 
 export default function App() {
-  const navigate = useNavigate();
-  const { state: authState, logout } = useAuth();
-  const [authenticated, setAuthenticated] = useState(
-    () => authState.isAuthenticated || authService.isAuthenticated()
-  );
 
-  useEffect(() => {
-    setAuthenticated(authState.isAuthenticated || authService.isAuthenticated());
-  }, [authState.isAuthenticated]);
+  const [authenticated, setAuthenticated] = useState(() => authService.isAuthenticated());
+  const [rootView, setRootView] = useState<RootView>("home");
+  const [authView, setAuthView] = useState<AuthView>("login");
+  const { curRef, ringRef } = useCustomCursor();
 
+  const go = (p: Page) => { setRootView(p); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const goAuth = (v: AuthView) => { setAuthView(v); setRootView("auth"); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const goSite = () => { setRootView("home"); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const onAuthSuccess = () => setAuthenticated(true);
-  const handleLogout = async () => {
-    await logout();
-    setAuthenticated(false);
-    navigate("/", { replace: true });
+
+  const isAuth = rootView === "auth";
+
+  const renderPage = () => {
+    switch (rootView) {
+      case "funcionalidades": return <FuncPage   goAuth={goAuth}/>;
+      case "precos":          return <PrecosPage  goAuth={goAuth}/>;
+      case "faq":             return <FAQPage/>;
+      case "empresa":         return <EmpresaPage/>;
+      case "auth":            return <AuthRoot initialView={authView} goSite={goSite} onAuthSuccess={onAuthSuccess}/>;
+      default:                return <HomePage   go={go} goAuth={goAuth}/>;
+    }
   };
+
+  if (authenticated) return <Index />;
 
   return (
     <>
-      <Toaster theme="dark" toastOptions={{ style: { background: "#111115", border: "1px solid rgba(255,255,255,0.08)", color: "#F2F0EC" } }} />
-      <Routes>
-        <Route
-          path="/app/*"
-          element={authenticated ? <Index onLogout={handleLogout} /> : <Navigate to="/login" replace />}
-        />
-        
-        {/* Auth Routes */}
-        <Route path="/login" element={authenticated ? <Navigate to="/app" replace /> : <AuthRoot initialView="login" onAuthSuccess={onAuthSuccess}/>} />
-        <Route path="/register" element={authenticated ? <Navigate to="/app" replace /> : <AuthRoot initialView="register" onAuthSuccess={onAuthSuccess}/>} />
-
-        {/* Landing Routes */}
-        <Route element={authenticated ? <Navigate to="/app" replace /> : <LandingLayout />}>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/funcionalidades" element={<FuncPage />} />
-          <Route path="/precos" element={<PrecosPage />} />
-          <Route path="/faq" element={<FAQPage />} />
-          <Route path="/empresa" element={<EmpresaPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
+      <link rel="preconnect" href="https://fonts.googleapis.com"/>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet"/>
+      <style dangerouslySetInnerHTML={{ __html: STYLES }}/>
+      <div id="cur"      ref={curRef}/>
+      <div id="cur-ring" ref={ringRef}/>
+      {!isAuth && <Nav cur={rootView as Page} go={go} goAuth={goAuth}/>}
+      {renderPage()}
+      {!isAuth && <Footer go={go}/>}
+      {!isAuth && <WhatsAppBtn/>}
+>>>>>>> parent of 57ed6b50 (Fix session logout flow)
     </>
   );
 }
