@@ -37,6 +37,13 @@ class Settings(BaseSettings):
             return "postgresql://postgres:postgres@gpfx-postgres:5432/gpfx"
         return str(v).strip()
 
+    @field_validator("REDIS_URL", mode="before")
+    @classmethod
+    def validate_redis_url(cls, v: str | None) -> str:
+        if not v or not str(v).strip():
+            return "redis://redis:6379/0"
+        return str(v).strip()
+
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 

@@ -32,6 +32,7 @@ export function useCustomCursor() {
   const ringRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    document.body.classList.add('has-custom-cursor');
     const handleMouseMove = (e: MouseEvent) => {
       if (curRef.current) {
         curRef.current.style.left = e.clientX + 'px';
@@ -44,7 +45,10 @@ export function useCustomCursor() {
     };
     
     window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
+    return () => {
+      document.body.classList.remove('has-custom-cursor');
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
   }, []);
 
   return { curRef, ringRef };
