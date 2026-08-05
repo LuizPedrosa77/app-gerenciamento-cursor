@@ -152,7 +152,16 @@ export default function Index() {
   };
 
   if (!authenticated) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#0d1117', color: '#e2e8f0' }}>
+        <div className="text-center">
+          <div className="text-lg font-bold mb-2">Redirecionando...</div>
+          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.55)' }}>
+            Sua sessão não está ativa.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (

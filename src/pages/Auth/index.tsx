@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { AuthView } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
@@ -60,7 +59,7 @@ export function LoginView({setView,onAuthSuccess}:{setView:(v:AuthView)=>void;on
   const { login } = useAuth();
   const [email,setEmail]=useState(""); const [password,setPassword]=useState(""); const [loading,setLoading]=useState(false); const [errors,setErrors]=useState<Record<string,string>>({}); const [formError,setFormError]=useState("");
   const validate=()=>{const e:Record<string,string>={};if(!email)e.email="Informe seu e-mail";else if(!/\S+@\S+\.\S+/.test(email))e.email="E-mail inválido";if(!password)e.password="Informe sua senha";else if(password.length<6)e.password="Mínimo 6 caracteres";setErrors(e);return Object.keys(e).length===0;};
-  const handleSubmit=async (e:React.FormEvent)=>{e.preventDefault();setFormError("");if(!validate())return;setLoading(true);try{await login({email,password});if(!authService.isAuthenticated())throw new Error("Sessão não persistida");toast.success("Bem-vindo de volta!"); toast.success("Conta criada com sucesso!"); onAuthSuccess();}catch(err){const msg = getApiErrorMessage(err,"Não foi possível entrar. Verifique seus dados."); setFormError(msg); toast.error(msg);}finally{setLoading(false);}};
+  const handleSubmit=async (e:React.FormEvent)=>{e.preventDefault();setFormError("");if(!validate())return;setLoading(true);try{await login({email,password});if(!authService.isAuthenticated())throw new Error("Sessão não persistida");toast.success("Bem-vindo de volta!"); onAuthSuccess();}catch(err){const msg = getApiErrorMessage(err,"Não foi possível entrar. Verifique seus dados."); setFormError(msg); toast.error(msg);}finally{setLoading(false);}};
   return (
     <div className="av-wrap" key="login">
       <div className="av-header"><div className="av-eyebrow">Bem-vindo de volta</div><h1 className="av-title">Entrar na <b>plataforma</b></h1><p className="av-sub">Acesse seu dashboard e continue evoluindo.</p></div>
@@ -426,4 +425,3 @@ export function AuthRoot({initialView,goSite,onAuthSuccess}:{initialView:AuthVie
     </div>
   );
 }
-
