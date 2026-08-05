@@ -1,12 +1,11 @@
 "use client";
 
-
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import Index from "./pages/Index";
 import authService from "./services/authService";
-
 import { HomePage, FuncPage, PrecosPage, FAQPage, EmpresaPage, Nav, Footer, useCustomCursor } from './pages/Landing';
 import { AuthRoot } from './pages/Auth';
+import type { AuthView, Page, RootView } from "./types";
 import { Toaster } from "sonner";
 
 function WhatsAppBtn() {
@@ -22,28 +21,6 @@ function WhatsAppBtn() {
         </svg>
       </div>
     </a>
-  );
-}
-
-function LandingLayout() {
-  const { curRef, ringRef } = useCustomCursor();
-  const { pathname } = useLocation();
-
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [pathname]);
-
-  return (
-    <>
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
-      <div id="cur" ref={curRef} />
-      <div id="cur-ring" ref={ringRef} />
-      <Nav />
-      <Outlet />
-      <Footer />
-      <WhatsAppBtn />
-    </>
   );
 }
 
@@ -78,13 +55,13 @@ export default function App() {
     <>
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
-      <style dangerouslySetInnerHTML={{ __html: STYLES }} />
       <div id="cur" ref={curRef} />
       <div id="cur-ring" ref={ringRef} />
       {!isAuth && <Nav cur={rootView as Page} go={go} goAuth={goAuth} />}
       {renderPage()}
       {!isAuth && <Footer go={go} />}
       {!isAuth && <WhatsAppBtn />}
+      <Toaster position="top-right" richColors closeButton />
     </>
   );
 }
