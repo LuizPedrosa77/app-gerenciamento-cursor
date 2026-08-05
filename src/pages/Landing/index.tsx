@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Page, AuthView } from '../../types';
+import { Page, AuthView, FAQ } from '../../types';
 import { SERVICES, RESULTS, TESTIMONIALS, PRICING_PLANS, FAQS, DASHBOARD_STATS, MARQUEE_ITEMS, SIDEBAR_ITEMS, CAL_DAYS, CAL_HEADERS } from '../../constants';
 
 // ─── ATOMS ───────────────────────────────────────────────────────────────────
@@ -55,9 +54,7 @@ export function useCustomCursor() {
 }
 
 // ─── NAV ─────────────────────────────────────────────────────────────────────
-export function Nav() {
-  const navigate = useNavigate();
-  const cur = window.location.pathname.replace("/", "") || "home";
+export function Nav({ cur, go, goAuth }: { cur: Page; go: (page: Page) => void; goAuth: (view: AuthView) => void }) {
   const [mob,setMob]=useState(false);
   const [co,setCo]=useState(false);
   const [mco,setMco]=useState(false);
@@ -67,14 +64,14 @@ export function Nav() {
     <div className="nav-pill-wrap">
       <header className={`nav-pill${mob?" mobile-open":""}`}>
         <div className="nav-row">
-          <button className="logo" onClick={()=>{navigate("/");setMob(false);}}>
+          <button className="logo" onClick={()=>{go("home");setMob(false);}}>
             <div className="logo-icon">GP</div>
             <div><span className="logo-name">Gustavo Pedrosa FX</span><span className="logo-sub">Pro Trading Suite</span></div>
           </button>
           <div className="nav-center-wrap">
             <ul className="nav-inner-pill">
               {nav.map(l=>(
-                <li key={l.page}><button className={`nav-link${cur===l.page?" nav-link-active":""}`} onClick={()=>navigate("/" + l.page)}>{l.label}</button></li>
+                <li key={l.page}><button className={`nav-link${cur===l.page?" nav-link-active":""}`} onClick={()=>go(l.page)}>{l.label}</button></li>
               ))}
               <li className="nav-dropdown-wrap" onMouseEnter={()=>setCo(true)} onMouseLeave={()=>setCo(false)}>
                 <button className={`nav-link nav-link-btn${cur==="empresa"?" nav-link-active":""}`} aria-expanded={co}>
@@ -83,7 +80,7 @@ export function Nav() {
                 </button>
                 <div className={`nav-dropdown${co?" visible":""}`}>
                   <div className="nav-dropdown-inner">
-                    <button className="nav-dropdown-item" onClick={()=>{navigate("/empresa");setCo(false);}}>Sobre nós</button>
+                    <button className="nav-dropdown-item" onClick={()=>{go("empresa");setCo(false);}}>Sobre nós</button>
                     <a href="#contato" className="nav-dropdown-item">Contato</a>
                   </div>
                 </div>
@@ -91,8 +88,8 @@ export function Nav() {
             </ul>
           </div>
           <div className="nav-cta-wrap">
-            <button className="btn-outline" onClick={()=>navigate("/login")}>Entrar</button>
-            <button className="btn-nav-gold" onClick={()=>navigate("/register")}>Criar conta agora</button>
+            <button className="btn-outline" onClick={()=>goAuth("login")}>Entrar</button>
+            <button className="btn-nav-gold" onClick={()=>goAuth("register")}>Criar conta agora</button>
           </div>
           <button className="nav-hamburger" onClick={()=>setMob(!mob)} aria-label="Menu">
             {mob?<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>}
@@ -102,20 +99,20 @@ export function Nav() {
           <div className="nav-mobile-divider"/>
           <nav className="nav-mobile-nav">
             {nav.map(l=>(
-              <button key={l.page} className={`nav-mobile-link${cur===l.page?" nav-ml-act":""}`} onClick={()=>{navigate("/" + l.page);setMob(false);}}>{l.label}</button>
+              <button key={l.page} className={`nav-mobile-link${cur===l.page?" nav-ml-act":""}`} onClick={()=>{go(l.page);setMob(false);}}>{l.label}</button>
             ))}
             <div className="nav-mobile-accordion">
               <button className="nav-mobile-link nav-mobile-accordion-btn" onClick={()=>setMco(!mco)}>
                 <span>Empresa</span>
                 <svg className={`nav-chevron${mco?" open":""}`} xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
               </button>
-              {mco&&(<div className="nav-mobile-subnav"><button className="nav-mobile-sublink" onClick={()=>{navigate("/empresa");setMob(false);}}>Sobre nós</button><a href="#contato" className="nav-mobile-sublink">Contato</a></div>)}
+              {mco&&(<div className="nav-mobile-subnav"><button className="nav-mobile-sublink" onClick={()=>{go("empresa");setMob(false);}}>Sobre nós</button><a href="#contato" className="nav-mobile-sublink">Contato</a></div>)}
             </div>
           </nav>
           <div className="nav-mobile-divider"/>
           <div className="nav-mobile-footer">
-            <button className="btn-outline" style={{flex:1,textAlign:"center"}} onClick={()=>{navigate("/login");setMob(false);}}>Entrar</button>
-            <button className="btn-nav-gold" style={{flex:1,textAlign:"center"}} onClick={()=>{navigate("/register");setMob(false);}}>Criar conta agora</button>
+            <button className="btn-outline" style={{flex:1,textAlign:"center"}} onClick={()=>{goAuth("login");setMob(false);}}>Entrar</button>
+            <button className="btn-nav-gold" style={{flex:1,textAlign:"center"}} onClick={()=>{goAuth("register");setMob(false);}}>Criar conta agora</button>
           </div>
         </div>
       </header>
@@ -171,8 +168,7 @@ function ServicesList({onClick}:{onClick?:()=>void}) {
     ))}</div>
   );
 }
-function PricingBlock({annual}:{annual:boolean}) {
-  const navigate = useNavigate();
+function PricingBlock({ annual, goAuth }: { annual: boolean; goAuth: (view: AuthView) => void }) {
   return (
     <div className="pricing-grid">{PRICING_PLANS.map((plan,i)=>(
       <div key={plan.name} className={`plan-card sr d${i+1}${plan.highlight?" highlight":""}`}>
@@ -181,7 +177,7 @@ function PricingBlock({annual}:{annual:boolean}) {
         <div className="plan-price">{plan.price.monthly===0?<span className="p-val">Grátis</span>:<><span className="p-curr">R$</span><span className="p-val">{annual?plan.price.annual:plan.price.monthly}</span><span className="p-per">/mês</span></>}</div>
         {annual&&plan.price.monthly>0&&<p className="p-annual-note">cobrado anualmente · R${(annual?plan.price.annual:plan.price.monthly)*12}/ano</p>}
         <p className="plan-desc">{plan.desc}</p>
-        <button className={`plan-cta${plan.highlight?" plan-cta-p":""}`} onClick={()=>navigate("/register")}>{plan.cta}</button>
+        <button className={`plan-cta${plan.highlight?" plan-cta-p":""}`} onClick={()=>goAuth("register")}>{plan.cta}</button>
         <ul className="plan-features">{plan.features.map(f=><li key={f}><span className="feat-check">✓</span>{f}</li>)}</ul>
       </div>
     ))}</div>
@@ -212,8 +208,7 @@ function InnerHero({badge,title,sub}:{badge:string;title:React.ReactNode;sub:str
 }
 
 // ─── SITE PAGES ───────────────────────────────────────────────────────────────
-export function HomePage() {
-  const navigate = useNavigate();
+export function HomePage({ go, goAuth }: { go: (page: Page) => void; goAuth: (view: AuthView) => void }) {
   useScrollReveal();
   return (
     <>
@@ -223,8 +218,8 @@ export function HomePage() {
         <h1 className="hero-title">Gerencie suas operações <b>com inteligência</b></h1>
         <p className="hero-sub">Dashboard completo, GP Score, IA para análise e conexão direta com MT5, MT4 e cTrader.</p>
         <div className="hero-btns">
-          <button className="btn-hg btn-hg-p" onClick={()=>navigate("/register")}>Criar conta agora</button>
-          <button className="btn-hg btn-hg-s" onClick={()=>navigate("/funcionalidades")}>Ver funcionalidades →</button>
+          <button className="btn-hg btn-hg-p" onClick={()=>goAuth("register")}>Criar conta agora</button>
+          <button className="btn-hg btn-hg-s" onClick={()=>go("funcionalidades")}>Ver funcionalidades →</button>
         </div>
         <div className="hero-proof">
           <p className="proof-txt">Usado por <strong>+2.400 traders</strong> profissionais</p>
@@ -236,8 +231,8 @@ export function HomePage() {
       <Marquee/>
       <section className="services" id="features">
         <div className="sec-hd sr"><Eyebrow>Funcionalidades</Eyebrow><SecTitle>Ferramentas que fazem a diferença<br/><b>no seu trading</b></SecTitle></div>
-        <ServicesList onClick={()=>navigate("/funcionalidades")}/>
-        <div style={{textAlign:"center",marginTop:"40px"}}><button className="btn-see-all" onClick={()=>navigate("/funcionalidades")}>Ver demonstração completa →</button></div>
+        <ServicesList onClick={()=>go("funcionalidades")}/>
+        <div style={{textAlign:"center",marginTop:"40px"}}><button className="btn-see-all" onClick={()=>go("funcionalidades")}>Ver demonstração completa →</button></div>
       </section>
       <section className="results"><div className="results-inner">
         <div className="sec-hd sr"><Eyebrow>Resultados reais</Eyebrow><SecTitle>Números que <b>falam por si</b></SecTitle></div>
@@ -252,15 +247,14 @@ export function HomePage() {
         <h2 className="cta-title">Opere com <b>inteligência real</b></h2>
         <p className="cta-sub">Crie sua conta gratuitamente. Sem cartão de crédito. Conecte sua corretora em menos de 2 minutos.</p>
         <div className="cta-btns">
-          <button className="btn-hg btn-hg-p" style={{fontSize:"16px",padding:"15px 38px"}} onClick={()=>navigate("/register")}>Criar conta agora</button>
-          <button className="btn-hg btn-hg-s" onClick={()=>navigate("/precos")}>Ver planos →</button>
+          <button className="btn-hg btn-hg-p" style={{fontSize:"16px",padding:"15px 38px"}} onClick={()=>goAuth("register")}>Criar conta agora</button>
+          <button className="btn-hg btn-hg-s" onClick={()=>go("precos")}>Ver planos →</button>
         </div>
       </div></section>
     </>
   );
 }
-export function FuncPage() {
-  const navigate = useNavigate();
+export function FuncPage({ goAuth }: { goAuth: (view: AuthView) => void }) {
   useScrollReveal();
   return (
     <main className="page-main">
@@ -268,18 +262,17 @@ export function FuncPage() {
       <section className="video-sec"><div className="video-inner sr"><div className="sec-hd" style={{textAlign:"center",marginBottom:"40px"}}><Eyebrow>Demonstração</Eyebrow><SecTitle>Veja a plataforma <b>em ação</b></SecTitle><p className="sec-sub">Conheça todas as funcionalidades em menos de 3 minutos.</p></div><div className="yt-wrap"><div className="yt-frame"><iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ?rel=0&modestbranding=1" title="GP Trading Suite" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen/></div></div></div></section>
       <section className="services" style={{paddingTop:"60px"}}><div className="sec-hd sr"><Eyebrow>O que está incluído</Eyebrow><SecTitle>Todas as ferramentas<br/><b>do seu lado</b></SecTitle></div><ServicesList/></section>
       <section className="gallery-sec"><div className="gallery-inner"><div className="sec-hd sr" style={{textAlign:"center"}}><Eyebrow>Screenshots</Eyebrow><SecTitle>Dentro da <b>plataforma</b></SecTitle><p className="sec-sub">As imagens do sistema serão adicionadas em breve.</p></div><div className="gallery-grid sr d1">{[1,2,3,4].map(n=><div key={n} className="gallery-placeholder"><div className="gp-icon">📸</div><p className="gp-txt">Screenshot {n}<br/><span>Aguardando imagem</span></p></div>)}</div></div></section>
-      <section className="cta" style={{paddingTop:"60px"}}><div className="cta-inner sr"><Eyebrow>Pronto para começar?</Eyebrow><h2 className="cta-title">Experimente <b>gratuitamente</b></h2><p className="cta-sub">Crie sua conta e conecte sua corretora em menos de 2 minutos.</p><div className="cta-btns"><button className="btn-hg btn-hg-p" style={{fontSize:"16px",padding:"15px 38px"}} onClick={()=>navigate("/register")}>Criar conta agora</button><button className="btn-hg btn-hg-s" onClick={()=>navigate("/login")}>Já tenho conta →</button></div></div></section>
+      <section className="cta" style={{paddingTop:"60px"}}><div className="cta-inner sr"><Eyebrow>Pronto para começar?</Eyebrow><h2 className="cta-title">Experimente <b>gratuitamente</b></h2><p className="cta-sub">Crie sua conta e conecte sua corretora em menos de 2 minutos.</p><div className="cta-btns"><button className="btn-hg btn-hg-p" style={{fontSize:"16px",padding:"15px 38px"}} onClick={()=>goAuth("register")}>Criar conta agora</button><button className="btn-hg btn-hg-s" onClick={()=>goAuth("login")}>Já tenho conta →</button></div></div></section>
     </main>
   );
 }
-export function PrecosPage() {
-  const navigate = useNavigate();
+export function PrecosPage({ goAuth }: { goAuth: (view: AuthView) => void }) {
   const [annual,setAnnual]=useState(false); useScrollReveal();
   const priceFaqs:FAQ[]=[{q:"Preciso de cartão para começar?",a:"Não. O plano Starter é gratuito para sempre."},{q:"Posso trocar de plano a qualquer momento?",a:"Sim. Upgrade ou downgrade pela própria plataforma, sem taxas extras."},{q:"O que acontece com meus dados se cancelar?",a:"Ficam disponíveis para exportação por 90 dias após o cancelamento."},{q:"O plano Pro tem trial grátis?",a:"Sim, 7 dias grátis sem cartão."}];
   return (
     <main className="page-main">
       <InnerHero badge="Sem taxa de setup · Cancele quando quiser" title={<>Planos que cabem no seu <b>estilo de trading</b></>} sub="Comece grátis. Faça upgrade quando estiver pronto. Sem cartão de crédito para começar."/>
-      <section className="pricing-sec"><div className="pricing-inner"><div className="sec-hd sr" style={{textAlign:"center"}}><Eyebrow>Preços</Eyebrow><SecTitle>Invista no seu <b>desenvolvimento</b></SecTitle><p className="sec-sub">Escolha o plano ideal para o seu momento.</p><div className="billing-toggle"><span className={!annual?"tog-act":""}>Mensal</span><button className={`toggle-btn${annual?" on":""}`} onClick={()=>setAnnual(!annual)}><div className="toggle-knob"/></button><span className={annual?"tog-act":""}>Anual <em className="save-badge">−20%</em></span></div></div><PricingBlock annual={annual}/></div></section>
+      <section className="pricing-sec"><div className="pricing-inner"><div className="sec-hd sr" style={{textAlign:"center"}}><Eyebrow>Preços</Eyebrow><SecTitle>Invista no seu <b>desenvolvimento</b></SecTitle><p className="sec-sub">Escolha o plano ideal para o seu momento.</p><div className="billing-toggle"><span className={!annual?"tog-act":""}>Mensal</span><button className={`toggle-btn${annual?" on":""}`} onClick={()=>setAnnual(!annual)}><div className="toggle-knob"/></button><span className={annual?"tog-act":""}>Anual <em className="save-badge">−20%</em></span></div></div><PricingBlock annual={annual} goAuth={goAuth}/></div></section>
       <section className="faq-sec" style={{paddingTop:"60px",paddingBottom:"80px"}}><div className="faq-inner"><div className="sec-hd sr" style={{textAlign:"center"}}><Eyebrow>Dúvidas sobre os planos</Eyebrow><SecTitle>Perguntas sobre <b>preços</b></SecTitle></div><FAQList items={priceFaqs}/></div></section>
     </main>
   );
@@ -305,14 +298,13 @@ export function EmpresaPage() {
     </main>
   );
 }
-export function Footer() {
-  const navigate = useNavigate();
+export function Footer({ go }: { go: (page: Page) => void }) {
   return (
     <footer>
       <p>© 2025 Gustavo Pedrosa FX · Pro Trading Suite</p>
       <div className="foot-links">
-        <button className="foot-btn" onClick={()=>navigate("/empresa")}>Empresa</button>
-        <button className="foot-btn" onClick={()=>navigate("/precos")}>Preços</button>
+        <button className="foot-btn" onClick={()=>go("empresa")}>Empresa</button>
+        <button className="foot-btn" onClick={()=>go("precos")}>Preços</button>
         <a href="#">Termos</a><a href="#">Privacidade</a><a href="#">Suporte</a>
       </div>
     </footer>
@@ -322,4 +314,3 @@ export function Footer() {
 // ══════════════════════════════════════════════════════════════════════════════
 //  AUTH — layout centralizado (logo acima · card · badges abaixo)
 // ══════════════════════════════════════════════════════════════════════════════
-
