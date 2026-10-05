@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 from pydantic import EmailStr, Field, BaseModel
 
@@ -9,7 +9,7 @@ class UserRegister(BaseModel):
     cpf: Optional[str] = None
     password: str = Field(..., min_length=6)
     phone: Optional[str] = None
-    birth_date: Optional[str] = None
+    birth_date: Optional[date] = None
     country: Optional[str] = None
     address: Optional[str] = None
     city: Optional[str] = None
